@@ -1,0 +1,146 @@
+﻿.layout {
+  display: grid;
+  grid-template-columns: 210px 1fr 320px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--z-navy-mid);
+  border-right: 1px solid var(--z-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--z-border);
+}
+
+.logo-mark {
+  width: 34px;
+  height: 34px;
+  background: var(--z-blue);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.logo-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--z-white);
+  letter-spacing: 0.01em;
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--z-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+.sidebar-nav {
+  padding: 14px 10px;
+  flex: 1;
+}
+
+.nav-section-label {
+  font-size: 10px;
+  color: var(--z-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  color: var(--z-muted);
+  transition: background 0.12s, color 0.12s;
+  margin-bottom: 1px;
+  text-decoration: none;
+}
+
+.nav-item:hover {
+  background: var(--z-surface-2);
+  color: var(--z-white);
+}
+
+.nav-item.active {
+  background: var(--z-blue-glow);
+  color: var(--z-blue-bright);
+  border: 1px solid rgba(74,159,224,0.25);
+}
+
+.pillar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sidebar-client {
+  padding: 14px 14px;
+  border-top: 1px solid var(--z-border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.client-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--z-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.client-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--z-white);
+}
+
+.client-stage {
+  font-size: 10px;
+  color: var(--z-muted);
+  margin-top: 1px;
+}
+
+/* Main content */
+.main-content {
+  overflow-y: auto;
+  background: var(--z-navy);
+}
+
+/* Chat panel */
+.chat-panel-wrapper {
+  border-left: 1px solid var(--z-border);
+  background: var(--z-navy-mid);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
