@@ -1,6 +1,6 @@
-import { useNavigate } from 'react-router-dom'
+import { useRef, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { Download, ArrowRight } from 'lucide-react'
+import { Download, ArrowRight, Loader } from 'lucide-react'
 import './Results.css'
 
 const SCORES = [
@@ -51,15 +51,56 @@ const RECOMMENDATIONS = [
 ]
 
 export default function Results() {
+  const contentRef = useRef(null)
+  const [exporting, setExporting] = useState(false)
+
+  async function exportPDF() {
+    setExporting(true)
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#0A1628',
+        scrollY: -window.scrollY,
+      })
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+      const pageWidth  = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const ratio        = pageWidth / canvas.width
+      const scaledHeight = canvas.height * ratio
+
+      let yPos = 0
+      while (yPos < scaledHeight) {
+        pdf.addImage(canvas, 'PNG', 0, -yPos, pageWidth, scaledHeight)
+        yPos += pageHeight
+        if (yPos < scaledHeight) pdf.addPage()
+      }
+
+      pdf.save('Acme-Corp-AI-Maturity-Report.pdf')
+    } catch (err) {
+      console.error('PDF export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
-    <div className="results">
+    <div className="results" ref={contentRef}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Results & Roadmap</h1>
           <p className="page-sub">Acme Corp · Generated Apr 25, 2026</p>
         </div>
-        <button className="btn-primary">
-          <Download size={14} /> Export PDF Report
+        <button className="btn-primary" onClick={exportPDF} disabled={exporting}>
+          {exporting
+            ? <><Loader size={14} className="spin" /> Generating…</>
+            : <><Download size={14} /> Export PDF Report</>}
         </button>
       </div>
 

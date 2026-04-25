@@ -21,9 +21,23 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Deploy backend via zip
-        run: az webapp deploy --name zones-ai-advisory-api --resource-group zones-ai-advisory --src-path backend.zip --type zip --async false
+        run: az webapp deploy --name zones-ai-advisory-api --resource-group zones-ai-advisory --src-path backend.zip --type zip --async true
       - name: Set startup command
         run: az webapp config set --name zones-ai-advisory-api --resource-group zones-ai-advisory --startup-file "node src/index.js"
+      - name: Wait for backend health
+        run: |
+          echo "Polling backend health endpoint..."
+          for i in $(seq 1 24); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://zones-ai-advisory-api.azurewebsites.net/api/health || echo "000")
+            echo "Attempt $i/24: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend is healthy."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Health check timed out after 6 minutes."
+          exit 1
   build-and-deploy-frontend:
     runs-on: ubuntu-latest
     steps:
