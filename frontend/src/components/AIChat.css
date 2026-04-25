@@ -1,4 +1,4 @@
-﻿.ai-chat {
+.ai-chat {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -172,4 +172,3 @@
 
 .send-btn:hover { background: var(--z-blue-bright); }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-

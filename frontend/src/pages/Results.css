@@ -1,4 +1,4 @@
-﻿.results { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+.results { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
 
 .results-summary {
   display: grid;
@@ -121,4 +121,3 @@
   font-size: 12px; transition: background 0.12s; cursor: pointer;
 }
 .btn-primary:hover { background: var(--z-blue-bright); }
-

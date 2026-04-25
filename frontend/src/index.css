@@ -1,4 +1,4 @@
-﻿*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
   --z-navy:       #0A1628;
@@ -19,8 +19,8 @@
   --z-success:    #3DBA7E;
   --z-warn:       #E8A838;
 
-  --font-main: ''DM Sans'', system-ui, sans-serif;
-  --font-mono: ''DM Mono'', monospace;
+  --font-main: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', monospace;
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -60,4 +60,3 @@ input::placeholder, textarea::placeholder { color: var(--z-muted); }
 
 /* Utility */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
-

@@ -1,9 +1,9 @@
-﻿import { Routes, Route, Navigate } from ''react-router-dom''
-import Layout from ''./components/Layout.jsx''
-import Dashboard from ''./pages/Dashboard.jsx''
-import Assessment from ''./pages/Assessment.jsx''
-import Results from ''./pages/Results.jsx''
-import Clients from ''./pages/Clients.jsx''
+import { Routes, Route, Navigate } from 'react-router-dom'
+import Layout from './components/Layout.jsx'
+import Dashboard from './pages/Dashboard.jsx'
+import Assessment from './pages/Assessment.jsx'
+import Results from './pages/Results.jsx'
+import Clients from './pages/Clients.jsx'
 
 export default function App() {
   return (
@@ -18,4 +18,3 @@ export default function App() {
     </Routes>
   )
 }
-

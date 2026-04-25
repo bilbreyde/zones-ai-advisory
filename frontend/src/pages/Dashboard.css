@@ -1,4 +1,4 @@
-﻿.dashboard { padding: 24px; display: flex; flex-direction: column; gap: 20px; min-height: 100%; }
+.dashboard { padding: 24px; display: flex; flex-direction: column; gap: 20px; min-height: 100%; }
 
 .page-header {
   display: flex;
@@ -204,4 +204,3 @@
   padding: 0 4px;
 }
 .step-label.active { color: var(--z-blue-bright); font-weight: 500; }
-

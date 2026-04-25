@@ -1,4 +1,4 @@
-﻿.layout {
+.layout {
   display: grid;
   grid-template-columns: 210px 1fr 320px;
   height: 100vh;
@@ -143,4 +143,3 @@
   flex-direction: column;
   overflow: hidden;
 }
-
