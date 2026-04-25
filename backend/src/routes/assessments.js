@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { containers } from './db.js'
+import { containers } from '../db.js'
 import { v4 as uuid } from 'uuid'
 
 const router = Router()
@@ -13,7 +13,6 @@ function calcPillarScore(answers) {
   return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
 }
 
-// GET assessment for a client
 router.get('/:clientId', async (req, res) => {
   try {
     const { resources } = await containers.assessments.items
@@ -25,7 +24,6 @@ router.get('/:clientId', async (req, res) => {
   }
 })
 
-// POST save answer
 router.post('/:clientId/answer', async (req, res) => {
   try {
     const { pillar, questionId, answer } = req.body
@@ -34,7 +32,6 @@ router.post('/:clientId/answer', async (req, res) => {
       .fetchAll()
 
     let assessment = resources[0]
-
     if (!assessment) {
       assessment = {
         id: uuid(),
@@ -47,25 +44,20 @@ router.post('/:clientId/answer', async (req, res) => {
       }
     }
 
-    // Save answer
     assessment.answers[pillar][questionId] = answer
     assessment.updatedAt = new Date().toISOString()
 
-    // Recalculate scores
     const pillars = ['governance', 'risk', 'strategy', 'operations', 'enablement']
     for (const p of pillars) {
       assessment.scores[p] = calcPillarScore(assessment.answers[p])
     }
-
     const validScores = pillars.map(p => assessment.scores[p]).filter(Boolean)
     assessment.overallScore = validScores.length
       ? Math.round((validScores.reduce((a, b) => a + b, 0) / validScores.length) * 10) / 10
       : null
 
-    // Upsert
     const { resource } = await containers.assessments.items.upsert(assessment)
 
-    // Update client scores too
     try {
       const { resource: client } = await containers.clients.item(req.params.clientId, req.params.clientId).read()
       if (client) {
