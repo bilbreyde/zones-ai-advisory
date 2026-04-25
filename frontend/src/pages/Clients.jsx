@@ -113,17 +113,21 @@ function ClientModal({ client, onClose, onSave }) {
 export default function Clients() {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [modal, setModal] = useState(null) // null | 'new' | client object
 
   useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch(`${API}/api/clients`)
+      if (!res.ok) throw new Error(`API returned ${res.status}`)
       setClients(await res.json())
     } catch (err) {
       console.error('Failed to load clients:', err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -153,6 +157,10 @@ export default function Clients() {
 
         {loading ? (
           <div className="table-empty"><Loader size={15} className="spin" /> Loading clients…</div>
+        ) : error ? (
+          <div className="table-empty table-error">
+            API error: {error} — check the backend is running and Cosmos DB is reachable.
+          </div>
         ) : clients.length === 0 ? (
           <div className="table-empty">No clients yet. Create one to get started.</div>
         ) : (
