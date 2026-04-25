@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "zones-ai-advisory-backend",
   "version": "0.1.0",
   "type": "module",
@@ -10,7 +10,8 @@
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "openai": "^4.52.0"
+    "openai": "^4.52.0",
+    "@azure/cosmos": "^4.1.1",
+    "uuid": "^10.0.0"
   }
 }
-
