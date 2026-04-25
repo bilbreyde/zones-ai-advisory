@@ -13,15 +13,17 @@ jobs:
           node-version: "22"
       - name: Install backend dependencies
         working-directory: backend
-        run: npm install --omit=dev
-      - name: Zip backend
-        run: cd backend && zip -r ../backend.zip .
+        run: npm install
+      - name: Zip backend with node_modules
+        run: cd backend && zip -r ../backend.zip . --exclude "*.git*"
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Deploy backend via zip
-        run: az webapp deploy --name zones-ai-advisory-api --resource-group zones-ai-advisory --src-path backend.zip --type zip
+        run: az webapp deploy --name zones-ai-advisory-api --resource-group zones-ai-advisory --src-path backend.zip --type zip --async false
+      - name: Set startup command
+        run: az webapp config set --name zones-ai-advisory-api --resource-group zones-ai-advisory --startup-file "node src/index.js"
   build-and-deploy-frontend:
     runs-on: ubuntu-latest
     steps:
