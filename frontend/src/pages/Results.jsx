@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Download, Loader } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
@@ -62,6 +63,7 @@ const NEXT_STEPS = [
 
 export default function Results() {
   const contentRef = useRef(null)
+  const navigate   = useNavigate()
   const [exporting,  setExporting]  = useState(false)
   const [panelItem,  setPanelItem]  = useState(null)
   const { client } = useClient()
@@ -190,6 +192,20 @@ export default function Results() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="agent-studio-cta">
+        <div className="cta-icon">⚡</div>
+        <div className="cta-body">
+          <div className="cta-title">Not sure which AI agents to build?</div>
+          <div className="cta-desc">
+            The Agent Design Studio analyzes {clientName}'s stack and gaps to recommend
+            and design agents tailored to their workflows.
+          </div>
+        </div>
+        <button className="btn-primary" onClick={() => navigate('/agents')}>
+          Design Agents for this Client →
+        </button>
       </div>
 
       {panelItem && (

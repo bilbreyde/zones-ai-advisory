@@ -62,6 +62,9 @@ export default function Layout() {
           <NavLink to="/assessment" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
             <ClipboardCheck size={15} /> Full Assessment
           </NavLink>
+          <NavLink to="/agents" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <Zap size={15} /> Agent Studio
+          </NavLink>
         </nav>
 
         <div className="sidebar-client" onClick={() => navigate('/clients')} title="Switch client">

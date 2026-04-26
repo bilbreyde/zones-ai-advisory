@@ -59,4 +59,20 @@ router.patch('/:id', async (req, res) => {
   }
 })
 
+// Agent backlog — push an agent to client.agentBacklog[]
+router.post('/:id/agents', async (req, res) => {
+  try {
+    const { resource: existing } = await containers.clients.item(req.params.id, req.params.id).read()
+    if (!existing) return res.status(404).json({ error: 'Client not found' })
+    const entry = { ...req.body, status: 'backlog', addedAt: new Date().toISOString() }
+    const agentBacklog = [...(existing.agentBacklog || []), entry]
+    const { resource } = await containers.clients.item(req.params.id, req.params.id).replace({
+      ...existing, agentBacklog, updatedAt: new Date().toISOString(),
+    })
+    res.json(resource)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

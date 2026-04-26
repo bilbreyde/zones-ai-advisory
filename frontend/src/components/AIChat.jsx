@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, Sparkles } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Send, Bot, Sparkles, Zap } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import ChatVisual from './ChatVisual.jsx'
 import './AIChat.css'
@@ -15,33 +16,31 @@ const STARTERS = [
 
 export default function AIChat() {
   const { client } = useClient()
+  const navigate   = useNavigate()
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
       content: "I'm your Zones AI Advisory assistant. I can help analyze this client's assessment, suggest recommendations, and prepare talking points for your session. What would you like to explore?",
       visual: null,
       visuals: null,
+      showAgentStudio: false,
     }
   ])
   const [input,            setInput]            = useState('')
   const [loading,          setLoading]          = useState(false)
   const [collapsedVisuals, setCollapsedVisuals] = useState({})
-  // Assessment data cache keyed by client ID
-  const [assessmentCache, setAssessmentCache]   = useState({})
+  const [assessmentCache,  setAssessmentCache]  = useState({})
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Pre-fetch assessment data when client changes
   useEffect(() => {
     if (!client?.id || assessmentCache[client.id]) return
     fetch(`${API}/api/assessments/${client.id}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data) setAssessmentCache(prev => ({ ...prev, [client.id]: data }))
-      })
+      .then(data => { if (data) setAssessmentCache(prev => ({ ...prev, [client.id]: data })) })
       .catch(() => {})
   }, [client?.id])
 
@@ -53,7 +52,7 @@ export default function AIChat() {
     const userMsg = text || input.trim()
     if (!userMsg) return
     setInput('')
-    const newMessages = [...messages, { role: 'user', content: userMsg, visual: null, visuals: null }]
+    const newMessages = [...messages, { role: 'user', content: userMsg, visual: null, visuals: null, showAgentStudio: false }]
     setMessages(newMessages)
     setLoading(true)
 
@@ -78,19 +77,17 @@ export default function AIChat() {
       })
 
       const data = await res.json()
-      console.log('[AIChat] response:', data)
       setMessages(prev => [...prev, {
-        role:    'assistant',
-        content: data.reply,
-        visual:  data.visual  || null,
-        visuals: data.visuals || null,
+        role:            'assistant',
+        content:         data.reply,
+        visual:          data.visual          || null,
+        visuals:         data.visuals         || null,
+        showAgentStudio: data.showAgentStudio || false,
       }])
     } catch {
       setMessages(prev => [...prev, {
-        role:    'assistant',
-        content: 'Connection error. Please check the backend server is running.',
-        visual:  null,
-        visuals: null,
+        role: 'assistant', content: 'Connection error. Please check the backend server is running.',
+        visual: null, visuals: null, showAgentStudio: false,
       }])
     } finally {
       setLoading(false)
@@ -133,9 +130,21 @@ export default function AIChat() {
                   <button className="visual-toggle" onClick={() => toggleVisual(i)}>
                     {collapsedVisuals[i] ? 'Show visual' : 'Hide visual'}
                   </button>
+                  {m.showAgentStudio && (
+                    <button className="chat-action-btn" onClick={() => navigate('/agents')}>
+                      <Zap size={11} /> Open Agent Studio{client?.name ? ` for ${client.name}` : ''} →
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="msg-bubble">{m.content}</div>
+                <div className="msg-content">
+                  <div className="msg-bubble">{m.content}</div>
+                  {m.showAgentStudio && (
+                    <button className="chat-action-btn" onClick={() => navigate('/agents')}>
+                      <Zap size={11} /> Open Agent Studio{client?.name ? ` for ${client.name}` : ''} →
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )

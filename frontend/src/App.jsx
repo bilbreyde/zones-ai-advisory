@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import Assessment from './pages/Assessment.jsx'
 import Results from './pages/Results.jsx'
 import Clients from './pages/Clients.jsx'
+import AgentStudio from './pages/AgentStudio.jsx'
 import { ClientProvider } from './ClientContext.jsx'
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="assessment/:pillar?" element={<Assessment />} />
         <Route path="results" element={<Results />} />
         <Route path="clients" element={<Clients />} />
+        <Route path="agents" element={<AgentStudio />} />
       </Route>
     </Routes>
     </ClientProvider>

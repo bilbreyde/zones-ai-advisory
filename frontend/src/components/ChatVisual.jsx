@@ -547,6 +547,44 @@ function VendorComparisonVisual({ data }) {
   )
 }
 
+/* ── Agent Spec ────────────────────────────────────────────────────────── */
+function AgentSpecVisual({ data }) {
+  const rows = [
+    { label: 'TRIGGER',        value: data.trigger },
+    { label: 'INPUTS',         value: data.inputs,            list: true },
+    { label: 'OUTPUTS',        value: data.outputs,           list: true },
+    { label: 'TOOLS REQUIRED', value: data.tools,             list: true },
+    { label: 'INTEGRATIONS',   value: data.integrations,      list: true },
+    { label: 'HUMAN IN LOOP',  value: data.human_in_loop },
+    { label: 'LATENCY',        value: data.latency },
+    { label: 'DATA REQUIRED',  value: data.data_requirements },
+  ].filter(r => r.value && (Array.isArray(r.value) ? r.value.length > 0 : true))
+
+  return (
+    <div className="cv-agent-spec">
+      <div className="cv-agent-spec-header">
+        <span className="cv-agent-spec-icon">⚡</span>
+        <div className="cv-agent-spec-heading">
+          <div className="cv-agent-spec-name">{data.name || data.title}</div>
+          {data.purpose && <div className="cv-agent-spec-purpose">{data.purpose}</div>}
+        </div>
+      </div>
+      <div className="cv-agent-spec-table">
+        {rows.map((row, i) => (
+          <div key={i} className={`cv-agent-spec-row${i % 2 === 1 ? ' alt' : ''}`}>
+            <div className="cv-agent-spec-label">{row.label}</div>
+            <div className="cv-agent-spec-value">
+              {row.list
+                ? (row.value || []).map((v, j) => <div key={j}>• {v}</div>)
+                : row.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── Render helper ─────────────────────────────────────────────────────── */
 function renderVisualInner(visual) {
   switch (visual.type) {
@@ -562,6 +600,7 @@ function renderVisualInner(visual) {
     case 'process_flow':            return <ProcessFlowVisual           data={visual} />
     case 'mermaid':                 return <MermaidChart chart={visual.chart} title={visual.title} />
     case 'vendor_comparison':       return <VendorComparisonVisual      data={visual} />
+    case 'agent_spec':              return <AgentSpecVisual             data={visual} />
     default:
       return (
         <pre style={{ fontSize: '10px', color: 'var(--z-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>

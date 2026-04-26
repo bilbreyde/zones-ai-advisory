@@ -98,7 +98,7 @@ REMEMBER: When returning a visual, your ENTIRE response must be the JSON object.
 const VISUAL_TYPES = new Set([
   "gantt", "scorecard", "priority_matrix", "timeline", "checklist",
   "reference_architecture", "maturity_journey", "raci_matrix", "risk_heatmap", "process_flow",
-  "mermaid", "vendor_comparison",
+  "mermaid", "vendor_comparison", "agent_spec",
 ])
 
 function extractVisualFromResponse(raw) {
@@ -182,10 +182,107 @@ Use this specific data to give precise, tailored recommendations. Reference actu
       console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual type:", visual?.type ?? "none", "| visuals:", visuals?.length ?? 0)
     }
 
-    res.json({ reply, visual, visuals })
+    const AGENT_KW = ['agent', 'automate', 'automation', 'workflow', 'orchestrat']
+    const lowerReply = (reply || rawContent).toLowerCase()
+    const showAgentStudio = AGENT_KW.some(kw => lowerReply.includes(kw))
+
+    res.json({ reply, visual, visuals, showAgentStudio })
   } catch (err) {
     console.error("Azure OpenAI error:", err.message)
     res.status(500).json({ error: "Failed to get AI response", detail: err.message })
+  }
+})
+
+const DISCOVER_SYSTEM_PROMPT = `You are an AI agent design specialist for Zones Innovation Center. Identify the highest-value AI agent opportunities for enterprise clients based on their industry, tooling stack, and maturity gaps.
+
+Return ONLY a valid JSON object (no markdown, no code fences):
+{
+  "agents": [
+    {
+      "id": "unique-kebab-slug",
+      "name": "Agent Name",
+      "purpose": "One sentence — what this agent does and why it matters for this industry",
+      "pillar": "risk|governance|strategy|operations|enablement",
+      "tools_required": ["Tool1", "Tool2"],
+      "tools_available": ["Tool1"],
+      "complexity": "quick_win|strategic|complex",
+      "fit_score": 94,
+      "fit_reason": "One sentence explaining why this agent fits this specific client",
+      "estimated_effort": "2-4 weeks",
+      "estimated_value": "High|Medium|Low",
+      "azure_service": "Primary Azure AI service powering this agent"
+    }
+  ]
+}
+Rules: fit 80-100 = critical gap + available tools. fit 60-79 = moderate gap or one missing tool. fit <60 = nice-to-have. Name real industry workflows. Sort by fit_score desc within each complexity group.`
+
+const DESIGN_SYSTEM_PROMPT = `You are a senior AI solutions architect at Zones Innovation Center. Generate a complete agent design blueprint.
+
+Return ONLY a valid JSON object (no markdown, no fences):
+{"reply":"2-3 sentence executive overview for this specific client","visuals":[{"narrative":{"headline":"punchy so-what headline","context":"2-3 sentences referencing actual scores","actions":["Action 1","Action 2","Action 3"]},"type":"agent_spec","title":"Agent Specification","name":"...","purpose":"...","trigger":"...","inputs":["..."],"outputs":["..."],"tools":["..."],"integrations":["..."],"human_in_loop":"...","latency":"...","data_requirements":"..."},{"narrative":{...},"type":"mermaid","title":"Agent Architecture","chart":"graph TD\\n  subgraph INPUT[\"📥 Inputs\"]\\n    I1[Source 1]\\n  end\\n  subgraph PROC[\"🤖 Processing\"]\\n    P1[Step 1]\\n  end\\n  subgraph OUT[\"📤 Outputs\"]\\n    O1[Output 1]\\n  end\\n  INPUT --> PROC --> OUT"},{"narrative":{...},"type":"vendor_comparison","title":"Build vs Buy Analysis","criteria":["Time to value","Customization","Cost","Maintenance","Integration"],"vendors":[{"name":"Custom build on Azure AI Foundry","recommended":true,"scores":{...},"pros":[...],"cons":[...]},{"name":"Off-the-shelf option","recommended":false,"scores":{...},"pros":[...],"cons":[...]}]},{"narrative":{...},"type":"checklist","title":"Implementation Checklist","categories":[{"name":"Prerequisites","color":"#4A9FE0","items":["..."]},{"name":"Phase 1 — POC","color":"#E8A838","items":["..."]},{"name":"Phase 2 — Production","color":"#3DBA7E","items":["..."]}]}]}
+Write as a senior Zones consultant. Reference client's actual scores. Be prescriptive.`
+
+app.post("/api/agents/discover", async (req, res) => {
+  try {
+    const { vertical, tools, focusAreas, clientScores, clientName, customDescription } = req.body
+    const userPrompt = `Generate ${customDescription ? '1 agent based on this description: "' + customDescription + '" for' : '8-12 AI agent recommendations for'} ${clientName || 'this client'}.
+Industry: ${vertical || 'Not specified'}
+Available tools: ${(tools || []).join(', ') || 'Not specified'}
+Focus areas: ${(focusAreas || []).join(', ') || 'All pillars'}
+Pillar scores: ${JSON.stringify(clientScores || {})}${customDescription ? '\nMake this agent specific to the description above while fitting the client context.' : ''}`
+
+    const completion = await openai.chat.completions.create({
+      model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
+      messages: [
+        { role: "system", content: DISCOVER_SYSTEM_PROMPT },
+        { role: "user",   content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 3000,
+    })
+
+    const raw     = completion.choices[0].message.content.trim()
+    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+    const first   = cleaned.indexOf("{")
+    const last    = cleaned.lastIndexOf("}")
+    if (first === -1 || last === -1) return res.status(500).json({ error: "Failed to parse agent recommendations" })
+    const parsed = JSON.parse(cleaned.slice(first, last + 1))
+    res.json(parsed)
+  } catch (err) {
+    console.error("Agent discover error:", err.message)
+    res.status(500).json({ error: "Failed to generate recommendations", detail: err.message })
+  }
+})
+
+app.post("/api/agents/design", async (req, res) => {
+  try {
+    const { agent, clientName, clientScores, vertical, tools } = req.body
+    const userPrompt = `Design a complete agent blueprint for: ${agent?.name}
+Purpose: ${agent?.purpose}
+Client: ${clientName}
+Industry: ${vertical}
+Available tools: ${(tools || []).join(', ')}
+Client scores: ${JSON.stringify(clientScores || {})}
+Primary Azure service: ${agent?.azure_service || 'Azure AI Foundry'}
+Make the blueprint specific to ${clientName}'s actual gaps and tooling. Reference their pillar scores directly.`
+
+    const completion = await openai.chat.completions.create({
+      model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
+      messages: [
+        { role: "system", content: DESIGN_SYSTEM_PROMPT },
+        { role: "user",   content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 4000,
+    })
+
+    const rawContent = completion.choices[0].message.content.trim()
+    console.log("[design] raw:", rawContent.slice(0, 200))
+    const { text, visual, visuals } = extractVisualFromResponse(rawContent)
+    res.json({ reply: text, visual, visuals })
+  } catch (err) {
+    console.error("Agent design error:", err.message)
+    res.status(500).json({ error: "Failed to generate blueprint", detail: err.message })
   }
 })
 
