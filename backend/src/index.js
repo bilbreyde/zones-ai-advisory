@@ -5,6 +5,7 @@ import { AzureOpenAI } from "openai"
 import { initDb } from "./db.js"
 import clientRoutes from "./routes/clients.js"
 import assessmentRoutes from "./routes/assessments.js"
+import sessionRoutes from "./routes/sessions.js"
 
 const app = express()
 app.use(cors())
@@ -21,6 +22,7 @@ const SYSTEM_PROMPT = `You are the Zones AI Advisory Assistant, an expert AI gov
 
 app.use("/api/clients", clientRoutes)
 app.use("/api/assessments", assessmentRoutes)
+app.use("/api/sessions", sessionRoutes)
 
 app.post("/api/chat", async (req, res) => {
   try {

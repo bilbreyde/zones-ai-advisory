@@ -1,5 +1,12 @@
 .assessment { padding: 24px; display: flex; flex-direction: column; gap: 20px; min-height: 100%; }
 
+.no-client-assessment {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; flex: 1; min-height: 60vh; text-align: center;
+}
+.no-client-assessment h2 { font-size: 18px; font-weight: 500; color: var(--z-white); margin: 0; }
+.no-client-assessment p  { font-size: 13px; color: var(--z-muted); margin: 0; }
+
 .assessment-header {
   display: flex;
   justify-content: space-between;

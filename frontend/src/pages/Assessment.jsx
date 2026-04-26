@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle, Users } from 'lucide-react'
+import { useClient } from '../ClientContext.jsx'
 import './Assessment.css'
+
+const API = import.meta.env.VITE_API_URL || ''
 
 const QUESTIONS = {
   governance: [
@@ -56,11 +59,11 @@ const PILLAR_LABELS = {
 
 const ALL_PILLARS = ['governance','risk','strategy','operations','enablement']
 
-const SCORE_MAP = { 'Not started':1, 'In progress':2, 'Implemented':3, 'Optimized':5 }
-
 export default function Assessment() {
   const { pillar } = useParams()
   const navigate = useNavigate()
+  const { client } = useClient()
+
   const activePillar = pillar && QUESTIONS[pillar] ? pillar : 'risk'
   const questions = QUESTIONS[activePillar]
   const color = PILLAR_COLORS[activePillar]
@@ -68,12 +71,52 @@ export default function Assessment() {
   const [currentQ, setCurrentQ] = useState(0)
   const [answers, setAnswers] = useState({})
 
+  // Load existing answers from Cosmos when client changes
+  useEffect(() => {
+    if (!client) return
+    setAnswers({})
+    fetch(`${API}/api/assessments/${client.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.answers) return
+        // Flatten { governance: { g1: 'X' }, risk: { r1: 'Y' }, ... } → { g1: 'X', r1: 'Y', ... }
+        const flat = {}
+        for (const pillarAnswers of Object.values(data.answers)) {
+          Object.assign(flat, pillarAnswers)
+        }
+        setAnswers(flat)
+      })
+      .catch(() => {})
+  }, [client?.id])
+
+  if (!client) {
+    return (
+      <div className="assessment">
+        <div className="no-client-assessment">
+          <Users size={32} style={{color:'var(--z-muted)'}} />
+          <h2>No client selected</h2>
+          <p>Go to the Clients page and select a client to begin the assessment.</p>
+          <button className="btn-nav next" style={{background:'var(--z-blue)'}} onClick={() => navigate('/clients')}>
+            Go to Clients <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const q = questions[currentQ]
   const answered = answers[q.id]
-  const progress = Object.keys(answers).filter(k => k.startsWith(activePillar[0])).length
 
-  function select(option) {
+  async function select(option) {
     setAnswers(prev => ({ ...prev, [q.id]: option }))
+    // Fire-and-forget save to Cosmos
+    try {
+      await fetch(`${API}/api/assessments/${client.id}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pillar: activePillar, questionId: q.id, answer: option }),
+      })
+    } catch {}
   }
 
   function next() {
@@ -92,7 +135,7 @@ export default function Assessment() {
           <h1 className="page-title" style={{color}}>
             {PILLAR_LABELS[activePillar]}
           </h1>
-          <p className="page-sub">Question {currentQ + 1} of {questions.length}</p>
+          <p className="page-sub">{client.name} · Question {currentQ + 1} of {questions.length}</p>
         </div>
         <div className="pillar-tabs">
           {ALL_PILLARS.map(p => (
@@ -100,7 +143,7 @@ export default function Assessment() {
               key={p}
               className={`pillar-tab ${p === activePillar ? 'active' : ''}`}
               style={p === activePillar ? {borderColor: PILLAR_COLORS[p], color: PILLAR_COLORS[p]} : {}}
-              onClick={() => { navigate(`/assessment/${p}`); setCurrentQ(0); }}
+              onClick={() => { navigate(`/assessment/${p}`); setCurrentQ(0) }}
             >
               {PILLAR_LABELS[p].split(' ')[0]}
             </button>

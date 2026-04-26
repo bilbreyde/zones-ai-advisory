@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, Sparkles } from 'lucide-react'
+import { useClient } from '../ClientContext.jsx'
 import './AIChat.css'
 
 const STARTERS = [
@@ -10,6 +11,7 @@ const STARTERS = [
 ]
 
 export default function AIChat() {
+  const { client } = useClient()
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -36,7 +38,10 @@ export default function AIChat() {
       const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages })
+        body: JSON.stringify({
+          messages: newMessages,
+          clientContext: client ? { name: client.name, scores: client.scores, overallScore: client.overallScore } : null,
+        })
       })
       const data = await res.json()
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])

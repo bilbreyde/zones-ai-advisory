@@ -1,8 +1,11 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users } from 'lucide-react'
+import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import './Dashboard.css'
+
+const API = import.meta.env.VITE_API_URL || ''
 
 const PILLAR_META = [
   { id: 'governance',  label: 'Governance',       color: '#4A9FE0', icon: Shield        },
@@ -21,9 +24,69 @@ const MATURITY = score => {
   return               { label: 'Initial',      color: '#E05A4E' }
 }
 
+function fmt(dateStr) {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const { client } = useClient()
+
+  // Task 2: live assessment scores
+  const [assessment, setAssessment] = useState(null)
+
+  // Task 3: session notes
+  const [sessions, setSessions] = useState([])
+  const [noteText, setNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [noteSaved, setNoteSaved] = useState(false)
+
+  useEffect(() => {
+    if (!client) return
+    setAssessment(null)
+    setSessions([])
+    setNoteText('')
+
+    // Fetch live assessment scores
+    fetch(`${API}/api/assessments/${client.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setAssessment(data) })
+      .catch(() => {})
+
+    // Fetch session notes
+    fetch(`${API}/api/sessions/${client.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        setSessions(data)
+        // Pre-fill textarea if a note exists for the current session
+        const current = data.find(s => s.sessionNumber === client.currentSession)
+        if (current) setNoteText(current.notes || '')
+      })
+      .catch(() => {})
+  }, [client?.id])
+
+  async function saveNote() {
+    if (!client) return
+    setSavingNote(true)
+    try {
+      await fetch(`${API}/api/sessions/${client.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionNumber: client.currentSession,
+          notes: noteText,
+          advisor: client.advisor || '',
+        }),
+      })
+      // Refresh sessions list
+      const data = await fetch(`${API}/api/sessions/${client.id}`).then(r => r.json())
+      setSessions(data)
+      setNoteSaved(true)
+      setTimeout(() => setNoteSaved(false), 2000)
+    } catch {}
+    finally { setSavingNote(false) }
+  }
 
   if (!client) {
     return (
@@ -40,10 +103,13 @@ export default function Dashboard() {
     )
   }
 
-  const scores = client.scores || {}
+  // Use live assessment scores, fall back to client object scores from context
+  const scores = assessment?.scores || client.scores || {}
+  const overallScore = assessment?.overallScore ?? client.overallScore ?? null
   const PILLARS = PILLAR_META.map(p => ({ ...p, score: scores[p.id] ?? null }))
   const radarData = PILLARS.map(p => ({ subject: p.label.split(' ')[0], score: p.score ?? 0, fullMark: 5 }))
-  const overallScore = client.overallScore
+
+  const previousSessions = sessions.filter(s => s.sessionNumber !== client.currentSession)
 
   return (
     <div className="dashboard">
@@ -89,7 +155,7 @@ export default function Dashboard() {
               </div>
               <div className="metric-label">{p.label}</div>
               <div className="score-bar">
-                <div className="score-fill" style={{width: `${(p.score/5)*100}%`, background: p.color}} />
+                <div className="score-fill" style={{width: `${((p.score ?? 0)/5)*100}%`, background: p.color}} />
               </div>
               <div className="metric-badge" style={{background: m.color+'22', color: m.color}}>
                 {m.label}
@@ -115,13 +181,7 @@ export default function Dashboard() {
                 strokeWidth={2}
               />
               <Tooltip
-                contentStyle={{
-                  background:'#0F2040',
-                  border:'1px solid rgba(74,159,224,0.3)',
-                  borderRadius:8,
-                  fontSize:12,
-                  color:'#F4F6FA'
-                }}
+                contentStyle={{background:'#0F2040', border:'1px solid rgba(74,159,224,0.3)', borderRadius:8, fontSize:12, color:'#F4F6FA'}}
               />
             </RadarChart>
           </ResponsiveContainer>
@@ -130,8 +190,8 @@ export default function Dashboard() {
         <div className="gaps-card">
           <div className="card-title">Priority Gaps</div>
           <div className="gap-list">
-            {[...PILLARS].sort((a,b) => a.score - b.score).map(p => {
-              const gap = 5 - p.score
+            {[...PILLARS].sort((a, b) => (a.score ?? 0) - (b.score ?? 0)).map(p => {
+              const gap = p.score != null ? 5 - p.score : null
               const Icon = p.icon
               return (
                 <div key={p.id} className="gap-item" onClick={() => navigate(`/assessment/${p.id}`)}>
@@ -142,12 +202,15 @@ export default function Dashboard() {
                     <div className="gap-name">{p.label}</div>
                     <div className="gap-bar-wrap">
                       <div className="gap-bar">
-                        <div className="gap-fill" style={{width:`${(p.score/5)*100}%`, background:p.color}} />
+                        <div className="gap-fill" style={{width:`${((p.score ?? 0)/5)*100}%`, background:p.color}} />
                       </div>
-                      <span className="gap-score">{p.score}</span>
+                      <span className="gap-score">{p.score ?? '—'}</span>
                     </div>
                   </div>
-                  <div className="gap-delta">+{gap.toFixed(1)} gap</div>
+                  {gap != null
+                    ? <div className="gap-delta">+{gap.toFixed(1)}</div>
+                    : <div className="gap-delta" style={{color:'var(--z-muted)'}}>—</div>
+                  }
                   <ArrowRight size={12} style={{color:'var(--z-muted)', flexShrink:0}} />
                 </div>
               )
@@ -159,25 +222,68 @@ export default function Dashboard() {
           <div className="card-title">Engagement Progress</div>
           <div className="roadmap-steps">
             {[
-              { n:1, label:'Kickoff & Discovery',       done:true  },
-              { n:2, label:'Strategy Alignment',        done:true  },
-              { n:3, label:'Maturity Assessment',       active:true},
-              { n:4, label:'Gap Analysis & Priorities', done:false },
-              { n:5, label:'Roadmap Delivery',          done:false },
-              { n:6, label:'Executive Readout',         done:false },
-            ].map((s, i, arr) => (
-              <div key={s.n} className="roadmap-step">
-                <div className={`step-node ${s.done ? 'done' : s.active ? 'active' : ''}`}>
-                  {s.done ? '✓' : s.n}
+              { n:1, label:'Kickoff & Discovery'       },
+              { n:2, label:'Strategy Alignment'        },
+              { n:3, label:'Maturity Assessment'       },
+              { n:4, label:'Gap Analysis & Priorities' },
+              { n:5, label:'Roadmap Delivery'          },
+              { n:6, label:'Executive Readout'         },
+            ].map((s, i, arr) => {
+              const done   = s.n < client.currentSession
+              const active = s.n === client.currentSession
+              return (
+                <div key={s.n} className="roadmap-step">
+                  <div className={`step-node ${done ? 'done' : active ? 'active' : ''}`}>
+                    {done ? '✓' : s.n}
+                  </div>
+                  {i < arr.length - 1 && <div className={`step-connector ${done ? 'done' : ''}`} />}
+                  <div className={`step-label ${active ? 'active' : ''}`}>{s.label}</div>
                 </div>
-                {i < arr.length - 1 && (
-                  <div className={`step-connector ${s.done ? 'done' : ''}`} />
-                )}
-                <div className={`step-label ${s.active ? 'active' : ''}`}>{s.label}</div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Task 3: Session notes */}
+      <div className="notes-card">
+        <div className="notes-header">
+          <div className="card-title" style={{margin:0}}>Session Notes</div>
+          <span className="notes-session-badge">Session {client.currentSession}</span>
+        </div>
+        <textarea
+          className="notes-textarea"
+          value={noteText}
+          onChange={e => setNoteText(e.target.value)}
+          placeholder={`Add advisor notes for Session ${client.currentSession}…`}
+          rows={4}
+        />
+        <div className="notes-actions">
+          <button className="btn-primary" onClick={saveNote} disabled={savingNote}>
+            {savingNote
+              ? <><Loader size={13} className="spin" /> Saving…</>
+              : noteSaved
+                ? '✓ Saved'
+                : <><Save size={13} /> Save Notes</>
+            }
+          </button>
+        </div>
+
+        {previousSessions.length > 0 && (
+          <div className="prev-sessions">
+            <div className="prev-sessions-label">Previous Sessions</div>
+            {previousSessions.map(s => (
+              <div key={s.id} className="prev-session">
+                <div className="prev-session-header">
+                  <span>Session {s.sessionNumber}</span>
+                  {s.advisor && <span className="prev-session-advisor">{s.advisor}</span>}
+                  <span className="prev-session-date">{fmt(s.updatedAt)}</span>
+                </div>
+                <div className="prev-session-notes">{s.notes || <em>No notes recorded.</em>}</div>
               </div>
             ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
