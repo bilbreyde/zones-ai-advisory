@@ -151,7 +151,7 @@ export default function Results() {
             <div
               key={r.priority}
               className="rec-card clickable"
-              onClick={() => setPanelItem({ title: r.title, label: r.pillar })}
+              onClick={() => setPanelItem({ title: r.title, pillar: r.pillar, timeline: r.timeline, description: r.description })}
             >
               <div className="rec-priority" style={{background: r.color+'22', color: r.color}}>#{r.priority}</div>
               <div className="rec-content">
@@ -181,7 +181,7 @@ export default function Results() {
             <div
               key={s.label}
               className="next-step-card clickable"
-              onClick={() => setPanelItem({ title: s.title, label: s.label })}
+              onClick={() => setPanelItem({ title: s.title, period: s.label, description: s.desc })}
             >
               <div className="step-period">{s.label}</div>
               <div className="step-title">{s.title}</div>

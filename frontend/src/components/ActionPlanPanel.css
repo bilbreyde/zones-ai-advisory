@@ -53,6 +53,21 @@
 .ap-subtitle {
   font-size: 11px;
   color: var(--z-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ap-scope-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: rgba(74,159,224,0.12);
+  color: var(--z-blue-bright);
+  border: 1px solid rgba(74,159,224,0.28);
+  white-space: nowrap;
 }
 
 .ap-close {

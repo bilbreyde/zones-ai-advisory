@@ -29,12 +29,17 @@ export default function ActionPlanPanel({ item, client, onClose }) {
 
   // Fetch action plan on mount
   useEffect(() => {
-    const scoresJson = JSON.stringify(client?.scores || {})
+    const scoresJson  = JSON.stringify(client?.scores || {})
+    const timeframe   = item.period || item.timeline || 'the defined period'
     const prompt =
       `Generate a complete action plan for: "${item.title}" for ${client?.name || 'this client'}.
 
-Include all of the following as structured visuals in a visuals array:
-1. A Gantt chart showing the detailed week-by-week timeline
+IMPORTANT TIMELINE CONSTRAINT: This initiative is scoped to ${timeframe}. All timeline visuals MUST align to this exact timeframe. Do not create a longer or shorter timeline than specified.
+
+The Gantt chart phases must fit within "${timeframe}" and use the same time units as the timeframe label — if it says "Week 1-2" use weeks, if it says "Month 2" or "Month 3+" use months, if it says "30-60 days" use days. Phase names in the Gantt must mirror these labels exactly (e.g. "Week 1", "Week 2" or "Month 1", "Month 2", not generic "Phase 1", "Phase 2").
+
+Include all of the following as structured visuals in a visuals array anchored to the ${timeframe} timeframe:
+1. A Gantt chart with phases that fit within ${timeframe}, using the correct time unit
 2. A RACI matrix showing who is responsible for each workstream
 3. A risk heat map for risks specific to this initiative
 4. Key milestones and success metrics as a checklist
@@ -115,7 +120,9 @@ Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJ
           <div className="ap-header-content">
             <div className="ap-title">{item.title}</div>
             <div className="ap-subtitle">
-              {client?.name ?? 'Client'}{item.label ? ` · ${item.label}` : ''}
+              {client?.name ?? 'Client'}
+              {(item.period || item.pillar) ? ` · ${item.period || item.pillar}` : ''}
+              {item.timeline ? <span className="ap-scope-badge">{item.timeline}</span> : null}
             </div>
           </div>
           <button className="ap-close" onClick={handleClose} aria-label="Close">
