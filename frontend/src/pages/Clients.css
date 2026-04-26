@@ -31,6 +31,8 @@
 }
 .table-row:last-child { border-bottom: none; }
 .table-row:hover { background: var(--z-surface-2); }
+.table-row-clickable { cursor: pointer; }
+.table-row-active { background: rgba(74,159,224,0.07); border-left: 2px solid var(--z-blue); }
 
 .client-cell { display: flex; align-items: center; gap: 10px; color: var(--z-white); font-weight: 500; }
 .client-avatar-sm {

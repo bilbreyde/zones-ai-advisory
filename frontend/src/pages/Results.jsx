@@ -1,15 +1,17 @@
 import { useRef, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { Download, ArrowRight, Loader } from 'lucide-react'
+import { Download, Loader } from 'lucide-react'
+import { useClient } from '../ClientContext.jsx'
 import './Results.css'
 
-const SCORES = [
-  { name: 'Governance',   score: 3.2, color: '#4A9FE0' },
-  { name: 'Risk',         score: 2.1, color: '#E8A838' },
-  { name: 'Strategy',     score: 4.0, color: '#8B5CF6' },
-  { name: 'Operations',   score: 2.8, color: '#3DBA7E' },
-  { name: 'Enablement',   score: 1.9, color: '#EC4899' },
-]
+const PILLAR_COLORS = {
+  governance: '#4A9FE0', risk: '#E8A838', strategy: '#8B5CF6',
+  operations: '#3DBA7E', enablement: '#EC4899',
+}
+const PILLAR_LABELS = {
+  governance: 'Governance', risk: 'Risk', strategy: 'Strategy',
+  operations: 'Operations', enablement: 'Enablement',
+}
 
 const RECOMMENDATIONS = [
   {
@@ -53,6 +55,14 @@ const RECOMMENDATIONS = [
 export default function Results() {
   const contentRef = useRef(null)
   const [exporting, setExporting] = useState(false)
+  const { client } = useClient()
+
+  const scores = client?.scores || {}
+  const SCORES = Object.entries(PILLAR_COLORS).map(([key, color]) => ({
+    name: PILLAR_LABELS[key], score: scores[key] ?? 0, color,
+  }))
+  const overallScore = client?.overallScore ?? '—'
+  const clientName = client?.name ?? 'No client selected'
 
   async function exportPDF() {
     setExporting(true)
@@ -82,7 +92,7 @@ export default function Results() {
         if (yPos < scaledHeight) pdf.addPage()
       }
 
-      pdf.save('Acme-Corp-AI-Maturity-Report.pdf')
+      pdf.save(`${(clientName).replace(/\s+/g, '-')}-AI-Maturity-Report.pdf`)
     } catch (err) {
       console.error('PDF export failed:', err)
     } finally {
@@ -95,7 +105,7 @@ export default function Results() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Results & Roadmap</h1>
-          <p className="page-sub">Acme Corp · Generated Apr 25, 2026</p>
+          <p className="page-sub">{clientName} · Generated {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</p>
         </div>
         <button className="btn-primary" onClick={exportPDF} disabled={exporting}>
           {exporting
@@ -106,11 +116,12 @@ export default function Results() {
 
       <div className="results-summary">
         <div className="summary-intro">
-          <div className="summary-score">2.8<span>/5</span></div>
+          <div className="summary-score">{overallScore}{overallScore !== '—' && <span>/5</span>}</div>
           <div className="summary-label">Overall AI Maturity</div>
-          <div className="summary-stage">Developing Stage</div>
+          <div className="summary-stage">{client?.overallScore >= 4.5 ? 'Optimized' : client?.overallScore >= 3.5 ? 'Managed' : client?.overallScore >= 2.5 ? 'Defined' : client?.overallScore >= 1.5 ? 'Developing' : client?.overallScore ? 'Initial' : 'Not assessed'} Stage</div>
           <p className="summary-desc">
-            Acme Corp has established early AI capabilities with strong strategic vision, but significant gaps remain in risk management, operations, and workforce enablement. A focused 90-day program can close the most critical gaps.
+            {clientName} — AI maturity assessment across 5 pillars: Governance, Risk &amp; Compliance, AI Strategy, Operations, and Enablement.
+            {client?.overallScore ? ' Review pillar scores and priority recommendations below.' : ' Complete the assessment to generate recommendations.'}
           </p>
         </div>
 

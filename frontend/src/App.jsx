@@ -4,9 +4,11 @@ import Dashboard from './pages/Dashboard.jsx'
 import Assessment from './pages/Assessment.jsx'
 import Results from './pages/Results.jsx'
 import Clients from './pages/Clients.jsx'
+import { ClientProvider } from './ClientContext.jsx'
 
 export default function App() {
   return (
+    <ClientProvider>
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
@@ -16,5 +18,6 @@ export default function App() {
         <Route path="clients" element={<Clients />} />
       </Route>
     </Routes>
+    </ClientProvider>
   )
 }

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Edit2, X, Loader } from 'lucide-react'
+import { useClient } from '../ClientContext.jsx'
 import './Clients.css'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -111,10 +113,17 @@ function ClientModal({ client, onClose, onSave }) {
 }
 
 export default function Clients() {
+  const navigate = useNavigate()
+  const { client: activeClient, setClient } = useClient()
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [modal, setModal] = useState(null) // null | 'new' | client object
+
+  function selectClient(c) {
+    setClient(c)
+    navigate('/dashboard')
+  }
 
   useEffect(() => { load() }, [])
 
@@ -165,7 +174,11 @@ export default function Clients() {
           <div className="table-empty">No clients yet. Create one to get started.</div>
         ) : (
           clients.map(c => (
-            <div key={c.id} className="table-row">
+            <div
+              key={c.id}
+              className={`table-row table-row-clickable ${activeClient?.id === c.id ? 'table-row-active' : ''}`}
+              onClick={() => selectClient(c)}
+            >
               <div className="client-cell">
                 <div className="client-avatar-sm">{initials(c.name)}</div>
                 <span>{c.name}</span>
@@ -197,7 +210,7 @@ export default function Clients() {
                 }
               </div>
               <div className="edit-cell">
-                <button className="btn-icon" onClick={() => setModal(c)} title="Edit client">
+                <button className="btn-icon" onClick={e => { e.stopPropagation(); setModal(c) }} title="Edit client">
                   <Edit2 size={13} />
                 </button>
               </div>

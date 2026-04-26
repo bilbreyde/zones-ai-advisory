@@ -1,9 +1,10 @@
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardCheck, BarChart3,
   Users, Shield, AlertTriangle, Lightbulb, Settings, Zap
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
+import { useClient } from '../ClientContext.jsx'
 import './Layout.css'
 
 const pillars = [
@@ -14,7 +15,14 @@ const pillars = [
   { id: 'enablement',  label: 'Enablement',        color: '#EC4899', icon: Zap },
 ]
 
+function initials(name) {
+  return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
 export default function Layout() {
+  const navigate = useNavigate()
+  const { client } = useClient()
+
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -56,12 +64,24 @@ export default function Layout() {
           </NavLink>
         </nav>
 
-        <div className="sidebar-client">
-          <div className="client-avatar">AC</div>
-          <div>
-            <div className="client-name">Acme Corp</div>
-            <div className="client-stage">Session 3 · In Progress</div>
-          </div>
+        <div className="sidebar-client" onClick={() => navigate('/clients')} title="Switch client">
+          {client ? (
+            <>
+              <div className="client-avatar">{initials(client.name)}</div>
+              <div>
+                <div className="client-name">{client.name}</div>
+                <div className="client-stage">Session {client.currentSession} · {client.status}</div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="client-avatar" style={{background:'var(--z-surface-2)', color:'var(--z-muted)'}}>?</div>
+              <div>
+                <div className="client-name" style={{color:'var(--z-muted)'}}>No client selected</div>
+                <div className="client-stage">Click to select</div>
+              </div>
+            </>
+          )}
         </div>
       </aside>
 

@@ -1,37 +1,56 @@
 import { useNavigate } from 'react-router-dom'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp } from 'lucide-react'
+import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users } from 'lucide-react'
+import { useClient } from '../ClientContext.jsx'
 import './Dashboard.css'
 
-const PILLARS = [
-  { id: 'governance',  label: 'Governance',       score: 3.2, color: '#4A9FE0', icon: Shield,        max: 5 },
-  { id: 'risk',        label: 'Risk & Compliance', score: 2.1, color: '#E8A838', icon: AlertTriangle, max: 5 },
-  { id: 'strategy',    label: 'AI Strategy',       score: 4.0, color: '#8B5CF6', icon: Lightbulb,    max: 5 },
-  { id: 'operations',  label: 'Operations',        score: 2.8, color: '#3DBA7E', icon: Settings,     max: 5 },
-  { id: 'enablement',  label: 'Enablement',        score: 1.9, color: '#EC4899', icon: Zap,          max: 5 },
+const PILLAR_META = [
+  { id: 'governance',  label: 'Governance',       color: '#4A9FE0', icon: Shield        },
+  { id: 'risk',        label: 'Risk & Compliance', color: '#E8A838', icon: AlertTriangle },
+  { id: 'strategy',    label: 'AI Strategy',       color: '#8B5CF6', icon: Lightbulb    },
+  { id: 'operations',  label: 'Operations',        color: '#3DBA7E', icon: Settings     },
+  { id: 'enablement',  label: 'Enablement',        color: '#EC4899', icon: Zap          },
 ]
 
-const radarData = PILLARS.map(p => ({ subject: p.label.split(' ')[0], score: p.score, fullMark: 5 }))
-
 const MATURITY = score => {
-  if (score >= 4.5) return { label: 'Optimized',   color: '#3DBA7E' }
-  if (score >= 3.5) return { label: 'Managed',     color: '#4A9FE0' }
-  if (score >= 2.5) return { label: 'Defined',     color: '#8B5CF6' }
-  if (score >= 1.5) return { label: 'Developing',  color: '#E8A838' }
-  return              { label: 'Initial',      color: '#E05A4E' }
+  if (score == null)  return { label: 'Not started', color: '#666' }
+  if (score >= 4.5)   return { label: 'Optimized',   color: '#3DBA7E' }
+  if (score >= 3.5)   return { label: 'Managed',     color: '#4A9FE0' }
+  if (score >= 2.5)   return { label: 'Defined',     color: '#8B5CF6' }
+  if (score >= 1.5)   return { label: 'Developing',  color: '#E8A838' }
+  return               { label: 'Initial',      color: '#E05A4E' }
 }
-
-const avgScore = (PILLARS.reduce((s, p) => s + p.score, 0) / PILLARS.length).toFixed(1)
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { client } = useClient()
+
+  if (!client) {
+    return (
+      <div className="dashboard">
+        <div className="no-client">
+          <Users size={32} style={{color:'var(--z-muted)'}} />
+          <h2>No client selected</h2>
+          <p>Go to the Clients page and click a client to begin.</p>
+          <button className="btn-primary" onClick={() => navigate('/clients')}>
+            View Clients <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const scores = client.scores || {}
+  const PILLARS = PILLAR_META.map(p => ({ ...p, score: scores[p.id] ?? null }))
+  const radarData = PILLARS.map(p => ({ subject: p.label.split(' ')[0], score: p.score ?? 0, fullMark: 5 }))
+  const overallScore = client.overallScore
 
   return (
     <div className="dashboard">
       <div className="page-header">
         <div>
           <h1 className="page-title">AI Maturity Dashboard</h1>
-          <p className="page-sub">Acme Corp · Advisor: Sarah Mitchell · Session 3 of 6</p>
+          <p className="page-sub">{client.name}{client.advisor ? ` · Advisor: ${client.advisor}` : ''} · Session {client.currentSession}</p>
         </div>
         <div className="header-actions">
           <button className="btn-outline" onClick={() => navigate('/results')}>
@@ -46,10 +65,10 @@ export default function Dashboard() {
       <div className="metrics-row">
         <div className="metric-card highlight">
           <div className="metric-icon"><TrendingUp size={16} /></div>
-          <div className="metric-value">{avgScore}<span>/5</span></div>
+          <div className="metric-value">{overallScore ?? '—'}{overallScore != null && <span>/5</span>}</div>
           <div className="metric-label">Overall Maturity</div>
-          <div className="metric-badge" style={{background: MATURITY(+avgScore).color + '22', color: MATURITY(+avgScore).color}}>
-            {MATURITY(+avgScore).label}
+          <div className="metric-badge" style={{background: MATURITY(overallScore).color + '22', color: MATURITY(overallScore).color}}>
+            {MATURITY(overallScore).label}
           </div>
         </div>
         {PILLARS.map(p => {
@@ -66,7 +85,7 @@ export default function Dashboard() {
                 <Icon size={15} />
               </div>
               <div className="metric-value" style={{color: p.color}}>
-                {p.score}<span>/5</span>
+                {p.score ?? '—'}{p.score != null && <span>/5</span>}
               </div>
               <div className="metric-label">{p.label}</div>
               <div className="score-bar">
