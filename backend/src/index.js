@@ -43,12 +43,32 @@ Always include all 5 pillars. Use client's actual scores. Use realistic industry
 checklist — for action item lists:
 {"text":"intro","visual":{"type":"checklist","title":"Quick Wins Checklist","categories":[{"name":"Category Name","color":"#EC4899","items":["action 1","action 2"]}]}}
 
+reference_architecture — for architecture, platform, tech stack, blueprint, infrastructure, "what should we build", design questions:
+{"text":"intro","visual":{"type":"reference_architecture","title":"AI Platform Reference Architecture","layers":[{"name":"Governance & Policy","color":"#EC4899","components":["AI Ethics Framework","Risk & Compliance Monitor","Audit Logging"]},{"name":"AI / ML Layer","color":"#8B5CF6","components":["Model Training","Model Registry","Inference Engine","Bias Detection"]},{"name":"Data Layer","color":"#4A9FE0","components":["Data Lake","Feature Store","Data Quality","Lineage Tracking"]},{"name":"Infrastructure","color":"#3DBA7E","components":["Azure ML","Compute Clusters","Storage","Networking"]}]}}
+
+maturity_journey — for maturity path, future state, 12/24 month targets, progression, target state, "where should we be", journey questions. ALWAYS use the client's actual pillar scores as current values:
+{"text":"intro","visual":{"type":"maturity_journey","title":"AI Maturity Journey","pillars":[{"name":"Governance","current":3.2,"target_6m":3.8,"target_12m":4.2,"target_24m":4.8},{"name":"Risk","current":2.1,"target_6m":2.8,"target_12m":3.5,"target_24m":4.2},{"name":"Strategy","current":4.0,"target_6m":4.2,"target_12m":4.5,"target_24m":4.8},{"name":"Operations","current":2.8,"target_6m":3.2,"target_12m":3.8,"target_24m":4.5},{"name":"Enablement","current":1.9,"target_6m":2.5,"target_12m":3.2,"target_24m":4.0}]}}
+
+raci_matrix — for "who owns", accountability, RACI, roles, governance structure, responsible, "who should" questions:
+{"text":"intro","visual":{"type":"raci_matrix","title":"AI Governance RACI","roles":["CIO","AI Lead","Risk Officer","Legal","Business Unit"],"items":[{"activity":"AI Strategy approval","assignments":["A","R","C","C","I"]},{"activity":"Model deployment","assignments":["I","R","C","I","C"]},{"activity":"Risk assessment","assignments":["A","C","R","C","I"]},{"activity":"Data governance","assignments":["A","R","R","C","C"]},{"activity":"Compliance review","assignments":["I","C","C","R","I"]},{"activity":"Vendor selection","assignments":["A","R","C","C","C"]}]}}
+assignments array length must match roles array length. Values must be R, A, C, or I only.
+
+risk_heatmap — for risk map, risk profile, heat map, likelihood, impact, risk assessment, "risks identified" questions:
+{"text":"intro","visual":{"type":"risk_heatmap","title":"AI Risk Heat Map","risks":[{"label":"Model bias","likelihood":3,"impact":5},{"label":"Data breach","likelihood":2,"impact":5},{"label":"Regulatory non-compliance","likelihood":3,"impact":4},{"label":"Shadow AI","likelihood":4,"impact":3},{"label":"Vendor lock-in","likelihood":3,"impact":3},{"label":"Skills gap","likelihood":4,"impact":2},{"label":"Model drift","likelihood":3,"impact":3}]}}
+likelihood and impact must be integers 1–5.
+
+process_flow — for process, flow, workflow, "steps to", "how to", procedure, sequence, deployment process:
+{"text":"intro","visual":{"type":"process_flow","title":"AI Model Deployment Process","steps":[{"label":"Define Scope","color":"#4A9FE0","description":"Align on use case and success metrics"},{"label":"Data Preparation","color":"#8B5CF6","description":"Collect, clean, and validate training data"},{"label":"Model Development","color":"#E8A838","description":"Train, evaluate, and tune the model"},{"label":"Security Review","color":"#EC4899","description":"Bias testing and security assessment"},{"label":"Production Deploy","color":"#3DBA7E","description":"Release with monitoring and alerting"}]}}
+
 PLAIN TEXT RESPONSES:
 For gap analysis explanations, general advice, greetings, and questions not requiring a visual — respond with plain text only (2–4 short paragraphs). Never wrap plain text in JSON.
 
 REMEMBER: When returning a visual, your ENTIRE response must be the JSON object. Start with { and end with }. Nothing else.`
 
-const VISUAL_TYPES = new Set(["gantt", "scorecard", "priority_matrix", "timeline", "checklist"])
+const VISUAL_TYPES = new Set([
+  "gantt", "scorecard", "priority_matrix", "timeline", "checklist",
+  "reference_architecture", "maturity_journey", "raci_matrix", "risk_heatmap", "process_flow",
+])
 
 function extractVisualFromResponse(raw) {
   // Strip markdown code fences

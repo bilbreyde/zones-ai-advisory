@@ -513,3 +513,301 @@
   margin-top: 1px;
   transition: all 0.15s;
 }
+
+/* ── Reference Architecture ──────────────────────────────────────────── */
+.cv-refarch { padding: 2px 0; }
+
+.cv-refarch-layers { display: flex; flex-direction: column; gap: 0; }
+
+.cv-refarch-layer {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 6px;
+}
+
+.cv-refarch-layer-name {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  flex-shrink: 0;
+  padding-top: 2px;
+  min-width: 90px;
+}
+
+.cv-refarch-components {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+}
+
+.cv-refarch-pill {
+  font-size: 10px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.cv-refarch-arrow {
+  text-align: center;
+  font-size: 11px;
+  color: var(--z-muted);
+  padding: 3px 0;
+  opacity: 0.5;
+}
+
+/* ── Maturity Journey ────────────────────────────────────────────────── */
+.cv-journey { padding: 2px 0; }
+
+.cv-journey-header,
+.cv-journey-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.cv-journey-name-cell {
+  flex: 0 0 72px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+}
+
+.cv-journey-pillar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cv-journey-pillar-label {
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-journey-cols-header {
+  flex: 1;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+}
+
+.cv-journey-col-header {
+  width: 30px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--z-muted);
+}
+.cv-journey-col-header.today { color: var(--z-blue-bright); }
+
+.cv-journey-track {
+  flex: 1;
+  position: relative;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  height: 36px;
+}
+
+.cv-journey-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cv-journey-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  z-index: 1;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.cv-journey-dot:hover { transform: scale(1.1); }
+
+.cv-journey-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--z-border);
+}
+
+.cv-journey-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--z-muted);
+}
+
+.cv-journey-legend-filled,
+.cv-journey-legend-outlined {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── RACI Matrix ─────────────────────────────────────────────────────── */
+.cv-raci { padding: 2px 0; }
+
+.cv-raci-table {
+  display: grid;
+  border: 1px solid var(--z-border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  overflow-x: auto;
+}
+
+.cv-raci-cell {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-right: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+}
+
+.cv-raci-cell.alt { background: rgba(255,255,255,0.02); }
+
+.cv-raci-corner { background: rgba(255,255,255,0.04); }
+
+.cv-raci-role-header {
+  background: rgba(255,255,255,0.05);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--z-white);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-raci-activity {
+  font-size: 11px;
+  color: var(--z-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-raci-badge-cell { justify-content: center; }
+
+.cv-raci-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cv-raci-legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cv-raci-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--z-muted);
+}
+
+.cv-raci-badge-sm {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* ── Risk Heatmap ────────────────────────────────────────────────────── */
+.cv-heatmap { padding: 2px 0; }
+
+/* ── Process Flow ────────────────────────────────────────────────────── */
+.cv-flow { padding: 2px 0; }
+
+.cv-flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.cv-flow-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.cv-flow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  min-width: 90px;
+  max-width: 150px;
+  flex: 1;
+}
+
+.cv-flow-step-num {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.cv-flow-step-body { flex: 1; min-width: 0; }
+
+.cv-flow-step-label {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  line-height: 1.3;
+}
+
+.cv-flow-step-desc {
+  font-size: 9.5px;
+  color: var(--z-muted);
+  line-height: 1.4;
+}
+
+.cv-flow-arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
