@@ -51,6 +51,7 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
   const [visuals,         setVisuals]         = useState([])
   const [pdfLoading,      setPdfLoading]      = useState(false)
   const [addedToBacklog,  setAddedToBacklog]  = useState(false)
+  const [fetchKey,        setFetchKey]        = useState(0)
   const panelRef = useRef(null)
 
   useEffect(() => {
@@ -65,6 +66,9 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
   }, [])
 
   useEffect(() => {
+    setLoading(true)
+    setReply('')
+    setVisuals([])
     fetch(`${API}/api/agents/design`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -84,7 +88,7 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
       })
       .catch(() => setReply('Failed to generate blueprint. Please try again.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [fetchKey])
 
   function handleClose() {
     setIsOpen(false)
@@ -258,7 +262,22 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
               ))}
 
               {!reply && visuals.length === 0 && (
-                <p className="ap-error">No blueprint generated. Please try again.</p>
+                <div className="blueprint-error">
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>⚠️</div>
+                  <div style={{ fontSize: 13, color: 'var(--z-white)', marginBottom: 4, fontWeight: 500 }}>
+                    Blueprint generation failed
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--z-muted)', marginBottom: 16, lineHeight: 1.6 }}>
+                    The AI response could not be parsed into structured visuals. This can happen when the response is truncated.
+                  </div>
+                  <button
+                    className="studio-generate-btn"
+                    style={{ width: 'auto', padding: '8px 20px' }}
+                    onClick={() => setFetchKey(k => k + 1)}
+                  >
+                    <Zap size={13} /> Try again
+                  </button>
+                </div>
               )}
             </>
           )}

@@ -102,38 +102,46 @@ const VISUAL_TYPES = new Set([
 ])
 
 function extractVisualFromResponse(raw) {
-  const cleaned    = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+  const cleaned    = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
   const firstBrace = cleaned.indexOf("{")
   const lastBrace  = cleaned.lastIndexOf("}")
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    return { text: raw, visual: null, visuals: null }
+    return { text: raw, visual: null, visuals: [] }
   }
 
   const jsonStr = cleaned.slice(firstBrace, lastBrace + 1)
 
   try {
     const parsed = JSON.parse(jsonStr)
+    // Accept either "reply" or "text" as the summary field
+    const summaryText = parsed.reply ?? parsed.text ?? ""
 
-    // Multi-visual envelope: { text, visuals: [...] }
-    if (Array.isArray(parsed.visuals) && parsed.text !== undefined) {
+    // Case 1 — { reply/text, visuals: [...] }  (multi-visual action plan / agent design)
+    if (Array.isArray(parsed.visuals)) {
       const valid = parsed.visuals.filter(v => v?.type && VISUAL_TYPES.has(v.type))
-      return { text: parsed.text, visual: valid[0] || null, visuals: valid }
+      console.log(`[extract] multi-visual: ${valid.length} valid visuals, summary: "${String(summaryText).slice(0, 60)}"`)
+      return { text: summaryText, visual: valid[0] || null, visuals: valid }
     }
 
-    // Standard envelope: { text, visual }
-    if (parsed.visual && parsed.text !== undefined && VISUAL_TYPES.has(parsed.visual.type)) {
-      return { text: parsed.text, visual: parsed.visual, visuals: null }
+    // Case 2 — { reply/text, visual: {...} }  (single visual)
+    if (parsed.visual?.type && VISUAL_TYPES.has(parsed.visual.type)) {
+      console.log(`[extract] single visual: ${parsed.visual.type}`)
+      return { text: summaryText, visual: parsed.visual, visuals: [parsed.visual] }
     }
 
-    // Model returned just the visual object (forgot to wrap in envelope)
+    // Case 3 — the whole object IS a visual
     if (parsed.type && VISUAL_TYPES.has(parsed.type)) {
-      return { text: "", visual: parsed, visuals: null }
+      console.log(`[extract] bare visual: ${parsed.type}`)
+      return { text: "", visual: parsed, visuals: [parsed] }
     }
 
-    return { text: raw, visual: null, visuals: null }
-  } catch {
-    return { text: raw, visual: null, visuals: null }
+    console.warn("[extract] no visual found in parsed JSON, keys:", Object.keys(parsed).join(", "))
+    return { text: raw, visual: null, visuals: [] }
+  } catch (e) {
+    console.error("[extract] JSON parse failed:", e.message)
+    console.error("[extract] attempted:", jsonStr.slice(0, 300))
+    return { text: raw, visual: null, visuals: [] }
   }
 }
 
@@ -178,7 +186,7 @@ Use this specific data to give precise, tailored recommendations. Reference actu
       const extracted = extractVisualFromResponse(rawContent)
       reply   = extracted.text
       visual  = extracted.visual
-      visuals = extracted.visuals
+      visuals = extracted.visuals || []
       console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual type:", visual?.type ?? "none", "| visuals:", visuals?.length ?? 0)
     }
 
@@ -217,6 +225,8 @@ Return ONLY a valid JSON object (no markdown, no code fences):
 Rules: fit 80-100 = critical gap + available tools. fit 60-79 = moderate gap or one missing tool. fit <60 = nice-to-have. Name real industry workflows. Sort by fit_score desc within each complexity group.`
 
 const DESIGN_SYSTEM_PROMPT = `You are a senior AI solutions architect at Zones Innovation Center. Generate a complete agent design blueprint.
+
+CRITICAL: Return ONLY a valid JSON object. No markdown. No code fences. No text before or after the JSON. The response must start with { and end with }. The entire response must be parseable with JSON.parse().
 
 Return ONLY a valid JSON object (no markdown, no fences):
 {"reply":"2-3 sentence executive overview for this specific client","visuals":[{"narrative":{"headline":"punchy so-what headline","context":"2-3 sentences referencing actual scores","actions":["Action 1","Action 2","Action 3"]},"type":"agent_spec","title":"Agent Specification","name":"...","purpose":"...","trigger":"...","inputs":["..."],"outputs":["..."],"tools":["..."],"integrations":["..."],"human_in_loop":"...","latency":"...","data_requirements":"..."},{"narrative":{...},"type":"mermaid","title":"Agent Architecture","chart":"graph TD\\n  subgraph INPUT[\"📥 Inputs\"]\\n    I1[Source 1]\\n  end\\n  subgraph PROC[\"🤖 Processing\"]\\n    P1[Step 1]\\n  end\\n  subgraph OUT[\"📤 Outputs\"]\\n    O1[Output 1]\\n  end\\n  INPUT --> PROC --> OUT"},{"narrative":{...},"type":"vendor_comparison","title":"Build vs Buy Analysis","criteria":["Time to value","Customization","Cost","Maintenance","Integration"],"vendors":[{"name":"Custom build on Azure AI Foundry","recommended":true,"scores":{...},"pros":[...],"cons":[...]},{"name":"Off-the-shelf option","recommended":false,"scores":{...},"pros":[...],"cons":[...]}]},{"narrative":{...},"type":"checklist","title":"Implementation Checklist","categories":[{"name":"Prerequisites","color":"#4A9FE0","items":["..."]},{"name":"Phase 1 — POC","color":"#E8A838","items":["..."]},{"name":"Phase 2 — Production","color":"#3DBA7E","items":["..."]}]}]}
@@ -273,13 +283,14 @@ Make the blueprint specific to ${clientName}'s actual gaps and tooling. Referenc
         { role: "user",   content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 4000,
+      max_tokens: 8000,
     })
 
     const rawContent = completion.choices[0].message.content.trim()
-    console.log("[design] raw:", rawContent.slice(0, 200))
-    const { text, visual, visuals } = extractVisualFromResponse(rawContent)
-    res.json({ reply: text, visual, visuals })
+    console.log("[design] raw response (first 500):", rawContent.slice(0, 500))
+    const extracted = extractVisualFromResponse(rawContent)
+    console.log("[design] parsed — has visuals:", !!extracted.visuals?.length, "| has visual:", !!extracted.visual)
+    res.json({ reply: extracted.text, visual: extracted.visual, visuals: extracted.visuals || [] })
   } catch (err) {
     console.error("Agent design error:", err.message)
     res.status(500).json({ error: "Failed to generate blueprint", detail: err.message })
