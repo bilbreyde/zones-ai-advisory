@@ -125,16 +125,6 @@
   line-height: 1.6;
 }
 
-.ap-intro {
-  font-size: 13px;
-  color: rgba(244, 246, 250, 0.85);
-  line-height: 1.75;
-  margin: 0;
-  padding: 14px 16px;
-  background: rgba(74, 159, 224, 0.06);
-  border-left: 3px solid rgba(74, 159, 224, 0.4);
-  border-radius: 4px;
-}
 
 .ap-visual-section {
   background: var(--z-surface);
@@ -149,6 +139,138 @@
   font-style: italic;
   text-align: center;
   padding: 40px 0;
+}
+
+/* PDF cover */
+.plan-cover {
+  padding: 10px 14px 12px;
+  border: 0.5px solid var(--z-border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.plan-cover-brand {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--z-blue-bright);
+  opacity: 0.7;
+}
+.plan-cover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--z-white);
+}
+.plan-cover-meta {
+  font-size: 10px;
+  color: var(--z-muted);
+}
+
+/* Opening summary */
+.plan-summary {
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--z-surface);
+  border: 1px solid var(--z-border);
+  border-radius: 10px;
+}
+.plan-summary-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.plan-summary p {
+  font-size: 13px;
+  color: var(--z-white);
+  line-height: 1.75;
+  margin: 0;
+}
+
+/* Section layout */
+.action-plan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Section divider */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+.section-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--z-blue-bright);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.divider-line {
+  flex: 1;
+  height: 0.5px;
+  background: var(--z-border);
+}
+
+/* Narrative block */
+.narrative-block {
+  padding: 16px 18px;
+  border-left: 3px solid var(--z-blue-bright);
+  background: rgba(74,159,224,0.06);
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.narrative-headline {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--z-white);
+  line-height: 1.4;
+}
+.narrative-context {
+  font-size: 12px;
+  color: var(--z-muted);
+  line-height: 1.7;
+  margin: 0;
+}
+.narrative-callout {
+  background: rgba(255,255,255,0.04);
+  border: 0.5px solid var(--z-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: 4px;
+}
+.callout-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--z-blue-bright);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.narrative-callout ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.narrative-callout ul li {
+  font-size: 11px;
+  color: var(--z-white);
+  padding-left: 14px;
+  position: relative;
+  line-height: 1.5;
+}
+.narrative-callout ul li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--z-blue-bright);
+  font-size: 10px;
 }
 
 /* Footer */

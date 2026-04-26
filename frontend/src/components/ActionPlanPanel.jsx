@@ -142,12 +142,56 @@ Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJ
             </div>
           ) : (
             <>
-              {reply && <p className="ap-intro">{reply}</p>}
-              {visuals.map((v, i) => (
-                <div key={i} className="ap-visual-section">
-                  <ChatVisual visual={v} />
+              {/* PDF cover — subtle in UI, prominent when printed */}
+              <div className="plan-cover">
+                <div className="plan-cover-brand">ZONES AI ADVISORY FRAMEWORK</div>
+                <div className="plan-cover-title">{client?.name ?? 'Client'} — {item.title}</div>
+                <div className="plan-cover-meta">
+                  Generated {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · Confidential
+                </div>
+              </div>
+
+              {/* Opening executive summary */}
+              {reply && (
+                <div className="plan-summary">
+                  <div className="plan-summary-icon">📋</div>
+                  <p>{reply}</p>
+                </div>
+              )}
+
+              {/* Visual sections with narrative context */}
+              {visuals.map((visual, i) => (
+                <div key={i} className="action-plan-section">
+                  {i > 0 && (
+                    <div className="section-divider">
+                      <span className="section-num">0{i + 1}</span>
+                      <div className="divider-line" />
+                    </div>
+                  )}
+                  {visual.narrative && (
+                    <div className="narrative-block">
+                      <div className="narrative-headline">{visual.narrative.headline}</div>
+                      {visual.narrative.context && (
+                        <p className="narrative-context">{visual.narrative.context}</p>
+                      )}
+                      {visual.narrative.actions?.length > 0 && (
+                        <div className="narrative-callout">
+                          <div className="callout-label">Key actions</div>
+                          <ul>
+                            {visual.narrative.actions.map((action, j) => (
+                              <li key={j}>{action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="ap-visual-section">
+                    <ChatVisual visual={visual} />
+                  </div>
                 </div>
               ))}
+
               {!reply && visuals.length === 0 && (
                 <p className="ap-error">No plan generated. Please try again.</p>
               )}

@@ -68,8 +68,27 @@ vendor_comparison — triggered by: "compare", "versus", "vs", "pros and cons", 
 
 MULTI-VISUAL ACTION PLAN FORMAT:
 When asked for a "complete action plan" or "full plan" with multiple deliverables, respond with a visuals array instead of a single visual:
-{"text":"2-3 sentence executive summary of the plan","visuals":[{"type":"gantt","title":"Week-by-Week Timeline",...},{"type":"raci_matrix","title":"Accountability Matrix",...},{"type":"risk_heatmap","title":"Initiative Risk Map",...},{"type":"checklist","title":"Success Metrics & Milestones",...}]}
+{"text":"2-3 sentence executive summary of the plan","visuals":[...]}
 Include 3-4 visuals. Each visual must follow its exact schema from above. The visuals array replaces the single visual field.
+
+CRITICAL — Each visual object in the visuals array MUST include a "narrative" field placed BEFORE the visual data fields. The narrative makes the PDF export usable as a standalone sales and delivery document:
+{
+  "narrative": {
+    "headline": "One punchy 'so what' sentence — make it specific to this client and initiative",
+    "context": "2-3 sentences explaining why this section matters, referencing the client's actual pillar scores and named gaps. Write as a senior Zones consultant briefing a client — direct, prescriptive, no generic language.",
+    "actions": [
+      "Specific immediate action item 1 the salesperson or client must take",
+      "Specific immediate action item 2",
+      "Specific immediate action item 3"
+    ]
+  },
+  "type": "gantt",
+  "title": "...",
+  ...rest of visual schema
+}
+
+Example action plan response shape:
+{"text":"Executive summary 2-3 sentences.","visuals":[{"narrative":{"headline":"Execution window is tight — 10 business days to deliver prioritized findings","context":"With an Enablement score of 1.9, this client has the lowest AI literacy baseline in the assessed cohort. The workshop must surface the top 3 training priorities before the executive readout in Week 2.","actions":["Secure CIO sponsorship before Day 1","Pre-brief IT lead on workshop agenda by end of Week 1","Escalate any data access blockers to legal immediately"]},"type":"gantt","title":"Week-by-Week Timeline","phases":[...]},{"narrative":{...},"type":"raci_matrix",...}]}
 
 PLAIN TEXT RESPONSES:
 For gap analysis explanations, general advice, greetings, and questions not requiring a visual — respond with plain text only (2–4 short paragraphs). Never wrap plain text in JSON.
