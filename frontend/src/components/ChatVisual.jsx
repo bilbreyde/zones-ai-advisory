@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, Fragment } from 'react'
 import { createPortal } from 'react-dom'
+import MermaidChart from './MermaidChart.jsx'
 import './ChatVisual.css'
 
 /* ── Gantt ─────────────────────────────────────────────────────────────── */
@@ -475,6 +476,77 @@ function ProcessFlowVisual({ data }) {
   )
 }
 
+/* ── Vendor Comparison ─────────────────────────────────────────────────── */
+const SCORE_COLOR = s => s >= 5 ? '#3DBA7E' : s === 4 ? '#4A9FE0' : s === 3 ? '#E8A838' : '#E05A4E'
+
+function VendorComparisonVisual({ data }) {
+  const criteria = data.criteria || []
+  const vendors  = data.vendors  || []
+
+  return (
+    <div className="cv-vendor">
+      <div className="cv-title">{data.title}</div>
+      <div className="cv-vendor-grid">
+        {vendors.map((vendor, vi) => (
+          <div key={vi} className={`cv-vendor-card${vendor.recommended ? ' recommended' : ''}`}>
+            <div className="cv-vendor-header">
+              <div className="cv-vendor-name">{vendor.name}</div>
+              {vendor.recommended && (
+                <div className="cv-vendor-badge">Recommended</div>
+              )}
+            </div>
+
+            {/* Criteria score bars */}
+            <div className="cv-vendor-scores">
+              {criteria.map((c, ci) => {
+                const score = vendor.scores?.[c] ?? 0
+                const color = SCORE_COLOR(score)
+                return (
+                  <div key={ci} className="cv-vendor-score-row">
+                    <div className="cv-vendor-score-label">{c}</div>
+                    <div className="cv-vendor-score-bars">
+                      {[1,2,3,4,5].map(n => (
+                        <div key={n} className="cv-vendor-bar-seg" style={{
+                          background: n <= score ? color : 'rgba(255,255,255,0.08)',
+                        }} />
+                      ))}
+                    </div>
+                    <div className="cv-vendor-score-num" style={{ color }}>{score}</div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Pros */}
+            {vendor.pros?.length > 0 && (
+              <div className="cv-vendor-list">
+                {vendor.pros.map((p, i) => (
+                  <div key={i} className="cv-vendor-pro">
+                    <span className="cv-vendor-bullet" style={{ color: '#3DBA7E' }}>✓</span>
+                    <span>{p}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Cons */}
+            {vendor.cons?.length > 0 && (
+              <div className="cv-vendor-list">
+                {vendor.cons.map((c, i) => (
+                  <div key={i} className="cv-vendor-con">
+                    <span className="cv-vendor-bullet" style={{ color: '#E8A838' }}>⚠</span>
+                    <span>{c}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── Render helper ─────────────────────────────────────────────────────── */
 function renderVisualInner(visual) {
   switch (visual.type) {
@@ -487,7 +559,9 @@ function renderVisualInner(visual) {
     case 'maturity_journey':       return <MaturityJourneyVisual       data={visual} />
     case 'raci_matrix':            return <RaciMatrixVisual            data={visual} />
     case 'risk_heatmap':           return <RiskHeatmapVisual           data={visual} />
-    case 'process_flow':           return <ProcessFlowVisual           data={visual} />
+    case 'process_flow':            return <ProcessFlowVisual           data={visual} />
+    case 'mermaid':                 return <MermaidChart chart={visual.chart} title={visual.title} />
+    case 'vendor_comparison':       return <VendorComparisonVisual      data={visual} />
     default:
       return (
         <pre style={{ fontSize: '10px', color: 'var(--z-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>

@@ -43,9 +43,6 @@ Always include all 5 pillars. Use client's actual scores. Use realistic industry
 checklist — for action item lists:
 {"text":"intro","visual":{"type":"checklist","title":"Quick Wins Checklist","categories":[{"name":"Category Name","color":"#EC4899","items":["action 1","action 2"]}]}}
 
-reference_architecture — for architecture, platform, tech stack, blueprint, infrastructure, "what should we build", design questions:
-{"text":"intro","visual":{"type":"reference_architecture","title":"AI Platform Reference Architecture","layers":[{"name":"Governance & Policy","color":"#EC4899","components":["AI Ethics Framework","Risk & Compliance Monitor","Audit Logging"]},{"name":"AI / ML Layer","color":"#8B5CF6","components":["Model Training","Model Registry","Inference Engine","Bias Detection"]},{"name":"Data Layer","color":"#4A9FE0","components":["Data Lake","Feature Store","Data Quality","Lineage Tracking"]},{"name":"Infrastructure","color":"#3DBA7E","components":["Azure ML","Compute Clusters","Storage","Networking"]}]}}
-
 maturity_journey — for maturity path, future state, 12/24 month targets, progression, target state, "where should we be", journey questions. ALWAYS use the client's actual pillar scores as current values:
 {"text":"intro","visual":{"type":"maturity_journey","title":"AI Maturity Journey","pillars":[{"name":"Governance","current":3.2,"target_6m":3.8,"target_12m":4.2,"target_24m":4.8},{"name":"Risk","current":2.1,"target_6m":2.8,"target_12m":3.5,"target_24m":4.2},{"name":"Strategy","current":4.0,"target_6m":4.2,"target_12m":4.5,"target_24m":4.8},{"name":"Operations","current":2.8,"target_6m":3.2,"target_12m":3.8,"target_24m":4.5},{"name":"Enablement","current":1.9,"target_6m":2.5,"target_12m":3.2,"target_24m":4.0}]}}
 
@@ -57,8 +54,17 @@ risk_heatmap — for risk map, risk profile, heat map, likelihood, impact, risk 
 {"text":"intro","visual":{"type":"risk_heatmap","title":"AI Risk Heat Map","risks":[{"label":"Model bias","likelihood":3,"impact":5},{"label":"Data breach","likelihood":2,"impact":5},{"label":"Regulatory non-compliance","likelihood":3,"impact":4},{"label":"Shadow AI","likelihood":4,"impact":3},{"label":"Vendor lock-in","likelihood":3,"impact":3},{"label":"Skills gap","likelihood":4,"impact":2},{"label":"Model drift","likelihood":3,"impact":3}]}}
 likelihood and impact must be integers 1–5.
 
-process_flow — for process, flow, workflow, "steps to", "how to", procedure, sequence, deployment process:
-{"text":"intro","visual":{"type":"process_flow","title":"AI Model Deployment Process","steps":[{"label":"Define Scope","color":"#4A9FE0","description":"Align on use case and success metrics"},{"label":"Data Preparation","color":"#8B5CF6","description":"Collect, clean, and validate training data"},{"label":"Model Development","color":"#E8A838","description":"Train, evaluate, and tune the model"},{"label":"Security Review","color":"#EC4899","description":"Bias testing and security assessment"},{"label":"Production Deploy","color":"#3DBA7E","description":"Release with monitoring and alerting"}]}}
+reference_architecture — triggered by: "architecture", "platform", "infrastructure", "tech stack", "what should we build", "design", "blueprint". Return type MUST be "mermaid". Use a Mermaid graph TD diagram with subgraphs for each layer:
+{"text":"intro","visual":{"type":"mermaid","title":"AI Platform Reference Architecture","chart":"graph TD\n  subgraph GOV[\"🔒 Governance & Policy\"]\n    G1[Ethics Framework]\n    G2[Risk Monitor]\n    G3[Audit Logging]\n  end\n  subgraph AI[\"🤖 AI / ML Layer\"]\n    A1[Model Training]\n    A2[Model Registry]\n    A3[Inference Engine]\n    A4[Bias Detection]\n  end\n  subgraph DATA[\"💾 Data Layer\"]\n    D1[Data Lake]\n    D2[Feature Store]\n    D3[Data Quality]\n  end\n  subgraph INFRA[\"☁️ Infrastructure\"]\n    I1[Azure ML]\n    I2[Compute]\n    I3[Storage]\n  end\n  GOV --> AI\n  AI --> DATA\n  DATA --> INFRA\n  style GOV fill:#2D0F1E,stroke:#EC4899\n  style AI fill:#1E0D3D,stroke:#8B5CF6\n  style DATA fill:#0D1E3D,stroke:#4A9FE0\n  style INFRA fill:#0D2E1E,stroke:#3DBA7E"}}
+
+process_flow — triggered by: "process", "flow", "workflow", "steps to", "how to", "procedure", "sequence", "diagram". Return type MUST be "mermaid". Use a Mermaid flowchart:
+{"text":"intro","visual":{"type":"mermaid","title":"Process Title","chart":"flowchart TD\n  A([Start]) --> B[Step one]\n  B --> C{Decision?}\n  C -->|Yes| D[Action A]\n  C -->|No| E[Action B]\n  D --> F([End])\n  E --> F\n  style A fill:#1A56A8,stroke:#4A9FE0,color:#fff\n  style F fill:#3DBA7E,stroke:#3DBA7E,color:#fff"}}
+
+sequence_diagram — triggered by: "sequence", "interaction", "communication between", "how do systems talk", "API flow", "integration diagram". Return type MUST be "mermaid". Use a Mermaid sequenceDiagram:
+{"text":"intro","visual":{"type":"mermaid","title":"System Interaction","chart":"sequenceDiagram\n  participant C as Client\n  participant API as Zones API\n  participant AI as Azure OpenAI\n  participant DB as Cosmos DB\n  C->>API: Submit assessment answer\n  API->>DB: Save answer\n  API->>AI: Request gap analysis\n  AI-->>API: Return recommendations\n  API-->>C: Visual response"}}
+
+vendor_comparison — triggered by: "compare", "versus", "vs", "pros and cons", "which is better", "recommend a tool", "suggest platforms", "options for". Shows a structured vendor comparison:
+{"text":"intro","visual":{"type":"vendor_comparison","title":"Agent Platform Comparison","criteria":["Scalability","Integration","Customization","Cost","Enterprise Support"],"vendors":[{"name":"Azure AI Foundry","recommended":true,"scores":{"Scalability":5,"Integration":5,"Customization":4,"Cost":3,"Enterprise Support":5},"pros":["Native Azure integration","Enterprise-grade security","Co-sell eligible"],"cons":["Azure dependency","Learning curve"]},{"name":"OpenAI GPT","recommended":false,"scores":{"Scalability":4,"Integration":4,"Customization":3,"Cost":3,"Enterprise Support":3},"pros":["Advanced NLP","Wide ecosystem"],"cons":["Limited customization","Resource intensive"]},{"name":"Google Dialogflow","recommended":false,"scores":{"Scalability":4,"Integration":4,"Customization":3,"Cost":4,"Enterprise Support":4},"pros":["Easy integration","Intent recognition"],"cons":["Limited advanced control"]},{"name":"Rasa","recommended":false,"scores":{"Scalability":3,"Integration":3,"Customization":5,"Cost":5,"Enterprise Support":2},"pros":["Open source","Full control"],"cons":["Requires deep technical expertise"]}]}}
 
 PLAIN TEXT RESPONSES:
 For gap analysis explanations, general advice, greetings, and questions not requiring a visual — respond with plain text only (2–4 short paragraphs). Never wrap plain text in JSON.
@@ -68,6 +74,7 @@ REMEMBER: When returning a visual, your ENTIRE response must be the JSON object.
 const VISUAL_TYPES = new Set([
   "gantt", "scorecard", "priority_matrix", "timeline", "checklist",
   "reference_architecture", "maturity_journey", "raci_matrix", "risk_heatmap", "process_flow",
+  "mermaid", "vendor_comparison",
 ])
 
 function extractVisualFromResponse(raw) {
