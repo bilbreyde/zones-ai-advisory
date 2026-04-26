@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Download, Loader } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
+import ActionPlanPanel from '../components/ActionPlanPanel.jsx'
 import './Results.css'
 
 const PILLAR_COLORS = {
@@ -52,17 +53,25 @@ const RECOMMENDATIONS = [
   },
 ]
 
+const NEXT_STEPS = [
+  { label: 'Week 1-2',  title: 'Gap Analysis Workshop',   desc: 'Deep-dive session with IT and HR leads to validate findings.' },
+  { label: 'Week 3-4',  title: 'Roadmap Sign-off',        desc: 'Present prioritized roadmap to executive sponsors.' },
+  { label: 'Month 2',   title: 'Quick Wins Execution',    desc: 'Launch AI literacy program and begin risk policy documentation.' },
+  { label: 'Month 3+',  title: 'Managed AI Services',     desc: 'Zones-managed monitoring and governance program kickoff.' },
+]
+
 export default function Results() {
   const contentRef = useRef(null)
-  const [exporting, setExporting] = useState(false)
+  const [exporting,  setExporting]  = useState(false)
+  const [panelItem,  setPanelItem]  = useState(null)
   const { client } = useClient()
 
-  const scores = client?.scores || {}
-  const SCORES = Object.entries(PILLAR_COLORS).map(([key, color]) => ({
+  const scores      = client?.scores || {}
+  const SCORES      = Object.entries(PILLAR_COLORS).map(([key, color]) => ({
     name: PILLAR_LABELS[key], score: scores[key] ?? 0, color,
   }))
   const overallScore = client?.overallScore ?? '—'
-  const clientName = client?.name ?? 'No client selected'
+  const clientName   = client?.name ?? 'No client selected'
 
   async function exportPDF() {
     setExporting(true)
@@ -71,28 +80,21 @@ export default function Results() {
         import('html2canvas'),
         import('jspdf'),
       ])
-
       const canvas = await html2canvas(contentRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#0A1628',
-        scrollY: -window.scrollY,
+        scale: 2, useCORS: true, backgroundColor: '#0A1628', scrollY: -window.scrollY,
       })
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-      const pageWidth  = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const ratio        = pageWidth / canvas.width
+      const pdf         = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+      const pageWidth   = pdf.internal.pageSize.getWidth()
+      const pageHeight  = pdf.internal.pageSize.getHeight()
+      const ratio       = pageWidth / canvas.width
       const scaledHeight = canvas.height * ratio
-
       let yPos = 0
       while (yPos < scaledHeight) {
         pdf.addImage(canvas, 'PNG', 0, -yPos, pageWidth, scaledHeight)
         yPos += pageHeight
         if (yPos < scaledHeight) pdf.addPage()
       }
-
-      pdf.save(`${(clientName).replace(/\s+/g, '-')}-AI-Maturity-Report.pdf`)
+      pdf.save(`${clientName.replace(/\s+/g, '-')}-AI-Maturity-Report.pdf`)
     } catch (err) {
       console.error('PDF export failed:', err)
     } finally {
@@ -124,7 +126,6 @@ export default function Results() {
             {client?.overallScore ? ' Review pillar scores and priority recommendations below.' : ' Complete the assessment to generate recommendations.'}
           </p>
         </div>
-
         <div className="results-chart">
           <div className="chart-title">Pillar Scores</div>
           <ResponsiveContainer width="100%" height={200}>
@@ -147,7 +148,11 @@ export default function Results() {
         <div className="section-title">Priority Recommendations</div>
         <div className="rec-list">
           {RECOMMENDATIONS.map(r => (
-            <div key={r.priority} className="rec-card">
+            <div
+              key={r.priority}
+              className="rec-card clickable"
+              onClick={() => setPanelItem({ title: r.title, label: r.pillar })}
+            >
               <div className="rec-priority" style={{background: r.color+'22', color: r.color}}>#{r.priority}</div>
               <div className="rec-content">
                 <div className="rec-header">
@@ -162,6 +167,7 @@ export default function Results() {
                   </div>
                 </div>
                 <p className="rec-desc">{r.description}</p>
+                <div className="rec-plan-link">View full plan →</div>
               </div>
             </div>
           ))}
@@ -171,20 +177,28 @@ export default function Results() {
       <div className="next-steps">
         <div className="section-title">Proposed Next Steps</div>
         <div className="steps-grid">
-          {[
-            { label:'Week 1-2',  title:'Gap Analysis Workshop',    desc:'Deep-dive session with IT and HR leads to validate findings.' },
-            { label:'Week 3-4',  title:'Roadmap Sign-off',         desc:'Present prioritized roadmap to executive sponsors.' },
-            { label:'Month 2',   title:'Quick Wins Execution',     desc:'Launch AI literacy program and begin risk policy documentation.' },
-            { label:'Month 3+',  title:'Managed AI Services',      desc:'Zones-managed monitoring and governance program kickoff.' },
-          ].map(s => (
-            <div key={s.label} className="next-step-card">
+          {NEXT_STEPS.map(s => (
+            <div
+              key={s.label}
+              className="next-step-card clickable"
+              onClick={() => setPanelItem({ title: s.title, label: s.label })}
+            >
               <div className="step-period">{s.label}</div>
               <div className="step-title">{s.title}</div>
               <div className="step-desc">{s.desc}</div>
+              <div className="step-plan-link">Generate plan →</div>
             </div>
           ))}
         </div>
       </div>
+
+      {panelItem && (
+        <ActionPlanPanel
+          item={panelItem}
+          client={client}
+          onClose={() => setPanelItem(null)}
+        />
+      )}
     </div>
   )
 }

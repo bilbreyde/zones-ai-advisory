@@ -66,6 +66,11 @@ sequence_diagram — triggered by: "sequence", "interaction", "communication bet
 vendor_comparison — triggered by: "compare", "versus", "vs", "pros and cons", "which is better", "recommend a tool", "suggest platforms", "options for". Shows a structured vendor comparison:
 {"text":"intro","visual":{"type":"vendor_comparison","title":"Agent Platform Comparison","criteria":["Scalability","Integration","Customization","Cost","Enterprise Support"],"vendors":[{"name":"Azure AI Foundry","recommended":true,"scores":{"Scalability":5,"Integration":5,"Customization":4,"Cost":3,"Enterprise Support":5},"pros":["Native Azure integration","Enterprise-grade security","Co-sell eligible"],"cons":["Azure dependency","Learning curve"]},{"name":"OpenAI GPT","recommended":false,"scores":{"Scalability":4,"Integration":4,"Customization":3,"Cost":3,"Enterprise Support":3},"pros":["Advanced NLP","Wide ecosystem"],"cons":["Limited customization","Resource intensive"]},{"name":"Google Dialogflow","recommended":false,"scores":{"Scalability":4,"Integration":4,"Customization":3,"Cost":4,"Enterprise Support":4},"pros":["Easy integration","Intent recognition"],"cons":["Limited advanced control"]},{"name":"Rasa","recommended":false,"scores":{"Scalability":3,"Integration":3,"Customization":5,"Cost":5,"Enterprise Support":2},"pros":["Open source","Full control"],"cons":["Requires deep technical expertise"]}]}}
 
+MULTI-VISUAL ACTION PLAN FORMAT:
+When asked for a "complete action plan" or "full plan" with multiple deliverables, respond with a visuals array instead of a single visual:
+{"text":"2-3 sentence executive summary of the plan","visuals":[{"type":"gantt","title":"Week-by-Week Timeline",...},{"type":"raci_matrix","title":"Accountability Matrix",...},{"type":"risk_heatmap","title":"Initiative Risk Map",...},{"type":"checklist","title":"Success Metrics & Milestones",...}]}
+Include 3-4 visuals. Each visual must follow its exact schema from above. The visuals array replaces the single visual field.
+
 PLAIN TEXT RESPONSES:
 For gap analysis explanations, general advice, greetings, and questions not requiring a visual — respond with plain text only (2–4 short paragraphs). Never wrap plain text in JSON.
 
@@ -78,15 +83,12 @@ const VISUAL_TYPES = new Set([
 ])
 
 function extractVisualFromResponse(raw) {
-  // Strip markdown code fences
-  const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-
-  // Find first { and last } to isolate JSON regardless of surrounding text
+  const cleaned    = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
   const firstBrace = cleaned.indexOf("{")
   const lastBrace  = cleaned.lastIndexOf("}")
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    return { text: raw, visual: null }
+    return { text: raw, visual: null, visuals: null }
   }
 
   const jsonStr = cleaned.slice(firstBrace, lastBrace + 1)
@@ -94,19 +96,25 @@ function extractVisualFromResponse(raw) {
   try {
     const parsed = JSON.parse(jsonStr)
 
+    // Multi-visual envelope: { text, visuals: [...] }
+    if (Array.isArray(parsed.visuals) && parsed.text !== undefined) {
+      const valid = parsed.visuals.filter(v => v?.type && VISUAL_TYPES.has(v.type))
+      return { text: parsed.text, visual: valid[0] || null, visuals: valid }
+    }
+
     // Standard envelope: { text, visual }
     if (parsed.visual && parsed.text !== undefined && VISUAL_TYPES.has(parsed.visual.type)) {
-      return { text: parsed.text, visual: parsed.visual }
+      return { text: parsed.text, visual: parsed.visual, visuals: null }
     }
 
     // Model returned just the visual object (forgot to wrap in envelope)
     if (parsed.type && VISUAL_TYPES.has(parsed.type)) {
-      return { text: "", visual: parsed }
+      return { text: "", visual: parsed, visuals: null }
     }
 
-    return { text: raw, visual: null }
+    return { text: raw, visual: null, visuals: null }
   } catch {
-    return { text: raw, visual: null }
+    return { text: raw, visual: null, visuals: null }
   }
 }
 
@@ -116,12 +124,19 @@ app.use("/api/sessions", sessionRoutes)
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const { messages, clientContext, format } = req.body
+    const { messages, clientContext, format, maxTokens } = req.body
     if (!messages?.length) return res.status(400).json({ error: "messages required" })
 
-    const contextPrompt = clientContext
-      ? `\n\nCurrent client: ${clientContext.name}. Pillar scores: ${JSON.stringify(clientContext.scores)}. Overall: ${clientContext.overallScore ?? "not yet assessed"}/5.`
-      : ""
+    const contextPrompt = clientContext ? `
+
+Current client: ${clientContext.name}
+Industry: ${clientContext.industry || 'Not specified'}
+Company size: ${clientContext.size || 'Not specified'}
+Overall maturity: ${clientContext.overallScore ?? 'not yet assessed'}/5
+Pillar scores: ${JSON.stringify(clientContext.scores)}
+Assessment detail: ${JSON.stringify(clientContext.answers || {})}
+
+Use this specific data to give precise, tailored recommendations. Reference actual scores and specific gaps in your responses.` : ""
 
     const completion = await openai.chat.completions.create({
       model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
@@ -130,23 +145,25 @@ app.post("/api/chat", async (req, res) => {
         ...messages.slice(-10),
       ],
       temperature: 0.7,
-      max_tokens: 1200,
+      max_tokens: maxTokens || 1200,
     })
 
     const rawContent = completion.choices[0].message.content.trim()
     console.log("[chat] raw GPT response:", rawContent.slice(0, 300))
 
-    let reply  = rawContent
-    let visual = null
+    let reply   = rawContent
+    let visual  = null
+    let visuals = null
 
     if (format !== "text") {
       const extracted = extractVisualFromResponse(rawContent)
-      reply  = extracted.text
-      visual = extracted.visual
-      console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual type:", visual?.type ?? "none")
+      reply   = extracted.text
+      visual  = extracted.visual
+      visuals = extracted.visuals
+      console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual type:", visual?.type ?? "none", "| visuals:", visuals?.length ?? 0)
     }
 
-    res.json({ reply, visual })
+    res.json({ reply, visual, visuals })
   } catch (err) {
     console.error("Azure OpenAI error:", err.message)
     res.status(500).json({ error: "Failed to get AI response", detail: err.message })

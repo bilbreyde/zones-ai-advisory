@@ -4,6 +4,8 @@ import { useClient } from '../ClientContext.jsx'
 import ChatVisual from './ChatVisual.jsx'
 import './AIChat.css'
 
+const API = import.meta.env.VITE_API_URL || ''
+
 const STARTERS = [
   "What's the biggest gap for this client?",
   "Suggest a 90-day risk improvement plan",
@@ -18,16 +20,30 @@ export default function AIChat() {
       role: 'assistant',
       content: "I'm your Zones AI Advisory assistant. I can help analyze this client's assessment, suggest recommendations, and prepare talking points for your session. What would you like to explore?",
       visual: null,
+      visuals: null,
     }
   ])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [input,            setInput]            = useState('')
+  const [loading,          setLoading]          = useState(false)
   const [collapsedVisuals, setCollapsedVisuals] = useState({})
+  // Assessment data cache keyed by client ID
+  const [assessmentCache, setAssessmentCache]   = useState({})
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Pre-fetch assessment data when client changes
+  useEffect(() => {
+    if (!client?.id || assessmentCache[client.id]) return
+    fetch(`${API}/api/assessments/${client.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) setAssessmentCache(prev => ({ ...prev, [client.id]: data }))
+      })
+      .catch(() => {})
+  }, [client?.id])
 
   function toggleVisual(idx) {
     setCollapsedVisuals(prev => ({ ...prev, [idx]: !prev[idx] }))
@@ -37,29 +53,44 @@ export default function AIChat() {
     const userMsg = text || input.trim()
     if (!userMsg) return
     setInput('')
-    const newMessages = [...messages, { role: 'user', content: userMsg, visual: null }]
+    const newMessages = [...messages, { role: 'user', content: userMsg, visual: null, visuals: null }]
     setMessages(newMessages)
     setLoading(true)
 
     try {
-      // Strip visual before sending — API only needs role + content
-      const apiMessages = newMessages.map(({ role, content }) => ({ role, content }))
-      const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/chat', {
+      const apiMessages    = newMessages.map(({ role, content }) => ({ role, content }))
+      const assessmentData = assessmentCache[client?.id]
+
+      const res = await fetch(`${API}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: apiMessages,
-          clientContext: client ? { name: client.name, scores: client.scores, overallScore: client.overallScore } : null,
-        })
+          clientContext: client ? {
+            name:         client.name,
+            scores:       client.scores,
+            overallScore: client.overallScore,
+            industry:     client.industry,
+            size:         client.size,
+            answers:      assessmentData?.answers || {},
+          } : null,
+        }),
       })
+
       const data = await res.json()
       console.log('[AIChat] response:', data)
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply, visual: data.visual || null }])
+      setMessages(prev => [...prev, {
+        role:    'assistant',
+        content: data.reply,
+        visual:  data.visual  || null,
+        visuals: data.visuals || null,
+      }])
     } catch {
       setMessages(prev => [...prev, {
-        role: 'assistant',
+        role:    'assistant',
         content: 'Connection error. Please check the backend server is running.',
-        visual: null,
+        visual:  null,
+        visuals: null,
       }])
     } finally {
       setLoading(false)
@@ -69,9 +100,7 @@ export default function AIChat() {
   return (
     <div className="ai-chat">
       <div className="chat-header">
-        <div className="chat-header-icon">
-          <Bot size={14} />
-        </div>
+        <div className="chat-header-icon"><Bot size={14} /></div>
         <div>
           <div className="chat-title">AI Advisory Assistant</div>
           <div className="chat-sub">Azure OpenAI · GPT-4o</div>
@@ -80,34 +109,41 @@ export default function AIChat() {
       </div>
 
       <div className="chat-messages">
-        {messages.map((m, i) => (
-          <div key={i} className={`message ${m.role}`}>
-            {m.role === 'assistant' && (
-              <div className="msg-avatar"><Sparkles size={10} /></div>
-            )}
-            {m.role === 'assistant' && m.visual ? (
-              <div className="msg-content">
+        {messages.map((m, i) => {
+          const hasVisual  = !!(m.visual)
+          const hasVisuals = !!(m.visuals?.length)
+          const showExpand = m.role === 'assistant' && (hasVisual || hasVisuals)
+
+          return (
+            <div key={i} className={`message ${m.role}`}>
+              {m.role === 'assistant' && (
+                <div className="msg-avatar"><Sparkles size={10} /></div>
+              )}
+              {showExpand ? (
+                <div className="msg-content">
+                  {m.content && <div className="msg-bubble">{m.content}</div>}
+                  {!collapsedVisuals[i] && (
+                    <div className="msg-visual">
+                      {hasVisuals
+                        ? m.visuals.map((v, vi) => <ChatVisual key={vi} visual={v} />)
+                        : <ChatVisual visual={m.visual} />
+                      }
+                    </div>
+                  )}
+                  <button className="visual-toggle" onClick={() => toggleVisual(i)}>
+                    {collapsedVisuals[i] ? 'Show visual' : 'Hide visual'}
+                  </button>
+                </div>
+              ) : (
                 <div className="msg-bubble">{m.content}</div>
-                {!collapsedVisuals[i] && (
-                  <div className="msg-visual">
-                    <ChatVisual visual={m.visual} />
-                  </div>
-                )}
-                <button className="visual-toggle" onClick={() => toggleVisual(i)}>
-                  {collapsedVisuals[i] ? 'Show visual' : 'Hide visual'}
-                </button>
-              </div>
-            ) : (
-              <div className="msg-bubble">{m.content}</div>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          )
+        })}
         {loading && (
           <div className="message assistant">
             <div className="msg-avatar"><Sparkles size={10} /></div>
-            <div className="msg-bubble typing">
-              <span /><span /><span />
-            </div>
+            <div className="msg-bubble typing"><span /><span /><span /></div>
           </div>
         )}
         <div ref={bottomRef} />
@@ -115,9 +151,7 @@ export default function AIChat() {
 
       <div className="chat-starters">
         {STARTERS.map((s, i) => (
-          <button key={i} className="starter-btn" onClick={() => send(s)}>
-            {s}
-          </button>
+          <button key={i} className="starter-btn" onClick={() => send(s)}>{s}</button>
         ))}
       </div>
 
