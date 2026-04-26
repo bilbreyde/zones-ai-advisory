@@ -217,7 +217,12 @@ function renderVisualInner(visual) {
     case 'timeline':        return <TimelineVisual  data={visual} />
     case 'scorecard':       return <ScorecardVisual data={visual} />
     case 'checklist':       return <ChecklistVisual data={visual} />
-    default:                return null
+    default:
+      return (
+        <pre style={{ fontSize: '10px', color: 'var(--z-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>
+          {JSON.stringify(visual, null, 2)}
+        </pre>
+      )
   }
 }
 

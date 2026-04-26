@@ -20,30 +20,68 @@ const openai = new AzureOpenAI({
 
 const SYSTEM_PROMPT = `You are the Zones AI Advisory Assistant, an expert AI governance and strategy advisor embedded in the Zones AI Advisory Framework tool. You help Zones consultants and their clients by analyzing AI maturity assessment results across 5 pillars: Governance, Risk and Compliance, AI Strategy, Operations, and Enablement. Be concise, specific, and practical.
 
-VISUAL RESPONSES: When the user asks about plans, roadmaps, timelines, priorities, recommendations, improvement steps, phases, quick wins, checklists, or benchmarks, respond ONLY with a raw JSON object — no markdown, no code fences, no explanation outside the JSON:
-{"text":"1–2 sentence intro","visual":{"type":"...","title":"...","..."}}
+CRITICAL RULE — VISUAL RESPONSES:
+When a question involves plans, roadmaps, timelines, benchmark comparisons, prioritization, improvement steps, phases, quick wins, or checklists, you MUST respond with ONLY a raw JSON object. No markdown code fences. No text before or after the JSON. The entire response must be valid JSON matching this exact envelope:
+{"text":"1–2 sentence intro shown above the visual","visual":{"type":"gantt","title":"...","phases":[...]}}
 
-Visual type schemas (pick the best fit):
+Available visual types and their exact schemas:
 
-gantt — phased plans, 90-day programs:
-{"type":"gantt","title":"...","phases":[{"name":"Phase 1 — Name","days":"1–30","color":"#E8A838","tasks":["task 1","task 2","task 3"]},{"name":"Phase 2 — Name","days":"31–60","color":"#4A9FE0","tasks":["..."]},{"name":"Phase 3 — Name","days":"61–90","color":"#3DBA7E","tasks":["..."]}]}
+gantt — for 90-day plans, phased programs:
+{"text":"intro","visual":{"type":"gantt","title":"90-Day Risk Improvement Plan","phases":[{"name":"Phase 1 — Foundation","days":"1–30","color":"#E8A838","tasks":["task 1","task 2","task 3"]},{"name":"Phase 2 — Implementation","days":"31–60","color":"#4A9FE0","tasks":["task 1","task 2"]},{"name":"Phase 3 — Optimization","days":"61–90","color":"#3DBA7E","tasks":["task 1","task 2"]}]}}
 
-priority_matrix — prioritization, quick wins analysis:
-{"type":"priority_matrix","title":"...","items":[{"label":"concise item label","quadrant":"quick_win"}]}
-quadrant must be exactly one of: quick_win | strategic | fill_in | thankless
-Use 6–10 items spread across quadrants.
+priority_matrix — for prioritization, quick wins, executive readout prep:
+{"text":"intro","visual":{"type":"priority_matrix","title":"Initiative Prioritization","items":[{"label":"short label","quadrant":"quick_win"},{"label":"short label","quadrant":"strategic"},{"label":"short label","quadrant":"fill_in"},{"label":"short label","quadrant":"thankless"}]}}
+quadrant must be exactly one of: quick_win | strategic | fill_in | thankless. Use 6–10 items total spread across all four quadrants.
 
-timeline — roadmaps, milestone sequences:
-{"type":"timeline","title":"...","milestones":[{"date":"Week 1–2","label":"Milestone name","color":"#4A9FE0","description":"one sentence"}]}
+timeline — for milestone sequences, roadmaps:
+{"text":"intro","visual":{"type":"timeline","title":"Roadmap","milestones":[{"date":"Week 1–2","label":"Milestone","color":"#4A9FE0","description":"one sentence"}]}}
 
-scorecard — benchmark comparisons, score tables:
-{"type":"scorecard","title":"...","rows":[{"label":"Governance","client":3.2,"benchmark":3.5}]}
-Include all 5 pillars. Use realistic industry benchmarks (2.8–3.8 range).
+scorecard — for benchmark comparisons (ALWAYS use this for "compare to industry" questions):
+{"text":"intro","visual":{"type":"scorecard","title":"Client vs Industry Benchmarks","rows":[{"label":"Governance","client":3.2,"benchmark":3.1},{"label":"Risk & Compliance","client":2.8,"benchmark":3.3},{"label":"AI Strategy","client":3.5,"benchmark":3.6},{"label":"Operations","client":2.9,"benchmark":3.4},{"label":"Enablement","client":3.1,"benchmark":3.2}]}}
+Always include all 5 pillars. Use client's actual scores. Use realistic industry benchmarks in the 2.8–3.8 range.
 
-checklist — action item lists, quick wins checklists:
-{"type":"checklist","title":"...","categories":[{"name":"Category","color":"#EC4899","items":["action 1","action 2","action 3"]}]}
+checklist — for action item lists:
+{"text":"intro","visual":{"type":"checklist","title":"Quick Wins Checklist","categories":[{"name":"Category Name","color":"#EC4899","items":["action 1","action 2"]}]}}
 
-For all other questions — gap analysis, explanations, general advice, greetings — respond with plain text only (2–4 short paragraphs). Never wrap plain text in JSON.`
+PLAIN TEXT RESPONSES:
+For gap analysis explanations, general advice, greetings, and questions not requiring a visual — respond with plain text only (2–4 short paragraphs). Never wrap plain text in JSON.
+
+REMEMBER: When returning a visual, your ENTIRE response must be the JSON object. Start with { and end with }. Nothing else.`
+
+const VISUAL_TYPES = new Set(["gantt", "scorecard", "priority_matrix", "timeline", "checklist"])
+
+function extractVisualFromResponse(raw) {
+  // Strip markdown code fences
+  const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+
+  // Find first { and last } to isolate JSON regardless of surrounding text
+  const firstBrace = cleaned.indexOf("{")
+  const lastBrace  = cleaned.lastIndexOf("}")
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return { text: raw, visual: null }
+  }
+
+  const jsonStr = cleaned.slice(firstBrace, lastBrace + 1)
+
+  try {
+    const parsed = JSON.parse(jsonStr)
+
+    // Standard envelope: { text, visual }
+    if (parsed.visual && parsed.text !== undefined && VISUAL_TYPES.has(parsed.visual.type)) {
+      return { text: parsed.text, visual: parsed.visual }
+    }
+
+    // Model returned just the visual object (forgot to wrap in envelope)
+    if (parsed.type && VISUAL_TYPES.has(parsed.type)) {
+      return { text: "", visual: parsed }
+    }
+
+    return { text: raw, visual: null }
+  } catch {
+    return { text: raw, visual: null }
+  }
+}
 
 app.use("/api/clients", clientRoutes)
 app.use("/api/assessments", assessmentRoutes)
@@ -65,34 +103,20 @@ app.post("/api/chat", async (req, res) => {
         ...messages.slice(-10),
       ],
       temperature: 0.7,
-      max_tokens: 800,
+      max_tokens: 1200,
     })
 
     const rawContent = completion.choices[0].message.content.trim()
-    let reply = rawContent
+    console.log("[chat] raw GPT response:", rawContent.slice(0, 300))
+
+    let reply  = rawContent
     let visual = null
 
-    // Parse visual envelope unless caller requested plain text (e.g. narrative card)
     if (format !== "text") {
-      try {
-        // Strip markdown code fences GPT sometimes adds despite instructions
-        const stripped = rawContent
-          .replace(/```(?:json)?\s*/gi, "")
-          .replace(/```/g, "")
-          .trim()
-        // Extract first valid JSON object — handles extra text before/after the JSON block
-        const jsonStart = stripped.indexOf("{")
-        const jsonEnd   = stripped.lastIndexOf("}")
-        if (jsonStart !== -1 && jsonEnd > jsonStart) {
-          const parsed = JSON.parse(stripped.slice(jsonStart, jsonEnd + 1))
-          if (parsed.text !== undefined) {
-            reply  = parsed.text
-            visual = parsed.visual || null
-          }
-        }
-      } catch {
-        // Not JSON — use raw text as-is
-      }
+      const extracted = extractVisualFromResponse(rawContent)
+      reply  = extracted.text
+      visual = extracted.visual
+      console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual type:", visual?.type ?? "none")
     }
 
     res.json({ reply, visual })
