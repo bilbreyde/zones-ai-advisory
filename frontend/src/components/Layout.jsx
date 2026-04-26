@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardCheck, BarChart3,
-  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap
+  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
 import { useClient } from '../ClientContext.jsx'
@@ -64,6 +64,11 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/agents" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
             <Zap size={15} /> Agent Studio
+          </NavLink>
+
+          <div className="nav-divider" />
+          <NavLink to="/help" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <HelpCircle size={15} /> Help & Guide
           </NavLink>
         </nav>
 

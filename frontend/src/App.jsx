@@ -5,6 +5,7 @@ import Assessment from './pages/Assessment.jsx'
 import Results from './pages/Results.jsx'
 import Clients from './pages/Clients.jsx'
 import AgentStudio from './pages/AgentStudio.jsx'
+import Help from './pages/Help.jsx'
 import { ClientProvider } from './ClientContext.jsx'
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="results" element={<Results />} />
         <Route path="clients" element={<Clients />} />
         <Route path="agents" element={<AgentStudio />} />
+        <Route path="help" element={<Help />} />
       </Route>
     </Routes>
     </ClientProvider>
