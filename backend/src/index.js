@@ -77,13 +77,18 @@ app.post("/api/chat", async (req, res) => {
       try {
         // Strip markdown code fences GPT sometimes adds despite instructions
         const stripped = rawContent
-          .replace(/^```(?:json)?\s*/i, "")
-          .replace(/\s*```$/, "")
+          .replace(/```(?:json)?\s*/gi, "")
+          .replace(/```/g, "")
           .trim()
-        const parsed = JSON.parse(stripped)
-        if (parsed.text !== undefined) {
-          reply  = parsed.text
-          visual = parsed.visual || null
+        // Extract first valid JSON object — handles extra text before/after the JSON block
+        const jsonStart = stripped.indexOf("{")
+        const jsonEnd   = stripped.lastIndexOf("}")
+        if (jsonStart !== -1 && jsonEnd > jsonStart) {
+          const parsed = JSON.parse(stripped.slice(jsonStart, jsonEnd + 1))
+          if (parsed.text !== undefined) {
+            reply  = parsed.text
+            visual = parsed.visual || null
+          }
         }
       } catch {
         // Not JSON — use raw text as-is

@@ -53,6 +53,7 @@ export default function AIChat() {
         })
       })
       const data = await res.json()
+      console.log('[AIChat] response:', data)
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply, visual: data.visual || null }])
     } catch {
       setMessages(prev => [...prev, {
