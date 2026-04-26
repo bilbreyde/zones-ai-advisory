@@ -126,12 +126,6 @@
 }
 
 
-.ap-visual-section {
-  background: var(--z-surface);
-  border: 1px solid var(--z-border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-}
 
 .ap-error {
   font-size: 12px;
@@ -211,6 +205,21 @@
   flex: 1;
   height: 0.5px;
   background: var(--z-border);
+}
+
+/* Prevent page splits inside captured elements */
+.narrative-block,
+.chat-visual-wrapper {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* Visual wrapper — same visual as ap-visual-section */
+.chat-visual-wrapper {
+  background: var(--z-surface);
+  border: 1px solid var(--z-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
 }
 
 /* Narrative block */

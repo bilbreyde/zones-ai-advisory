@@ -7,12 +7,12 @@ import './ActionPlanPanel.css'
 const API = import.meta.env.VITE_API_URL || ''
 
 export default function ActionPlanPanel({ item, client, onClose }) {
-  const [isOpen,     setIsOpen]     = useState(false)
-  const [loading,    setLoading]    = useState(true)
-  const [reply,      setReply]      = useState('')
-  const [visuals,    setVisuals]    = useState([])
-  const [pdfLoading, setPdfLoading] = useState(false)
-  const bodyRef = useRef(null)
+  const [isOpen,      setIsOpen]      = useState(false)
+  const [loading,     setLoading]     = useState(true)
+  const [reply,       setReply]       = useState('')
+  const [visuals,     setVisuals]     = useState([])
+  const [pdfLoading,  setPdfLoading]  = useState(false)
+  const panelContentRef = useRef(null)
 
   // Slide in after mount
   useEffect(() => {
@@ -29,8 +29,8 @@ export default function ActionPlanPanel({ item, client, onClose }) {
 
   // Fetch action plan on mount
   useEffect(() => {
-    const scoresJson  = JSON.stringify(client?.scores || {})
-    const timeframe   = item.period || item.timeline || 'the defined period'
+    const scoresJson = JSON.stringify(client?.scores || {})
+    const timeframe  = item.period || item.timeline || 'the defined period'
     const prompt =
       `Generate a complete action plan for: "${item.title}" for ${client?.name || 'this client'}.
 
@@ -52,11 +52,11 @@ Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJ
       body: JSON.stringify({
         messages: [{ role: 'user', content: prompt }],
         clientContext: client ? {
-          name: client.name,
-          scores: client.scores,
+          name:         client.name,
+          scores:       client.scores,
           overallScore: client.overallScore,
-          industry: client.industry,
-          size: client.size,
+          industry:     client.industry,
+          size:         client.size,
         } : null,
         maxTokens: 4000,
       }),
@@ -64,7 +64,6 @@ Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJ
       .then(r => r.json())
       .then(data => {
         setReply(data.reply || '')
-        // Support both visuals array and single visual
         const v = data.visuals?.length ? data.visuals : data.visual ? [data.visual] : []
         setVisuals(v)
       })
@@ -78,33 +77,140 @@ Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJ
   }
 
   async function downloadPDF() {
-    if (!bodyRef.current) return
     setPdfLoading(true)
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
         import('html2canvas'),
         import('jspdf'),
       ])
-      const canvas = await html2canvas(bodyRef.current, {
-        scale: 2,
-        backgroundColor: '#0F2040',
-        useCORS: true,
-        scrollY: 0,
-      })
-      const pdf       = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-      const pw        = pdf.internal.pageSize.getWidth()
-      const ph        = pdf.internal.pageSize.getHeight()
-      const ratio     = pw / canvas.width
-      const totalH    = canvas.height * ratio
-      let yPos = 0
-      while (yPos < totalH) {
-        pdf.addImage(canvas, 'PNG', 0, -yPos, pw, totalH)
-        yPos += ph
-        if (yPos < totalH) pdf.addPage()
+
+      const PAGE_W  = 210   // A4 mm
+      const PAGE_H  = 297
+      const MARGIN  = 14
+      const CONTENT_W = PAGE_W - MARGIN * 2
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+      // ── Cover page (drawn with jsPDF, no screenshot) ──────────────────
+      pdf.setFillColor(10, 22, 40)
+      pdf.rect(0, 0, PAGE_W, PAGE_H, 'F')
+
+      pdf.setFontSize(7)
+      pdf.setTextColor(100, 130, 180)
+      pdf.text('ZONES AI ADVISORY FRAMEWORK', MARGIN, MARGIN + 4)
+
+      pdf.setFontSize(16)
+      pdf.setTextColor(244, 246, 250)
+      pdf.text(
+        `${client?.name || 'Client'} — ${item?.title || 'Action Plan'}`,
+        MARGIN, MARGIN + 16,
+        { maxWidth: CONTENT_W }
+      )
+
+      pdf.setFontSize(8)
+      pdf.setTextColor(120, 150, 190)
+      const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      pdf.text(`Generated ${dateStr}  ·  Confidential`, MARGIN, MARGIN + 26)
+
+      pdf.setDrawColor(74, 159, 224)
+      pdf.setLineWidth(0.5)
+      pdf.line(MARGIN, MARGIN + 32, PAGE_W - MARGIN, MARGIN + 32)
+
+      // Scope/timeframe
+      const timeframe = item.period || item.timeline
+      if (timeframe) {
+        pdf.setFontSize(9)
+        pdf.setTextColor(74, 159, 224)
+        pdf.text(`Scope: ${timeframe}`, MARGIN, MARGIN + 42)
       }
-      const safeTitle  = (item.title  || 'plan').replace(/[^a-z0-9]/gi, '-')
-      const safeClient = (client?.name || 'client').replace(/[^a-z0-9]/gi, '-')
+
+      // ── Helper: add one captured element to the PDF ───────────────────
+      let yPos = MARGIN  // tracks position on current page (page 2+)
+
+      function addPageHeader() {
+        pdf.setFontSize(7)
+        pdf.setTextColor(100, 130, 180)
+        const label = `ZONES AI ADVISORY FRAMEWORK  ·  ${client?.name || ''}  ·  ${item?.title || ''}`
+        pdf.text(label, MARGIN, 8)
+        pdf.setDrawColor(74, 159, 224)
+        pdf.setLineWidth(0.3)
+        pdf.line(MARGIN, 10, PAGE_W - MARGIN, 10)
+        yPos = 16
+      }
+
+      async function addElement(el) {
+        if (!el) return
+        // Scroll element into view so it renders fully before capture
+        el.scrollIntoView({ block: 'nearest' })
+        await new Promise(r => setTimeout(r, 120))
+
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#0F2040',
+          logging: false,
+          windowWidth:  el.scrollWidth,
+          windowHeight: el.scrollHeight,
+        })
+
+        const imgData   = canvas.toDataURL('image/png')
+        const rawH      = (canvas.height / canvas.width) * CONTENT_W
+        // Never let a single element exceed one full page
+        const maxH      = PAGE_H - MARGIN * 2 - 6
+        const imgH      = Math.min(rawH, maxH)
+        const imgW      = rawH > maxH ? CONTENT_W * (maxH / rawH) : CONTENT_W
+
+        // New page if element doesn't fit
+        if (yPos + imgH > PAGE_H - MARGIN) {
+          pdf.addPage()
+          pdf.setFillColor(10, 22, 40)
+          pdf.rect(0, 0, PAGE_W, PAGE_H, 'F')
+          addPageHeader()
+        }
+
+        pdf.addImage(imgData, 'PNG', MARGIN, yPos, imgW, imgH)
+        yPos += imgH + 5
+      }
+
+      // ── Page 2 onwards: capture each section element ──────────────────
+      pdf.addPage()
+      pdf.setFillColor(10, 22, 40)
+      pdf.rect(0, 0, PAGE_W, PAGE_H, 'F')
+      addPageHeader()
+
+      const container = panelContentRef.current
+      if (container) {
+        // Executive summary card
+        const summaryEl = container.querySelector('.plan-summary')
+        if (summaryEl) await addElement(summaryEl)
+
+        // Each action plan section: narrative then visual, separately
+        const sections = container.querySelectorAll('.action-plan-section')
+        for (const section of sections) {
+          const narrativeEl = section.querySelector('.narrative-block')
+          const visualEl    = section.querySelector('.chat-visual-wrapper')
+          if (narrativeEl) await addElement(narrativeEl)
+          if (visualEl)    await addElement(visualEl)
+          yPos += 3 // breathing room between sections
+        }
+      }
+
+      // ── Footer on every page ──────────────────────────────────────────
+      const totalPages = pdf.getNumberOfPages()
+      for (let p = 1; p <= totalPages; p++) {
+        pdf.setPage(p)
+        pdf.setFontSize(7)
+        pdf.setTextColor(80, 110, 160)
+        pdf.text(`${p} / ${totalPages}`, PAGE_W / 2, PAGE_H - 6, { align: 'center' })
+        pdf.text('Confidential — Zones Innovation Center', MARGIN, PAGE_H - 6)
+      }
+
+      const safeClient = (client?.name  || 'Client').replace(/[^a-z0-9]/gi, '-')
+      const safeTitle  = (item?.title   || 'Action-Plan').replace(/[^a-z0-9]/gi, '-')
       pdf.save(`${safeClient}-${safeTitle}-Action-Plan.pdf`)
+
+    } catch (err) {
+      console.error('PDF export failed:', err)
     } finally {
       setPdfLoading(false)
     }
@@ -131,7 +237,7 @@ Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJ
         </div>
 
         {/* Body */}
-        <div className="ap-body" ref={bodyRef}>
+        <div className="ap-body" ref={panelContentRef}>
           {loading ? (
             <div className="ap-loading">
               <Loader size={22} className="ap-spin" />
@@ -186,7 +292,7 @@ Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJ
                       )}
                     </div>
                   )}
-                  <div className="ap-visual-section">
+                  <div className="chat-visual-wrapper ap-visual-section">
                     <ChatVisual visual={visual} />
                   </div>
                 </div>
