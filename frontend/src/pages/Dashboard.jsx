@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader } from 'lucide-react'
+import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import './Dashboard.css'
 
@@ -36,11 +36,15 @@ export default function Dashboard() {
   // Task 2: live assessment scores
   const [assessment, setAssessment] = useState(null)
 
-  // Task 3: session notes
+  // Session notes
   const [sessions, setSessions] = useState([])
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [noteSaved, setNoteSaved] = useState(false)
+
+  // Executive narrative card
+  const [narrative, setNarrative] = useState('')
+  const [narrativeLoading, setNarrativeLoading] = useState(false)
 
   useEffect(() => {
     if (!client) return
@@ -59,11 +63,33 @@ export default function Dashboard() {
       .then(r => r.ok ? r.json() : [])
       .then(data => {
         setSessions(data)
-        // Pre-fill textarea if a note exists for the current session
         const current = data.find(s => s.sessionNumber === client.currentSession)
         if (current) setNoteText(current.notes || '')
       })
       .catch(() => {})
+  }, [client?.id])
+
+  // Fetch executive narrative when client + assessment scores are available
+  useEffect(() => {
+    if (!client) return
+    setNarrative('')
+    setNarrativeLoading(true)
+    const scores = client.scores || {}
+    const overallScore = client.overallScore ?? null
+    const ctx = { name: client.name, scores, overallScore }
+    fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: `Write a 2–3 sentence executive summary for ${client.name}'s AI maturity. Highlight their strongest pillar and most critical gap. Keep it boardroom-ready.` }],
+        clientContext: ctx,
+        format: 'text',
+      }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.reply) setNarrative(data.reply) })
+      .catch(() => {})
+      .finally(() => setNarrativeLoading(false))
   }, [client?.id])
 
   async function saveNote() {
@@ -127,6 +153,19 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {(narrative || narrativeLoading) && (
+        <div className="narrative-card">
+          <div className="narrative-icon"><Sparkles size={13} /></div>
+          <div className="narrative-body">
+            <div className="narrative-label">Executive Summary</div>
+            {narrativeLoading
+              ? <div className="narrative-loading"><span /><span /><span /></div>
+              : <div className="narrative-text">{narrative}</div>
+            }
+          </div>
+        </div>
+      )}
 
       <div className="metrics-row">
         <div className="metric-card highlight">

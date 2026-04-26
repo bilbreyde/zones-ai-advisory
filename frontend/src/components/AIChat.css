@@ -172,3 +172,34 @@
 
 .send-btn:hover { background: var(--z-blue-bright); }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Visual message layout */
+.msg-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 92%;
+}
+
+.msg-visual {
+  background: var(--z-surface);
+  border: 1px solid var(--z-border);
+  border-radius: 10px;
+  border-top-left-radius: 3px;
+  padding: 14px;
+  width: 100%;
+}
+
+.visual-toggle {
+  background: none;
+  border: none;
+  font-size: 10px;
+  color: var(--z-muted);
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.12s;
+  align-self: flex-start;
+}
+.visual-toggle:hover { color: var(--z-blue-bright); }

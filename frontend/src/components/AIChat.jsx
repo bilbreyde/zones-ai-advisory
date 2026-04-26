@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, Sparkles } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
+import ChatVisual from './ChatVisual.jsx'
 import './AIChat.css'
 
 const STARTERS = [
@@ -15,40 +16,49 @@ export default function AIChat() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "I'm your Zones AI Advisory assistant. I can help analyze this client's assessment, suggest recommendations, and prepare talking points for your session. What would you like to explore?"
+      content: "I'm your Zones AI Advisory assistant. I can help analyze this client's assessment, suggest recommendations, and prepare talking points for your session. What would you like to explore?",
+      visual: null,
     }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [collapsedVisuals, setCollapsedVisuals] = useState({})
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  function toggleVisual(idx) {
+    setCollapsedVisuals(prev => ({ ...prev, [idx]: !prev[idx] }))
+  }
+
   async function send(text) {
     const userMsg = text || input.trim()
     if (!userMsg) return
     setInput('')
-    const newMessages = [...messages, { role: 'user', content: userMsg }]
+    const newMessages = [...messages, { role: 'user', content: userMsg, visual: null }]
     setMessages(newMessages)
     setLoading(true)
 
     try {
+      // Strip visual before sending — API only needs role + content
+      const apiMessages = newMessages.map(({ role, content }) => ({ role, content }))
       const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages,
+          messages: apiMessages,
           clientContext: client ? { name: client.name, scores: client.scores, overallScore: client.overallScore } : null,
         })
       })
       const data = await res.json()
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply, visual: data.visual || null }])
     } catch {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Connection error. Please check the backend server is running.'
+        content: 'Connection error. Please check the backend server is running.',
+        visual: null,
       }])
     } finally {
       setLoading(false)
@@ -74,7 +84,21 @@ export default function AIChat() {
             {m.role === 'assistant' && (
               <div className="msg-avatar"><Sparkles size={10} /></div>
             )}
-            <div className="msg-bubble">{m.content}</div>
+            {m.role === 'assistant' && m.visual ? (
+              <div className="msg-content">
+                <div className="msg-bubble">{m.content}</div>
+                {!collapsedVisuals[i] && (
+                  <div className="msg-visual">
+                    <ChatVisual visual={m.visual} />
+                  </div>
+                )}
+                <button className="visual-toggle" onClick={() => toggleVisual(i)}>
+                  {collapsedVisuals[i] ? 'Show visual' : 'Hide visual'}
+                </button>
+              </div>
+            ) : (
+              <div className="msg-bubble">{m.content}</div>
+            )}
           </div>
         ))}
         {loading && (
