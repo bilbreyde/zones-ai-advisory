@@ -159,11 +159,31 @@ app.post("/api/chat", async (req, res) => {
 Current client: ${clientContext.name}
 Industry: ${clientContext.industry || 'Not specified'}
 Company size: ${clientContext.size || 'Not specified'}
-Overall maturity: ${clientContext.overallScore ?? 'not yet assessed'}/5
+Overall maturity: ${clientContext.overallScore}/5
 Pillar scores: ${JSON.stringify(clientContext.scores)}
-Assessment detail: ${JSON.stringify(clientContext.answers || {})}
+Assessment answers: ${JSON.stringify(clientContext.answers)}
 
-Use this specific data to give precise, tailored recommendations. Reference actual scores and specific gaps in your responses.` : ""
+INFRASTRUCTURE PROFILE:
+Deployment model: ${clientContext.environmentProfile?.deploymentModel || 'unknown'}
+Cloud tools: ${clientContext.environmentProfile?.cloudTools?.join(', ') || 'Not specified'}
+On-premises tools: ${clientContext.environmentProfile?.onPremTools?.join(', ') || 'None'}
+Legacy systems: ${clientContext.environmentProfile?.legacySystems?.join(', ') || 'None'}
+Compliance requirements: ${clientContext.environmentProfile?.complianceFrameworks?.join(', ') || 'None'}
+Constraints: ${clientContext.environmentProfile?.constraints?.join(', ') || 'None'}
+
+CRITICAL INFRASTRUCTURE RULES — follow strictly:
+- cloud_native: recommend any cloud AI service freely
+- hybrid: recommend Azure Arc and hybrid-compatible architectures; flag data movement considerations
+- on_prem: recommend only on-premises or hybrid solutions; do NOT recommend cloud-only AI APIs as primary runtime; flag local inference requirements
+- air_gapped: ALL recommendations must be fully self-contained with zero internet dependency; only local model inference; flag this prominently in every response
+- HIPAA present: no PHI can leave the client environment; recommend private endpoints
+- FedRAMP/ITAR present: government cloud or on-prem only
+- GDPR present: enforce EU data residency in all recommendations
+- Legacy systems present: always address integration complexity; treat as highest-value agent targets
+
+Use this context to give precise, infrastructure-aware recommendations. Reference actual scores, deployment constraints, and specific gaps in every response.` : `
+
+NO CLIENT SELECTED — You have no client context. Do not generate client-specific recommendations. Clearly state that responses are generic and not tailored to any specific client. Encourage the user to select a client for personalised advisory assistance.`
 
     const completion = await openai.chat.completions.create({
       model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
