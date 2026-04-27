@@ -167,6 +167,49 @@
 .tool-custom-input::placeholder { color: var(--z-muted); }
 .tool-custom-input:focus { outline: none; border-color: var(--z-blue); }
 
+/* Other / custom tool row */
+.tool-chips-and-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex: 1;
+}
+
+.custom-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 7px;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: var(--z-blue-bright);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.7;
+  transition: opacity 0.1s;
+}
+.chip-remove:hover { opacity: 1; }
+
+.other-tool-input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--z-border);
+  color: var(--z-white);
+  font-size: 12px;
+  padding: 3px 4px;
+  min-width: 160px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.other-tool-input:focus { border-bottom-color: var(--z-blue-bright); }
+.other-tool-input::placeholder { color: var(--z-muted); }
+
 /* Focus area checkboxes */
 .focus-list {
   display: flex;

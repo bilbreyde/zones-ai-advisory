@@ -21,6 +21,9 @@ const TOOL_CATEGORIES = [
   { label: 'Collab',tools: ['Teams', 'Slack', 'SharePoint'] },
 ]
 
+// Flat set of all predefined tool names — used to identify custom (free-text) tools
+const PREDEFINED_TOOLS = new Set(TOOL_CATEGORIES.flatMap(c => c.tools))
+
 const PILLAR_META = {
   governance: { label: 'Governance',       color: '#4A9FE0' },
   risk:       { label: 'Risk & Compliance', color: '#E8A838' },
@@ -353,7 +356,7 @@ export default function AgentStudio() {
   const [stage,         setStage]         = useState('configure')
   const [vertical,      setVertical]      = useState(client?.industry || '')
   const [tools,         setTools]         = useState([])
-  const [customTool,    setCustomTool]    = useState('')
+  const [otherInput,    setOtherInput]    = useState('')
   const [focusAreas,    setFocusAreas]    = useState(autoFocus)
   const [agents,        setAgents]        = useState([])
   const [discovering,   setDiscovering]   = useState(false)
@@ -496,8 +499,23 @@ export default function AgentStudio() {
     if (configLoaded) saveConfig(vertical, tools, focusAreas)
   }, [vertical, tools, focusAreas, configLoaded])
 
+  // Custom tools = everything in the tools array that isn't a predefined chip
+  const customTools = tools.filter(t => !PREDEFINED_TOOLS.has(t))
+
   function toggleTool(tool) {
     setTools(prev => prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool])
+  }
+
+  function removeCustomTool(tool) {
+    setTools(prev => prev.filter(t => t !== tool))
+  }
+
+  function handleOtherToolAdd(e) {
+    if (e.key === 'Enter' && otherInput.trim()) {
+      const tool = otherInput.trim()
+      if (!tools.includes(tool)) setTools(prev => [...prev, tool])
+      setOtherInput('')
+    }
   }
 
   function toggleFocus(pillar) {
@@ -642,22 +660,24 @@ export default function AgentStudio() {
                   ))}
                   <div className="tool-category">
                     <div className="tool-category-label">Other</div>
-                    <div className="tool-chips">
-                      <input
-                        className="tool-custom-input"
-                        placeholder="Type tool name + Enter"
-                        value={customTool}
-                        onChange={e => setCustomTool(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && customTool.trim()) {
-                            toggleTool(customTool.trim())
-                            setCustomTool('')
-                          }
-                        }}
-                      />
-                      {tools.filter(t => !TOOL_CATEGORIES.flatMap(c => c.tools).includes(t)).map(t => (
-                        <button key={t} className="tool-chip selected" onClick={() => toggleTool(t)}>{t} ×</button>
+                    <div className="tool-chips-and-input">
+                      {customTools.map(tool => (
+                        <div key={tool} className="tool-chip selected custom-chip">
+                          {tool}
+                          <button
+                            className="chip-remove"
+                            onClick={() => removeCustomTool(tool)}
+                            title={`Remove ${tool}`}
+                          >×</button>
+                        </div>
                       ))}
+                      <input
+                        className="other-tool-input"
+                        placeholder="Type tool name + Enter"
+                        value={otherInput}
+                        onChange={e => setOtherInput(e.target.value)}
+                        onKeyDown={handleOtherToolAdd}
+                      />
                     </div>
                   </div>
                 </div>
