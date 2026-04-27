@@ -522,6 +522,48 @@
   line-height: 1.6;
 }
 
+/* ── Empty / filter-empty state ─────────────────────────────────────── */
+.agents-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.ae-icon { font-size: 28px; }
+
+.ae-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--z-white);
+}
+
+.ae-desc {
+  font-size: 12px;
+  color: var(--z-muted);
+  max-width: 320px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.ae-clear-btn {
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--z-border-mid);
+  background: transparent;
+  color: var(--z-blue-bright);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.ae-clear-btn:hover { background: var(--z-blue-glow); border-color: var(--z-blue-bright); }
+
 /* ── Section groups ──────────────────────────────────────────────────── */
 .section-group { display: flex; flex-direction: column; gap: 12px; }
 

@@ -102,46 +102,66 @@ const VISUAL_TYPES = new Set([
 ])
 
 function extractVisualFromResponse(raw) {
-  const cleaned    = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
   const firstBrace = cleaned.indexOf("{")
-  const lastBrace  = cleaned.lastIndexOf("}")
 
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    return { text: raw, visual: null, visuals: [] }
+  if (firstBrace === -1) {
+    return { text: raw, visual: null, visuals: [], agents: [] }
   }
 
-  const jsonStr = cleaned.slice(firstBrace, lastBrace + 1)
+  let jsonStr = cleaned.slice(firstBrace)
+  const lastBrace = jsonStr.lastIndexOf("}")
+
+  if (lastBrace === -1) {
+    // Response was truncated — attempt recovery by closing open brackets
+    console.warn("[extract] JSON appears truncated, attempting bracket recovery")
+    let opens = 0, arrOpens = 0
+    for (const ch of jsonStr) {
+      if (ch === '{') opens++
+      if (ch === '}') opens--
+      if (ch === '[') arrOpens++
+      if (ch === ']') arrOpens--
+    }
+    jsonStr += ']'.repeat(Math.max(0, arrOpens))
+    jsonStr += '}'.repeat(Math.max(0, opens))
+  } else {
+    jsonStr = jsonStr.slice(0, lastBrace + 1)
+  }
 
   try {
     const parsed = JSON.parse(jsonStr)
-    // Accept either "reply" or "text" as the summary field
     const summaryText = parsed.reply ?? parsed.text ?? ""
 
-    // Case 1 — { reply/text, visuals: [...] }  (multi-visual action plan / agent design)
+    // Case 1 — { reply/text, visuals: [...] }  (multi-visual / agent design)
     if (Array.isArray(parsed.visuals)) {
       const valid = parsed.visuals.filter(v => v?.type && VISUAL_TYPES.has(v.type))
       console.log(`[extract] multi-visual: ${valid.length} valid visuals, summary: "${String(summaryText).slice(0, 60)}"`)
-      return { text: summaryText, visual: valid[0] || null, visuals: valid }
+      return { text: summaryText, visual: valid[0] || null, visuals: valid, agents: [] }
     }
 
     // Case 2 — { reply/text, visual: {...} }  (single visual)
     if (parsed.visual?.type && VISUAL_TYPES.has(parsed.visual.type)) {
       console.log(`[extract] single visual: ${parsed.visual.type}`)
-      return { text: summaryText, visual: parsed.visual, visuals: [parsed.visual] }
+      return { text: summaryText, visual: parsed.visual, visuals: [parsed.visual], agents: [] }
     }
 
     // Case 3 — the whole object IS a visual
     if (parsed.type && VISUAL_TYPES.has(parsed.type)) {
       console.log(`[extract] bare visual: ${parsed.type}`)
-      return { text: "", visual: parsed, visuals: [parsed] }
+      return { text: "", visual: parsed, visuals: [parsed], agents: [] }
+    }
+
+    // Case 4 — agents array (discover response)
+    if (parsed.agents && Array.isArray(parsed.agents)) {
+      return { text: "", visual: null, visuals: [], agents: parsed.agents }
     }
 
     console.warn("[extract] no visual found in parsed JSON, keys:", Object.keys(parsed).join(", "))
-    return { text: raw, visual: null, visuals: [] }
+    return { text: raw, visual: null, visuals: [], agents: [] }
   } catch (e) {
-    console.error("[extract] JSON parse failed:", e.message)
-    console.error("[extract] attempted:", jsonStr.slice(0, 300))
-    return { text: raw, visual: null, visuals: [] }
+    console.error("[extract] JSON parse failed after recovery attempt:", e.message)
+    console.error("[extract] attempted (first 300):", jsonStr.slice(0, 300))
+    return { text: raw, visual: null, visuals: [], agents: [] }
   }
 }
 
@@ -268,13 +288,54 @@ SCORING: fit 80-100 = critical gap + available tools. fit 60-79 = moderate gap o
 Name real industry workflows. Sort by fit_score desc within each complexity group.
 Only include deployment_note and compliance_notes fields when they add meaningful context — omit them (or set to null) if not applicable.`
 
-const DESIGN_SYSTEM_PROMPT = `You are a senior AI solutions architect at Zones Innovation Center. Generate a complete agent design blueprint.
+const DESIGN_SYSTEM_PROMPT = `You are a senior AI solutions architect at Zones Innovation Center. Generate a concise but complete agent design blueprint.
 
-CRITICAL: Return ONLY a valid JSON object. No markdown. No code fences. No text before or after the JSON. The response must start with { and end with }. The entire response must be parseable with JSON.parse().
+Return ONLY a raw JSON object with NO markdown fences, NO text before or after. Start with { and end with }:
+{
+  "reply": "2-3 sentence executive overview specific to this client",
+  "visuals": [
+    {
+      "narrative": { "headline": "punchy so-what headline", "context": "2 sentences max", "actions": ["Action 1", "Action 2"] },
+      "type": "agent_spec",
+      "title": "Agent Specification",
+      "name": "...",
+      "purpose": "...",
+      "trigger": "...",
+      "inputs": ["..."],
+      "outputs": ["..."],
+      "tools": ["..."],
+      "integrations": ["..."],
+      "human_in_loop": "...",
+      "latency": "...",
+      "data_requirements": "..."
+    },
+    {
+      "narrative": { "headline": "...", "context": "2 sentences max", "actions": ["Action 1", "Action 2"] },
+      "type": "mermaid",
+      "title": "Agent Architecture",
+      "chart": "graph TD with MAX 8 nodes — keep it concise"
+    },
+    {
+      "narrative": { "headline": "...", "context": "2 sentences max", "actions": ["Action 1", "Action 2"] },
+      "type": "checklist",
+      "title": "Implementation Checklist",
+      "categories": [
+        { "name": "Prerequisites", "color": "#4A9FE0", "items": ["item 1", "item 2", "item 3"] },
+        { "name": "Phase 1 — POC", "color": "#E8A838", "items": ["item 1", "item 2", "item 3"] },
+        { "name": "Phase 2 — Production", "color": "#3DBA7E", "items": ["item 1", "item 2", "item 3"] }
+      ]
+    }
+  ]
+}
 
-Return ONLY a valid JSON object (no markdown, no fences):
-{"reply":"2-3 sentence executive overview for this specific client","visuals":[{"narrative":{"headline":"punchy so-what headline","context":"2-3 sentences referencing actual scores","actions":["Action 1","Action 2","Action 3"]},"type":"agent_spec","title":"Agent Specification","name":"...","purpose":"...","trigger":"...","inputs":["..."],"outputs":["..."],"tools":["..."],"integrations":["..."],"human_in_loop":"...","latency":"...","data_requirements":"..."},{"narrative":{...},"type":"mermaid","title":"Agent Architecture","chart":"graph TD\\n  subgraph INPUT[\"📥 Inputs\"]\\n    I1[Source 1]\\n  end\\n  subgraph PROC[\"🤖 Processing\"]\\n    P1[Step 1]\\n  end\\n  subgraph OUT[\"📤 Outputs\"]\\n    O1[Output 1]\\n  end\\n  INPUT --> PROC --> OUT"},{"narrative":{...},"type":"vendor_comparison","title":"Build vs Buy Analysis","criteria":["Time to value","Customization","Cost","Maintenance","Integration"],"vendors":[{"name":"Custom build on Azure AI Foundry","recommended":true,"scores":{...},"pros":[...],"cons":[...]},{"name":"Off-the-shelf option","recommended":false,"scores":{...},"pros":[...],"cons":[...]}]},{"narrative":{...},"type":"checklist","title":"Implementation Checklist","categories":[{"name":"Prerequisites","color":"#4A9FE0","items":["..."]},{"name":"Phase 1 — POC","color":"#E8A838","items":["..."]},{"name":"Phase 2 — Production","color":"#3DBA7E","items":["..."]}]}]}
-Write as a senior Zones consultant. Reference client's actual scores. Be prescriptive.`
+CRITICAL RULES:
+- Return ONLY the JSON object. Start with { and end with }
+- Keep Mermaid chart to MAX 8 nodes — shorter charts parse more reliably
+- Keep each narrative context to 2 sentences maximum
+- Keep each actions array to 2 items maximum
+- Total response must be under 3000 tokens
+- The response will be cut off if too long — prioritise completeness over detail
+- Write as a senior Zones consultant. Reference client's actual scores. Be prescriptive.`
 
 app.post("/api/agents/discover", async (req, res) => {
   try {
@@ -309,16 +370,36 @@ ${deploymentModel === 'on_prem' ? '\nIMPORTANT: Prefer on-premises deployment pa
       max_tokens: 3000,
     })
 
-    const raw     = completion.choices[0].message.content.trim()
-    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-    const first   = cleaned.indexOf("{")
-    const last    = cleaned.lastIndexOf("}")
-    if (first === -1 || last === -1) return res.status(500).json({ error: "Failed to parse agent recommendations" })
-    const parsed = JSON.parse(cleaned.slice(first, last + 1))
-    res.json(parsed)
+    const raw = completion.choices[0].message.content.trim()
+    console.log("[discover] raw response (first 300):", raw.slice(0, 300))
+    console.log("[discover] raw response (last 100):", raw.slice(-100))
+
+    const extracted = extractVisualFromResponse(raw)
+    console.log("[discover] agents parsed:", extracted.agents?.length || 0)
+
+    if (extracted.agents?.length) {
+      return res.json({ agents: extracted.agents })
+    }
+
+    // Fallback: try a broader match for wrapped responses
+    const jsonMatch = raw.match(/\{[\s\S]*"agents"[\s\S]*\}/)
+    if (jsonMatch) {
+      try {
+        const fallback = JSON.parse(jsonMatch[0])
+        if (fallback.agents?.length) {
+          console.log("[discover] fallback parse succeeded:", fallback.agents.length, "agents")
+          return res.json({ agents: fallback.agents })
+        }
+      } catch (e) {
+        console.error("[discover] fallback parse also failed:", e.message)
+      }
+    }
+
+    console.error("[discover] no agents parsed from response")
+    return res.json({ agents: [], debug: raw.slice(0, 500) })
   } catch (err) {
     console.error("Agent discover error:", err.message)
-    res.status(500).json({ error: "Failed to generate recommendations", detail: err.message })
+    res.status(500).json({ error: "Failed to generate recommendations", agents: [], detail: err.message })
   }
 })
 
@@ -346,8 +427,13 @@ Make the blueprint specific to ${clientName}'s actual gaps and tooling. Referenc
 
     const rawContent = completion.choices[0].message.content.trim()
     console.log("[design] raw response (first 500):", rawContent.slice(0, 500))
+    console.log("[design] raw response (last 100):", rawContent.slice(-100))
     const extracted = extractVisualFromResponse(rawContent)
-    console.log("[design] parsed — has visuals:", !!extracted.visuals?.length, "| has visual:", !!extracted.visual)
+    console.log("[design] parsed — visuals:", extracted.visuals?.length || 0, "| reply:", extracted.text?.slice(0, 80))
+    if (!extracted.visuals?.length && !extracted.text) {
+      console.error("[design] empty parse result — returning debug info")
+      return res.json({ reply: '', visual: null, visuals: [], debug: rawContent.slice(0, 500) })
+    }
     res.json({ reply: extracted.text, visual: extracted.visual, visuals: extracted.visuals || [] })
   } catch (err) {
     console.error("Agent design error:", err.message)

@@ -125,10 +125,15 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
     })
       .then(r => r.json())
       .then(data => {
+        console.log('Blueprint response:', data.reply?.slice(0, 100), 'visuals:', data.visuals?.length)
+        const visualsToRender = data.visuals?.length ? data.visuals : data.visual ? [data.visual] : []
         setReply(data.reply || '')
-        setVisuals(data.visuals?.length ? data.visuals : data.visual ? [data.visual] : [])
+        setVisuals(visualsToRender)
       })
-      .catch(() => setReply('Failed to generate blueprint. Please try again.'))
+      .catch(err => {
+        console.error('Blueprint fetch error:', err)
+        setReply('Connection error. Please check the backend is running.')
+      })
       .finally(() => setLoading(false))
   }, [fetchKey])
 
@@ -351,7 +356,8 @@ export default function AgentStudio() {
   const [agents,          setAgents]          = useState([])
   const [discovering,     setDiscovering]     = useState(false)
   const [selectedAgent,   setSelectedAgent]   = useState(null)
-  const [filter,          setFilter]          = useState({ pillar: '', complexity: '' })
+  const [filterPillar,    setFilterPillar]    = useState('all')
+  const [filterComplexity,setFilterComplexity]= useState('all')
   const [customInput,     setCustomInput]     = useState('')
   const [customOpen,      setCustomOpen]      = useState(false)
 
@@ -619,8 +625,10 @@ export default function AgentStudio() {
         }),
       })
       const data = await res.json()
-      if (customDescription && data.agents?.length) setAgents(prev => [...prev, ...data.agents])
-      else setAgents(data.agents || [])
+      const incoming = data.agents || []
+      console.log('Agents received:', incoming.length, incoming.map(a => a.complexity))
+      if (customDescription && incoming.length) setAgents(prev => [...prev, ...incoming])
+      else setAgents(incoming)
     } catch (err) { console.error('Discover error:', err) }
     finally { setDiscovering(false) }
   }
@@ -640,14 +648,18 @@ export default function AgentStudio() {
     setSelectedAgent(customAgent)
   }
 
-  const filtered = agents
-    .filter(a => (!filter.pillar || a.pillar === filter.pillar) && (!filter.complexity || a.complexity === filter.complexity))
+  const filteredAgents = agents
+    .filter(a => {
+      const pillarMatch     = filterPillar === 'all'     || !filterPillar     || a.pillar === filterPillar
+      const complexityMatch = filterComplexity === 'all' || !filterComplexity || a.complexity === filterComplexity
+      return pillarMatch && complexityMatch
+    })
     .sort((a, b) => b.fit_score - a.fit_score)
 
   const groups = [
-    { key: 'quick_win', label: 'Quick Wins',           agents: filtered.filter(a => a.complexity === 'quick_win') },
-    { key: 'strategic', label: 'Strategic Initiatives', agents: filtered.filter(a => a.complexity === 'strategic') },
-    { key: 'complex',   label: 'Complex Builds',        agents: filtered.filter(a => a.complexity === 'complex') },
+    { key: 'quick_win', label: 'Quick Wins',            agents: filteredAgents.filter(a => a.complexity === 'quick_win') },
+    { key: 'strategic', label: 'Strategic Initiatives', agents: filteredAgents.filter(a => a.complexity === 'strategic') },
+    { key: 'complex',   label: 'Complex Builds',        agents: filteredAgents.filter(a => a.complexity === 'complex') },
   ].filter(g => g.agents.length > 0)
 
   const clientName        = client?.name || 'this client'
@@ -961,12 +973,12 @@ export default function AgentStudio() {
         </div>
 
         <div className="studio-filters">
-          <select className="filter-select" value={filter.pillar} onChange={e => setFilter(f => ({ ...f, pillar: e.target.value }))}>
-            <option value="">All pillars</option>
+          <select className="filter-select" value={filterPillar} onChange={e => setFilterPillar(e.target.value)}>
+            <option value="all">All pillars</option>
             {Object.entries(PILLAR_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
           </select>
-          <select className="filter-select" value={filter.complexity} onChange={e => setFilter(f => ({ ...f, complexity: e.target.value }))}>
-            <option value="">All complexity</option>
+          <select className="filter-select" value={filterComplexity} onChange={e => setFilterComplexity(e.target.value)}>
+            <option value="all">All complexity</option>
             {Object.entries(COMPLEXITY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
           </select>
           <button className="custom-agent-btn" onClick={() => setCustomOpen(o => !o)}>
@@ -996,9 +1008,19 @@ export default function AgentStudio() {
             <div className="studio-loading-text">Analyzing {clientName}'s stack and gaps…</div>
             <div className="studio-loading-sub">Identifying highest-value agent opportunities for {vertical}</div>
           </div>
-        ) : groups.length === 0 ? (
-          <div className="studio-loading">
-            <div className="studio-loading-text">No agents match the current filters.</div>
+        ) : agents.length === 0 ? (
+          <div className="agents-empty">
+            <div className="ae-icon">⚡</div>
+            <div className="ae-title">No recommendations generated yet</div>
+            <div className="ae-desc">Click "Generate Agent Recommendations" to analyse this client's profile and generate tailored agent blueprints.</div>
+          </div>
+        ) : filteredAgents.length === 0 ? (
+          <div className="agents-empty">
+            <div className="ae-title">No agents match the current filters</div>
+            <div className="ae-desc">
+              {agents.length} agent{agents.length !== 1 ? 's' : ''} available — try clearing the filters.
+              <button className="ae-clear-btn" onClick={() => { setFilterPillar('all'); setFilterComplexity('all') }}>Clear filters</button>
+            </div>
           </div>
         ) : (
           groups.map(group => (
