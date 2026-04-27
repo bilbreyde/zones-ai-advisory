@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClient } from '../ClientContext.jsx'
-import { CheckCircle, AlertCircle, Edit2, ChevronDown, ChevronUp, Users } from 'lucide-react'
+import { CheckCircle, AlertCircle, Edit2, ChevronDown, ChevronUp, Users, Settings } from 'lucide-react'
 import { QUESTIONS, PILLAR_META } from '../pages/assessmentData.js'
+import EnvironmentProfile from './EnvironmentProfile.jsx'
 import './AssessmentReview.css'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -10,7 +11,7 @@ const API = import.meta.env.VITE_API_URL || ''
 const TOTAL_QUESTIONS = Object.values(QUESTIONS).reduce((s, qs) => s + qs.length, 0)
 
 export default function AssessmentReview() {
-  const { client } = useClient()
+  const { client, setClient } = useClient()
   const navigate = useNavigate()
 
   const [assessment, setAssessment]     = useState(null)
@@ -18,6 +19,7 @@ export default function AssessmentReview() {
   const [expanded, setExpanded]         = useState({ governance: true, risk: true, strategy: true, operations: true, enablement: true })
   const [editingQ, setEditingQ]         = useState(null)  // { pillar, questionId }
   const [saving, setSaving]             = useState(null)  // questionId currently saving
+  const [showEnvModal, setShowEnvModal] = useState(!client?.environmentProfile)
 
   useEffect(() => {
     if (!client?.id) { setLoading(false); return }
@@ -72,8 +74,22 @@ export default function AssessmentReview() {
 
   const completionPct = Math.round((answeredCount / TOTAL_QUESTIONS) * 100)
 
+  function handleEnvComplete(updated) {
+    setClient(updated)
+    setShowEnvModal(false)
+  }
+
   return (
     <div className="assessment-review">
+      {/* Environment Profile modal */}
+      {showEnvModal && client && (
+        <EnvironmentProfile
+          client={client}
+          onComplete={handleEnvComplete}
+          onSkip={() => setShowEnvModal(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="review-header">
         <div>
@@ -101,15 +117,25 @@ export default function AssessmentReview() {
           </div>
         </div>
 
-        <div className="review-score-badge">
-          <div className="rsb-num">
-            {assessment?.overallScore ?? '—'}
-            <span>/5</span>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <button
+            className="review-btn-secondary"
+            style={{ fontSize: 11, padding: '5px 11px', display: 'flex', alignItems: 'center', gap: 5 }}
+            onClick={() => setShowEnvModal(true)}
+            title="Edit environment profile"
+          >
+            <Settings size={12} /> Environment Profile
+          </button>
+          <div className="review-score-badge">
+            <div className="rsb-num">
+              {assessment?.overallScore ?? '—'}
+              <span>/5</span>
+            </div>
+            <div className="rsb-label">Overall Score</div>
+            {assessment?.overallScore && (
+              <div className="rsb-stage">{maturityStage(assessment.overallScore)}</div>
+            )}
           </div>
-          <div className="rsb-label">Overall Score</div>
-          {assessment?.overallScore && (
-            <div className="rsb-stage">{maturityStage(assessment.overallScore)}</div>
-          )}
         </div>
       </div>
 

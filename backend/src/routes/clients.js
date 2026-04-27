@@ -150,6 +150,47 @@ router.patch('/:id/agents/:agentId', async (req, res) => {
   }
 })
 
+// PATCH /api/clients/:id/environment — persist unified environment profile
+router.patch('/:id/environment', async (req, res) => {
+  try {
+    const { resource: existing } = await containers.clients
+      .item(req.params.id, req.params.id).read()
+    if (!existing) return res.status(404).json({ error: 'Client not found' })
+
+    existing.environmentProfile = {
+      deploymentModel:      req.body.deploymentModel || 'cloud_native',
+      cloudTools:           req.body.cloudTools || [],
+      cloudToolCategoryMap: req.body.cloudToolCategoryMap || {},
+      onPremTools:          req.body.onPremTools || [],
+      onPremCategoryMap:    req.body.onPremCategoryMap || {},
+      legacySystems:        req.body.legacySystems || [],
+      legacyCategoryMap:    req.body.legacyCategoryMap || {},
+      complianceFrameworks: req.body.complianceFrameworks || [],
+      constraints:          req.body.constraints || [],
+      vertical:             req.body.vertical || '',
+      completedAt:          existing.environmentProfile?.completedAt || new Date().toISOString(),
+      updatedAt:            new Date().toISOString(),
+    }
+
+    if (req.body.vertical) existing.industry = req.body.vertical
+
+    existing.studioConfig = {
+      ...existing.studioConfig,
+      ...existing.environmentProfile,
+      tools:           req.body.cloudTools || [],
+      toolCategoryMap: req.body.cloudToolCategoryMap || {},
+    }
+
+    existing.updatedAt = new Date().toISOString()
+    const { resource: updated } = await containers.clients
+      .item(req.params.id, req.params.id).replace(existing)
+    res.json(updated)
+  } catch (err) {
+    console.error('Error saving environment profile:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // DELETE /api/clients/:id/agents/:agentId — remove from backlog
 router.delete('/:id/agents/:agentId', async (req, res) => {
   try {

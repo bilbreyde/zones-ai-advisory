@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import { Zap, X, Loader, Download, Plus, ChevronRight } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import ChatVisual from '../components/ChatVisual.jsx'
+import EnvironmentProfile from '../components/EnvironmentProfile.jsx'
+import '../components/EnvironmentProfile.css'
 import './AgentStudio.css'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -390,7 +392,7 @@ function AgentCard({ agent, onDesign }) {
 
 /* ── Main page ────────────────────────────────────────────────────────── */
 export default function AgentStudio() {
-  const { client, refreshClient } = useClient()
+  const { client, setClient, refreshClient } = useClient()
 
   const autoFocus = Object.entries(client?.scores || {})
     .filter(([, v]) => v !== null && v !== undefined)
@@ -427,6 +429,9 @@ export default function AgentStudio() {
   const [backlog,        setBacklog]        = useState([])
   const [backlogLoading, setBacklogLoading] = useState(false)
   const [backlogSaved,   setBacklogSaved]   = useState(null)
+
+  // ── Environment profile modal ─────────────────────────────────────────
+  const [showEnvModal,   setShowEnvModal]   = useState(false)
 
   // ── Config persistence ────────────────────────────────────────────────
   const [configLoaded,   setConfigLoaded]   = useState(false)
@@ -678,8 +683,35 @@ export default function AgentStudio() {
   })
 
   /* ── Configure stage ──────────────────────────────────────────────── */
+  function handleEnvComplete(updated) {
+    setClient(updated)
+    setShowEnvModal(false)
+    // Sync environment profile into studio config state
+    const ep = updated.environmentProfile
+    if (ep) {
+      if (ep.vertical)             setVertical(ep.vertical)
+      if (ep.deploymentModel)      setDeploymentModel(ep.deploymentModel)
+      if (ep.cloudTools?.length)   setTools(ep.cloudTools)
+      if (ep.cloudToolCategoryMap) setToolCategoryMap(ep.cloudToolCategoryMap)
+      if (ep.onPremTools?.length)  setOnPremTools(ep.onPremTools)
+      if (ep.onPremCategoryMap)    setOnPremCategoryMap(ep.onPremCategoryMap)
+      if (ep.legacySystems?.length) setLegacySystems(ep.legacySystems)
+      if (ep.legacyCategoryMap)    setLegacyCategoryMap(ep.legacyCategoryMap)
+      if (ep.complianceFrameworks?.length) setComplianceFrameworks(ep.complianceFrameworks)
+    }
+  }
+
   if (stage === 'configure') {
+    const hasProfile = !!client?.environmentProfile
     return (
+      <>
+        {showEnvModal && client && (
+          <EnvironmentProfile
+            client={client}
+            onComplete={handleEnvComplete}
+            onSkip={() => setShowEnvModal(false)}
+          />
+        )}
       <div className="studio-configure">
         <div className="studio-configure-card">
           <div className="studio-header">
@@ -689,6 +721,34 @@ export default function AgentStudio() {
               <p className="studio-sub">Design AI agents tailored to {clientName}</p>
             </div>
           </div>
+
+          {/* Environment profile banner */}
+          {hasProfile ? (
+            <div className="env-banner complete">
+              <div className="env-banner-left">
+                <span>✓</span>
+                <div className="env-banner-text">
+                  <div className="env-banner-main">Environment profile complete</div>
+                  <div className="env-banner-sub">
+                    {client.environmentProfile.vertical} · {DEPLOYMENT_MODELS.find(d => d.id === client.environmentProfile.deploymentModel)?.label} · {(client.environmentProfile.cloudTools?.length || 0) + (client.environmentProfile.onPremTools?.length || 0)} tools
+                    {client.environmentProfile.complianceFrameworks?.length > 0 && ` · ${client.environmentProfile.complianceFrameworks.join(', ')}`}
+                  </div>
+                </div>
+              </div>
+              <button className="env-banner-btn" onClick={() => setShowEnvModal(true)}>Edit Profile</button>
+            </div>
+          ) : (
+            <div className="env-banner missing">
+              <div className="env-banner-left">
+                <span>⚠</span>
+                <div className="env-banner-text">
+                  <div className="env-banner-main">Environment profile not set up</div>
+                  <div className="env-banner-sub">Set deployment model, tools, and compliance to get infrastructure-aware agent recommendations.</div>
+                </div>
+              </div>
+              <button className="env-banner-btn" onClick={() => setShowEnvModal(true)}>Set Up Profile</button>
+            </div>
+          )}
 
           {/* Compact summary bar */}
           {!configExpanded ? (
@@ -885,6 +945,7 @@ export default function AgentStudio() {
 
         {showSaved && <div className="studio-saved-toast">✓ Configuration saved</div>}
       </div>
+      </>
     )
   }
 

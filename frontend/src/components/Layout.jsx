@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3,
   Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
+import EnvironmentProfile from './EnvironmentProfile.jsx'
 import { useClient } from '../ClientContext.jsx'
 import './Layout.css'
+import './EnvironmentProfile.css'
 
 const pillars = [
   { id: 'governance',  label: 'Governance',       color: '#4A9FE0', icon: Shield },
@@ -21,10 +24,18 @@ function initials(name) {
 
 export default function Layout() {
   const navigate = useNavigate()
-  const { client } = useClient()
+  const { client, setClient } = useClient()
+  const [showEnvModal, setShowEnvModal] = useState(false)
 
   return (
     <div className="layout">
+      {showEnvModal && client && (
+        <EnvironmentProfile
+          client={client}
+          onComplete={updated => { setClient(updated); setShowEnvModal(false) }}
+          onSkip={() => setShowEnvModal(false)}
+        />
+      )}
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="logo-mark">Z</div>
@@ -72,23 +83,40 @@ export default function Layout() {
           </NavLink>
         </nav>
 
-        <div className="sidebar-client" onClick={() => navigate('/clients')} title="Switch client">
-          {client ? (
-            <>
-              <div className="client-avatar">{initials(client.name)}</div>
-              <div>
-                <div className="client-name">{client.name}</div>
-                <div className="client-stage">Session {client.currentSession} · {client.status}</div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="client-avatar" style={{background:'var(--z-surface-2)', color:'var(--z-muted)'}}>?</div>
-              <div>
-                <div className="client-name" style={{color:'var(--z-muted)'}}>No client selected</div>
-                <div className="client-stage">Click to select</div>
-              </div>
-            </>
+        <div className="sidebar-client-wrap">
+          <div className="sidebar-client" onClick={() => navigate('/clients')} title="Switch client">
+            {client ? (
+              <>
+                <div className="client-avatar">{initials(client.name)}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div className="client-name">{client.name}</div>
+                  <div className="client-stage">
+                    Session {client.currentSession} · {client.status}
+                    {client.environmentProfile
+                      ? <span className="client-env-dot" title="Environment profile complete" style={{marginLeft:5,color:'#3DBA7E'}}>●</span>
+                      : <span className="client-env-dot" title="No environment profile" style={{marginLeft:5,color:'#E8A838'}}>●</span>
+                    }
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="client-avatar" style={{background:'var(--z-surface-2)', color:'var(--z-muted)'}}>?</div>
+                <div>
+                  <div className="client-name" style={{color:'var(--z-muted)'}}>No client selected</div>
+                  <div className="client-stage">Click to select</div>
+                </div>
+              </>
+            )}
+          </div>
+          {client && (
+            <button
+              className="sidebar-env-btn"
+              onClick={e => { e.stopPropagation(); setShowEnvModal(true) }}
+              title="Edit environment profile"
+            >
+              ⚙️
+            </button>
           )}
         </div>
       </aside>
