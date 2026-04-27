@@ -174,32 +174,48 @@ app.post("/api/chat", async (req, res) => {
     const { messages, clientContext, format, maxTokens } = req.body
     if (!messages?.length) return res.status(400).json({ error: "messages required" })
 
+    // Pre-compute infrastructure context variables before building template string
+    const ep = clientContext?.environmentProfile || {}
+    const deploymentRule = (() => {
+      const dm = ep.deploymentModel
+      if (!dm || dm === 'cloud_native') return 'Cloud native: recommend any cloud AI service freely'
+      if (dm === 'hybrid')    return 'Hybrid: recommend Azure Arc and hybrid-compatible architectures; flag data movement considerations'
+      if (dm === 'on_prem')   return 'On-premises: do NOT recommend cloud-only AI APIs as primary runtime; flag local inference requirements'
+      if (dm === 'air_gapped') return 'Air-gapped: ALL recommendations must have zero internet dependency; only local model inference; flag this prominently in every response'
+      return `Deployment: ${dm}`
+    })()
+    const complianceList = (ep.complianceFrameworks || [])
+    const complianceRules = [
+      complianceList.includes('hipaa')   ? '- HIPAA: no PHI can leave the client environment; use private endpoints' : '',
+      complianceList.includes('fedramp') ? '- FedRAMP/ITAR: government cloud or on-prem only' : '',
+      complianceList.includes('itar')    ? '- ITAR: on-prem or GovCloud only; strict data export controls' : '',
+      complianceList.includes('gdpr')    ? '- GDPR: enforce EU data residency in all recommendations' : '',
+    ].filter(Boolean).join('\n')
+    const legacyRule = (ep.legacySystems || []).length > 0
+      ? '- Legacy systems present: always address integration complexity; treat as highest-value agent targets'
+      : ''
+
     const contextPrompt = clientContext ? `
 
-Current client: ${clientContext.name}
+Current client: ${clientContext.name || 'Unknown'}
 Industry: ${clientContext.industry || 'Not specified'}
 Company size: ${clientContext.size || 'Not specified'}
-Overall maturity: ${clientContext.overallScore}/5
-Pillar scores: ${JSON.stringify(clientContext.scores)}
-Assessment answers: ${JSON.stringify(clientContext.answers)}
+Overall maturity: ${clientContext.overallScore ?? 'Not assessed'}/5
+Pillar scores: ${JSON.stringify(clientContext.scores || {})}
+Assessment answers: ${JSON.stringify(clientContext.answers || {})}
 
 INFRASTRUCTURE PROFILE:
-Deployment model: ${clientContext.environmentProfile?.deploymentModel || 'unknown'}
-Cloud tools: ${clientContext.environmentProfile?.cloudTools?.join(', ') || 'Not specified'}
-On-premises tools: ${clientContext.environmentProfile?.onPremTools?.join(', ') || 'None'}
-Legacy systems: ${clientContext.environmentProfile?.legacySystems?.join(', ') || 'None'}
-Compliance requirements: ${clientContext.environmentProfile?.complianceFrameworks?.join(', ') || 'None'}
-Constraints: ${clientContext.environmentProfile?.constraints?.join(', ') || 'None'}
+Deployment model: ${ep.deploymentModel || 'not specified'}
+Cloud tools: ${(ep.cloudTools || []).join(', ') || 'not specified'}
+On-premises tools: ${(ep.onPremTools || []).join(', ') || 'none'}
+Legacy systems: ${(ep.legacySystems || []).join(', ') || 'none'}
+Compliance requirements: ${complianceList.join(', ') || 'none'}
+Constraints: ${(ep.constraints || []).join(', ') || 'none'}
 
-CRITICAL INFRASTRUCTURE RULES — follow strictly:
-- cloud_native: recommend any cloud AI service freely
-- hybrid: recommend Azure Arc and hybrid-compatible architectures; flag data movement considerations
-- on_prem: recommend only on-premises or hybrid solutions; do NOT recommend cloud-only AI APIs as primary runtime; flag local inference requirements
-- air_gapped: ALL recommendations must be fully self-contained with zero internet dependency; only local model inference; flag this prominently in every response
-- HIPAA present: no PHI can leave the client environment; recommend private endpoints
-- FedRAMP/ITAR present: government cloud or on-prem only
-- GDPR present: enforce EU data residency in all recommendations
-- Legacy systems present: always address integration complexity; treat as highest-value agent targets
+INFRASTRUCTURE RULES — follow strictly:
+- ${deploymentRule}
+${complianceRules}
+${legacyRule}
 
 Use this context to give precise, infrastructure-aware recommendations. Reference actual scores, deployment constraints, and specific gaps in every response.` : `
 
@@ -340,9 +356,19 @@ CRITICAL RULES:
 app.post("/api/agents/discover", async (req, res) => {
   try {
     const {
-      vertical, tools, focusAreas, clientScores, clientName, customDescription,
-      deploymentModel, toolsByCat, onPremToolsByCat, legacySystems, complianceFrameworks, constraints,
-    } = req.body
+      vertical          = 'Technology',
+      tools             = [],
+      focusAreas        = [],
+      clientScores      = {},
+      clientName        = 'Client',
+      customDescription = '',
+      deploymentModel   = 'cloud_native',
+      toolsByCat        = '',
+      onPremToolsByCat  = '',
+      legacySystems     = '',
+      complianceFrameworks = '',
+      constraints       = [],
+    } = req.body || {}
 
     const deployLabels = { cloud_native: 'Cloud Native (Azure)', hybrid: 'Hybrid (cloud + on-prem)', on_prem: 'On-Premises', air_gapped: 'Air-Gapped / Disconnected' }
     const deployLabel  = deployLabels[deploymentModel] || deploymentModel || 'Not specified'
@@ -354,9 +380,9 @@ Cloud tools by category: ${toolsByCat || (tools || []).join(', ') || 'Not specif
 On-premises tools: ${onPremToolsByCat || 'None'}
 Legacy systems: ${legacySystems || 'None'}
 Compliance requirements: ${complianceFrameworks || 'None specified'}
-Operational constraints: ${(constraints || []).join(', ') || 'None'}
-Focus areas: ${(focusAreas || []).join(', ') || 'All pillars'}
-Pillar scores: ${JSON.stringify(clientScores || {})}${customDescription ? '\nMake this agent specific to the description above while fitting the client context.' : ''}
+Operational constraints: ${Array.isArray(constraints) ? constraints.join(', ') : (constraints || 'None')}
+Focus areas: ${Array.isArray(focusAreas) ? focusAreas.join(', ') : (focusAreas || 'All pillars')}
+Pillar scores: ${JSON.stringify(clientScores)}${customDescription ? '\nMake this agent specific to the description above while fitting the client context.' : ''}
 ${deploymentModel === 'air_gapped' ? '\nCRITICAL: All agents must be fully air-gapped compatible — no internet, no external APIs, on-prem open-source models only.' : ''}
 ${deploymentModel === 'on_prem' ? '\nIMPORTANT: Prefer on-premises deployment paths. Flag any required cloud service clearly.' : ''}`
 
@@ -441,11 +467,28 @@ Make the blueprint specific to ${clientName}'s actual gaps and tooling. Referenc
   }
 })
 
-app.get("/api/health", (req, res) => res.json({
-  status: "ok",
-  model: process.env.AZURE_OPENAI_DEPLOYMENT,
-  db: process.env.COSMOS_ENDPOINT ? "connected" : "not configured",
-}))
+app.get("/api/health", (req, res) => {
+  try {
+    res.json({
+      status: "ok",
+      model:  process.env.AZURE_OPENAI_DEPLOYMENT || "not set",
+      db:     process.env.COSMOS_ENDPOINT ? "configured" : "not configured",
+      env:    process.env.NODE_ENV || "development",
+    })
+  } catch (err) {
+    res.status(500).json({ status: "error", detail: err.message })
+  }
+})
+
+// Global error handler — catches errors passed via next(err)
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err.message, err.stack)
+  res.status(500).json({ error: "Internal server error", detail: err.message })
+})
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason)
+})
 
 const PORT = process.env.PORT || 8080
 app.listen(PORT, async () => {
