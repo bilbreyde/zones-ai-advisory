@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Send, Bot, Sparkles, Zap } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import ChatVisual from './ChatVisual.jsx'
+import { getCheckInQuestion } from '../lib/staleness.js'
 import './AIChat.css'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -55,24 +56,6 @@ function getDynamicStarters(client, envProfile) {
   starters.push("What should we prioritise in the executive readout?")
 
   return starters.slice(0, 4)
-}
-
-/* ── Staleness check-in question ──────────────────────────────────────── */
-
-function getCheckInQuestion(client, env) {
-  const industry   = client.industry || ''
-  const deployment = env?.deploymentModel
-  const compliance = env?.complianceFrameworks || []
-
-  if (industry === 'Healthcare' || compliance.includes('hipaa'))
-    return "have there been any changes to their regulatory environment or HIPAA compliance posture?"
-  if (industry === 'Financial Services' || compliance.includes('sox'))
-    return "have there been any changes to their risk management or compliance requirements?"
-  if (deployment === 'on_prem' || deployment === 'hybrid')
-    return "have there been any changes to their infrastructure strategy or cloud adoption plans?"
-  if (env?.legacySystems?.length > 0)
-    return "have there been any updates to their legacy system modernisation plans?"
-  return "has anything changed in their AI strategy or tooling stack since the last session?"
 }
 
 /* ── Component ────────────────────────────────────────────────────────── */

@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import MeetingNotes from '../components/MeetingNotes.jsx'
+import EnvironmentProfile from '../components/EnvironmentProfile.jsx'
+import { getStalenessStatus, getCheckInQuestion } from '../lib/staleness.js'
+import '../components/EnvironmentProfile.css'
 import './Dashboard.css'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -46,12 +49,19 @@ export default function Dashboard() {
   // Meeting notes modal
   const [showMeetingNotes, setShowMeetingNotes] = useState(false)
 
+  // Staleness banner
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [showEnvProfile,  setShowEnvProfile]  = useState(false)
+
   // Session history collapse state
   const [historyOpen, setHistoryOpen] = useState(false)
 
   // Executive narrative card
   const [narrative,        setNarrative]        = useState('')
   const [narrativeLoading, setNarrativeLoading] = useState(false)
+
+  // Reset banner when client switches
+  useEffect(() => { setBannerDismissed(false) }, [client?.id])
 
   useEffect(() => {
     if (!client) return
@@ -142,6 +152,9 @@ export default function Dashboard() {
   const PILLARS = PILLAR_META.map(p => ({ ...p, score: scores[p.id] ?? null }))
   const radarData = PILLARS.map(p => ({ subject: p.label.split(' ')[0], score: p.score ?? 0, fullMark: 5 }))
 
+  const staleness      = useMemo(() => getStalenessStatus(client, assessment), [client, assessment])
+  const checkInQuestion = useMemo(() => getCheckInQuestion(client, client?.environmentProfile), [client?.id, client?.environmentProfile])
+
   const previousSessions = sessions.filter(s => s.sessionNumber !== client.currentSession)
 
   return (
@@ -152,6 +165,15 @@ export default function Dashboard() {
           client={client}
           onComplete={updated => setClient(updated)}
           onClose={() => setShowMeetingNotes(false)}
+        />
+      )}
+
+      {/* Environment Profile modal (from staleness banner) */}
+      {showEnvProfile && client && (
+        <EnvironmentProfile
+          client={client}
+          onComplete={updated => { setClient(updated); setShowEnvProfile(false) }}
+          onSkip={() => setShowEnvProfile(false)}
         />
       )}
 
@@ -172,6 +194,21 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Staleness banner */}
+      {staleness.anyStale && !bannerDismissed && (
+        <div className="staleness-banner">
+          <div className="sb-icon">🕐</div>
+          <div className="sb-content">
+            <div className="sb-title">
+              {staleness.mostStale.label} last updated {staleness.mostStale.daysSince} days ago
+            </div>
+            <div className="sb-question">Before we dive in — {checkInQuestion}</div>
+          </div>
+          <button className="sb-update" onClick={() => setShowEnvProfile(true)}>Update profile</button>
+          <button className="sb-dismiss" onClick={() => setBannerDismissed(true)}>✕</button>
+        </div>
+      )}
 
       {(narrative || narrativeLoading) && (
         <div className="narrative-card">

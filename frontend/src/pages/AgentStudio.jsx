@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Zap, X, Loader, Download, Plus, ChevronRight } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import ChatVisual from '../components/ChatVisual.jsx'
 import EnvironmentProfile from '../components/EnvironmentProfile.jsx'
+import { getStalenessStatus } from '../lib/staleness.js'
 import '../components/EnvironmentProfile.css'
 import './AgentStudio.css'
 
@@ -431,7 +432,8 @@ export default function AgentStudio() {
   const [backlogSaved,   setBacklogSaved]   = useState(null)
 
   // ── Environment profile modal ─────────────────────────────────────────
-  const [showEnvModal,   setShowEnvModal]   = useState(false)
+  const [showEnvModal,    setShowEnvModal]    = useState(false)
+  const [continueAnyway,  setContinueAnyway]  = useState(false)
 
   // ── Config persistence ────────────────────────────────────────────────
   const [configLoaded,   setConfigLoaded]   = useState(false)
@@ -674,6 +676,10 @@ export default function AgentStudio() {
   const hasExistingConfig = tools.length > 0 || onPremTools.length > 0 || legacySystems.length > 0
   const showOnPrem        = ['hybrid', 'on_prem', 'air_gapped'].includes(deploymentModel)
   const currentDeploy     = DEPLOYMENT_MODELS.find(d => d.id === deploymentModel)
+  const profileStaleness  = useMemo(
+    () => getStalenessStatus(client, null).results.overallProfile,
+    [client?.environmentProfile?.updatedAt]
+  )
 
   // Sort compliance chips: vertical-relevant ones first
   const sortedCompliance = [...COMPLIANCE_FRAMEWORKS].sort((a, b) => {
@@ -936,6 +942,15 @@ export default function AgentStudio() {
                 <button className="config-collapse-btn" onClick={() => setConfigExpanded(false)}>↑ Collapse configuration</button>
               )}
             </>
+          )}
+
+          {profileStaleness.isStale && !continueAnyway && (
+            <div className="studio-staleness-warning">
+              <span>⏱️</span>
+              <span>Environment profile is {profileStaleness.daysSince} days old — recommendations may not reflect current infrastructure.</span>
+              <button onClick={() => setShowEnvModal(true)}>Update profile</button>
+              <button onClick={() => setContinueAnyway(true)}>Continue anyway</button>
+            </div>
           )}
 
           <button className="studio-generate-btn" onClick={() => discover()} disabled={!vertical || discovering}>

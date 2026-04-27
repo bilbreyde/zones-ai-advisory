@@ -360,6 +360,47 @@
 .studio-generate-btn:hover:not(:disabled) { background: var(--z-blue-bright); }
 .studio-generate-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
+/* ── Staleness warning ───────────────────────────────────────────────── */
+.studio-staleness-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgba(232,168,56,0.07);
+  border: 1px solid rgba(232,168,56,0.28);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--z-muted);
+  line-height: 1.5;
+}
+
+.studio-staleness-warning span:first-child { font-size: 15px; flex-shrink: 0; }
+
+.studio-staleness-warning button {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.studio-staleness-warning button:first-of-type {
+  background: rgba(232,168,56,0.12);
+  border: 1px solid rgba(232,168,56,0.3);
+  color: #E8A838;
+}
+.studio-staleness-warning button:first-of-type:hover { background: rgba(232,168,56,0.22); }
+
+.studio-staleness-warning button:last-of-type {
+  background: var(--z-surface-2);
+  border: 1px solid var(--z-border);
+  color: var(--z-muted);
+}
+.studio-staleness-warning button:last-of-type:hover { color: var(--z-white); }
+
 /* ── Top bar (discover view) ─────────────────────────────────────────── */
 .studio-topbar {
   display: flex;
