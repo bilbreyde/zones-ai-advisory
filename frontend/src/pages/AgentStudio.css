@@ -758,3 +758,219 @@
   margin-top: 2px;
 }
 .backlog-status-select:focus { outline: none; }
+
+/* ── Deployment model selector ───────────────────────────────────────── */
+.deployment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.deployment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--z-border);
+  border-radius: var(--radius-sm);
+  background: var(--z-surface-2);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.deployment-card:hover { border-color: var(--z-border-mid); }
+.deployment-card.selected {
+  border-color: rgba(74,159,224,0.5);
+  background: rgba(74,159,224,0.08);
+}
+
+.dc-icon { font-size: 18px; line-height: 1; }
+
+.dc-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--z-white);
+}
+
+.dc-desc {
+  font-size: 10px;
+  color: var(--z-muted);
+  line-height: 1.45;
+}
+
+/* ── Air-gapped warning ──────────────────────────────────────────────── */
+.airgap-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: #F87171;
+  line-height: 1.5;
+}
+
+/* ── On-premises tool section ────────────────────────────────────────── */
+.on-prem-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--z-border);
+  border-radius: var(--radius-sm);
+}
+
+.on-prem-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--z-white);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 4px;
+}
+
+/* ── Legacy systems section ──────────────────────────────────────────── */
+.legacy-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.legacy-note {
+  font-size: 11px;
+  color: var(--z-muted);
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.02);
+  border-left: 2px solid var(--z-border-mid);
+  border-radius: 0 4px 4px 0;
+}
+
+/* ── Compliance chips ────────────────────────────────────────────────── */
+.compliance-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compliance-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.compliance-chip {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 12px;
+  border: 1px solid var(--z-border);
+  border-radius: var(--radius-sm);
+  background: var(--z-surface-2);
+  cursor: pointer;
+  transition: all 0.12s;
+  min-width: 80px;
+}
+.compliance-chip:hover { border-color: var(--z-border-mid); }
+.compliance-chip.selected {
+  border-color: rgba(139,92,246,0.5);
+  background: rgba(139,92,246,0.08);
+}
+.compliance-chip.priority {
+  border-color: rgba(232,168,56,0.4);
+}
+.compliance-chip.priority.selected {
+  border-color: rgba(232,168,56,0.6);
+  background: rgba(232,168,56,0.08);
+}
+
+.cc-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--z-white);
+}
+
+.cc-desc {
+  font-size: 10px;
+  color: var(--z-muted);
+  margin-top: 1px;
+}
+
+/* ── Per-category add button ─────────────────────────────────────────── */
+.tool-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--z-blue-bright);
+  background: none;
+  border: 1px dashed rgba(74,159,224,0.35);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+  white-space: nowrap;
+}
+.tool-add-btn:hover {
+  background: rgba(74,159,224,0.08);
+  border-color: rgba(74,159,224,0.6);
+}
+
+.tool-add-input {
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  border: 1px solid rgba(74,159,224,0.4);
+  background: rgba(74,159,224,0.06);
+  color: var(--z-white);
+  min-width: 140px;
+  outline: none;
+}
+.tool-add-input::placeholder { color: var(--z-muted); }
+.tool-add-input:focus { border-color: var(--z-blue); }
+
+/* ── Deployment / compliance badges on agent cards ───────────────────── */
+.deployment-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(61,186,126,0.1);
+  color: #3DBA7E;
+  border: 1px solid rgba(61,186,126,0.25);
+}
+
+.compliance-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(139,92,246,0.1);
+  color: #A78BFA;
+  border: 1px solid rgba(139,92,246,0.25);
+}
+
+/* ── Agent card notes ────────────────────────────────────────────────── */
+.agent-deployment-note,
+.agent-compliance-note {
+  font-size: 10px;
+  color: var(--z-muted);
+  line-height: 1.5;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border-left: 2px solid;
+}
+
+.agent-deployment-note {
+  background: rgba(61,186,126,0.04);
+  border-left-color: rgba(61,186,126,0.4);
+}
+
+.agent-compliance-note {
+  background: rgba(139,92,246,0.04);
+  border-left-color: rgba(139,92,246,0.4);
+}

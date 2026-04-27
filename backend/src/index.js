@@ -201,7 +201,7 @@ Use this specific data to give precise, tailored recommendations. Reference actu
   }
 })
 
-const DISCOVER_SYSTEM_PROMPT = `You are an AI agent design specialist for Zones Innovation Center. Identify the highest-value AI agent opportunities for enterprise clients based on their industry, tooling stack, and maturity gaps.
+const DISCOVER_SYSTEM_PROMPT = `You are an AI agent design specialist for Zones Innovation Center. Identify the highest-value AI agent opportunities for enterprise clients based on their industry, tooling stack, deployment model, compliance requirements, and maturity gaps.
 
 Return ONLY a valid JSON object (no markdown, no code fences):
 {
@@ -218,11 +218,35 @@ Return ONLY a valid JSON object (no markdown, no code fences):
       "fit_reason": "One sentence explaining why this agent fits this specific client",
       "estimated_effort": "2-4 weeks",
       "estimated_value": "High|Medium|Low",
-      "azure_service": "Primary Azure AI service powering this agent"
+      "azure_service": "Primary Azure AI service powering this agent",
+      "deployment_note": "One sentence on deployment approach — e.g. 'Deployable on-premises via Azure Arc; no cloud egress required' or omit if cloud_native",
+      "compliance_notes": "One sentence on relevant compliance implications — e.g. 'Must enforce HIPAA audit logging and PHI masking at inference layer' or omit if none"
     }
   ]
 }
-Rules: fit 80-100 = critical gap + available tools. fit 60-79 = moderate gap or one missing tool. fit <60 = nice-to-have. Name real industry workflows. Sort by fit_score desc within each complexity group.`
+
+DEPLOYMENT MODEL RULES:
+- cloud_native: All Azure services available. No deployment_note needed. Recommend Azure AI Foundry, Azure OpenAI, Cognitive Services freely.
+- hybrid: Agent logic may run on-prem via Azure Arc or Azure Stack HCI; data stays on-prem, orchestration in cloud. Note which components are on-prem vs. cloud in deployment_note.
+- on_prem: All compute must be on-premises. Prefer open-source models (Llama, Mistral via Ollama) or Azure Stack. Flag any cloud dependency as a blocker. deployment_note is required.
+- air_gapped: Fully isolated — no internet connectivity. Only on-prem open-source models. No external API calls. deployment_note is required and must call out air-gap constraint explicitly.
+
+COMPLIANCE RULES (add compliance_notes when relevant):
+- HIPAA: PHI must stay on-prem or in HIPAA-BAA-covered storage. Audit all inference. Mask PHI at output.
+- SOC 2 / ISO 27001: Logging, access controls, and change management must be built in.
+- GDPR: Data residency matters — note EU region or on-prem requirement.
+- FedRAMP / CMMC: GovCloud only or on-prem. No commercial multi-tenant endpoints.
+- PCI-DSS: No cardholder data in prompts. Tokenize before sending to AI.
+- FINRA / SEC: Immutable audit trail for all AI-driven decisions. Human review required.
+
+LEGACY SYSTEM RULES:
+- If client has mainframe/COBOL: recommend agents that use API gateway or ETL bridge rather than direct integration.
+- If client has SAP: prioritize SAP-certified connectors; agents should read from SAP ERP via OData or BAPIs.
+- If client has Salesforce: use Salesforce Einstein or Power Automate connectors; agent should not bypass CRM record locking.
+
+SCORING: fit 80-100 = critical gap + available tools. fit 60-79 = moderate gap or one missing tool. fit <60 = nice-to-have.
+Name real industry workflows. Sort by fit_score desc within each complexity group.
+Only include deployment_note and compliance_notes fields when they add meaningful context — omit them (or set to null) if not applicable.`
 
 const DESIGN_SYSTEM_PROMPT = `You are a senior AI solutions architect at Zones Innovation Center. Generate a complete agent design blueprint.
 
@@ -234,12 +258,25 @@ Write as a senior Zones consultant. Reference client's actual scores. Be prescri
 
 app.post("/api/agents/discover", async (req, res) => {
   try {
-    const { vertical, tools, focusAreas, clientScores, clientName, customDescription } = req.body
+    const {
+      vertical, tools, focusAreas, clientScores, clientName, customDescription,
+      deploymentModel, toolsByCat, onPremToolsByCat, legacySystems, complianceFrameworks,
+    } = req.body
+
+    const deployLabels = { cloud_native: 'Cloud Native (Azure)', hybrid: 'Hybrid (cloud + on-prem)', on_prem: 'On-Premises', air_gapped: 'Air-Gapped / Disconnected' }
+    const deployLabel  = deployLabels[deploymentModel] || deploymentModel || 'Not specified'
+
     const userPrompt = `Generate ${customDescription ? '1 agent based on this description: "' + customDescription + '" for' : '8-12 AI agent recommendations for'} ${clientName || 'this client'}.
 Industry: ${vertical || 'Not specified'}
-Available tools: ${(tools || []).join(', ') || 'Not specified'}
+Deployment model: ${deployLabel}
+Cloud tools by category: ${toolsByCat || (tools || []).join(', ') || 'Not specified'}
+On-premises tools: ${onPremToolsByCat || 'None'}
+Legacy systems: ${legacySystems || 'None'}
+Compliance requirements: ${complianceFrameworks || 'None specified'}
 Focus areas: ${(focusAreas || []).join(', ') || 'All pillars'}
-Pillar scores: ${JSON.stringify(clientScores || {})}${customDescription ? '\nMake this agent specific to the description above while fitting the client context.' : ''}`
+Pillar scores: ${JSON.stringify(clientScores || {})}${customDescription ? '\nMake this agent specific to the description above while fitting the client context.' : ''}
+${deploymentModel === 'air_gapped' ? '\nCRITICAL: All agents must be fully air-gapped compatible — no internet, no external APIs, on-prem open-source models only.' : ''}
+${deploymentModel === 'on_prem' ? '\nIMPORTANT: Prefer on-premises deployment paths. Flag any required cloud service clearly.' : ''}`
 
     const completion = await openai.chat.completions.create({
       model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
