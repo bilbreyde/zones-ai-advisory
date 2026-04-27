@@ -5,70 +5,18 @@ import { useClient } from '../ClientContext.jsx'
 import ChatVisual from '../components/ChatVisual.jsx'
 import EnvironmentProfile from '../components/EnvironmentProfile.jsx'
 import { getStalenessStatus } from '../lib/staleness.js'
+import {
+  DEPLOYMENT_MODELS,
+  CLOUD_TOOL_CATEGORIES,
+  ON_PREM_CATEGORIES,
+  LEGACY_CATEGORIES,
+  COMPLIANCE_FRAMEWORKS,
+  INDUSTRIES,
+} from '../lib/environmentConstants.js'
 import '../components/EnvironmentProfile.css'
 import './AgentStudio.css'
 
 const API = import.meta.env.VITE_API_URL || ''
-
-/* ── Constants ────────────────────────────────────────────────────────── */
-
-const INDUSTRIES = [
-  'Financial Services', 'Healthcare', 'Manufacturing', 'Retail',
-  'Energy', 'Professional Services', 'Public Sector', 'Technology',
-]
-
-const DEPLOYMENT_MODELS = [
-  { id: 'cloud_native', label: 'Cloud Native',           desc: 'All workloads run in cloud — Azure, AWS, or GCP',                icon: '☁️' },
-  { id: 'hybrid',       label: 'Hybrid',                 desc: 'Mix of cloud and on-premises infrastructure',                  icon: '🔀' },
-  { id: 'on_prem',      label: 'Primarily On-Premises',  desc: 'Most workloads run in own data center',                        icon: '🏢' },
-  { id: 'air_gapped',   label: 'Air-Gapped',             desc: 'Isolated network, no direct internet access',                  icon: '🔒' },
-]
-
-const TOOL_CATEGORIES = [
-  { id: 'crm',         label: 'CRM',            tools: ['Salesforce', 'HubSpot', 'Dynamics 365', 'Zoho CRM', 'SAP CRM', 'Pipedrive'] },
-  { id: 'erp',         label: 'ERP',            tools: ['SAP S/4HANA', 'Oracle ERP Cloud', 'NetSuite', 'Dynamics 365 F&O', 'Sage', 'Infor CloudSuite'] },
-  { id: 'cloud',       label: 'Cloud Platform', tools: ['Azure', 'Azure AI Foundry', 'Azure OpenAI', 'AWS', 'AWS Bedrock', 'GCP', 'Google Vertex AI', 'Multi-cloud'] },
-  { id: 'data',        label: 'Data & Analytics', tools: ['Databricks', 'Snowflake', 'Microsoft Fabric', 'Power BI', 'Tableau', 'Looker', 'Azure Data Factory', 'dbt', 'Azure Synapse', 'Qlik'] },
-  { id: 'itsm',        label: 'ITSM / PM',      tools: ['ServiceNow', 'Jira', 'Zendesk', 'Azure DevOps', 'Monday.com', 'Asana', 'Freshdesk', 'BMC Helix'] },
-  { id: 'collab',      label: 'Collaboration',  tools: ['Microsoft Teams', 'SharePoint', 'OneDrive', 'Microsoft 365', 'Slack', 'Zoom', 'Webex', 'Google Workspace', 'Viva Engage'] },
-  { id: 'security',    label: 'Security',       tools: ['Microsoft Sentinel', 'Microsoft Defender', 'CrowdStrike', 'Splunk', 'Palo Alto Prisma', 'Qualys', 'Tenable', 'Okta', 'Entra ID'] },
-  { id: 'hr',          label: 'HR / HCM',       tools: ['Workday', 'SAP SuccessFactors', 'ADP', 'UKG', 'BambooHR', 'Ceridian Dayforce', 'Oracle HCM'] },
-  { id: 'finance',     label: 'Finance',        tools: ['SAP Finance', 'Oracle Financials Cloud', 'Workiva', 'Anaplan', 'Sage Intacct', 'BlackLine', 'Concur'] },
-  { id: 'supplychain', label: 'Supply Chain',   tools: ['Blue Yonder', 'Kinaxis', 'o9 Solutions', 'SAP IBP', 'Oracle SCM', 'E2open', 'Manhattan Associates'] },
-  { id: 'devtools',    label: 'Dev Tools',      tools: ['GitHub', 'GitLab', 'Azure DevOps', 'Docker', 'Kubernetes', 'Terraform', 'Ansible', 'Jenkins'] },
-  { id: 'documents',   label: 'Document Mgmt',  tools: ['DocuSign', 'Adobe Acrobat Sign', 'OpenText', 'Nintex', 'M-Files', 'Box'] },
-  { id: 'ehr',         label: 'EHR / Clinical', verticals: ['Healthcare'], tools: ['Epic', 'Cerner (Oracle Health)', 'Meditech', 'Allscripts', 'athenahealth', 'eClinicalWorks', 'Veeva'] },
-  { id: 'retail',      label: 'Retail / POS',   verticals: ['Retail'],    tools: ['Shopify', 'Magento', 'SAP Commerce', 'Oracle Retail', 'Manhattan WMS', 'Salesforce Commerce'] },
-  { id: 'energy',      label: 'Energy / OT',    verticals: ['Energy'],    tools: ['OSIsoft PI', 'Honeywell', 'Siemens MindSphere', 'GE Predix', 'SCADA systems', 'Maximo'] },
-]
-
-const ON_PREM_CATEGORIES = [
-  { id: 'compute',      label: 'Compute',      tools: ['Windows Server', 'Linux Server', 'VMware vSphere', 'Hyper-V', 'Nutanix', 'OpenStack', 'Azure Stack HCI', 'Azure Arc'] },
-  { id: 'onprem_data',  label: 'Data',         tools: ['SQL Server (on-prem)', 'Oracle DB (on-prem)', 'IBM Db2', 'Teradata', 'IBM Netezza', 'PostgreSQL (on-prem)', 'MySQL (on-prem)', 'MongoDB (on-prem)'] },
-  { id: 'storage',      label: 'Storage',      tools: ['NAS', 'SAN', 'Dell EMC', 'NetApp', 'Pure Storage', 'HPE Nimble', 'Windows File Server'] },
-  { id: 'networking',   label: 'Connectivity', tools: ['ExpressRoute', 'Site-to-Site VPN', 'MPLS', 'SD-WAN', 'Cisco', 'Palo Alto (on-prem)'] },
-  { id: 'identity',     label: 'Identity',     tools: ['Active Directory', 'LDAP', 'ADFS', 'Azure AD Connect', 'Ping Identity', 'CyberArk'] },
-  { id: 'ai_inference', label: 'AI / Inference', tools: ['Azure Arc (AI)', 'NVIDIA GPU servers', 'Local LLM (Ollama)', 'Private model hosting', 'Edge inference'] },
-]
-
-const LEGACY_SYSTEMS = [
-  { id: 'legacy_erp',    label: 'Legacy ERP',     tools: ['SAP R/3', 'SAP ECC 6.0', 'Oracle E-Business Suite', 'JD Edwards', 'Infor M3', 'Epicor'] },
-  { id: 'mainframe',     label: 'Mainframe',      tools: ['IBM Mainframe (z/OS)', 'IBM AS/400 (iSeries)', 'COBOL applications', 'CICS', 'IMS', 'Unisys'] },
-  { id: 'legacy_custom', label: 'Custom / Other', tools: ['Custom-built applications', 'Access databases', 'Excel-driven processes', 'FTP-based integrations', 'EDI systems'] },
-]
-
-const COMPLIANCE_FRAMEWORKS = [
-  { id: 'hipaa',    label: 'HIPAA',       desc: 'Healthcare data',           verticals: ['Healthcare'] },
-  { id: 'fedramp',  label: 'FedRAMP',     desc: 'US Federal',                verticals: ['Public Sector'] },
-  { id: 'itar',     label: 'ITAR',        desc: 'Defense / Export control',  verticals: ['Public Sector'] },
-  { id: 'pci',      label: 'PCI-DSS',     desc: 'Payment card data',         verticals: ['Financial Services', 'Retail'] },
-  { id: 'gdpr',     label: 'GDPR',        desc: 'EU data residency',         verticals: [] },
-  { id: 'soc2',     label: 'SOC 2',       desc: 'Service organization',      verticals: [] },
-  { id: 'iso27001', label: 'ISO 27001',   desc: 'Information security',      verticals: [] },
-  { id: 'nist',     label: 'NIST AI RMF', desc: 'AI risk management',        verticals: [] },
-  { id: 'cmmc',     label: 'CMMC',        desc: 'Defense contractors',       verticals: ['Public Sector'] },
-  { id: 'sox',      label: 'SOX',         desc: 'Financial reporting',       verticals: ['Financial Services'] },
-]
 
 const PILLAR_META = {
   governance: { label: 'Governance',       color: '#4A9FE0' },
@@ -89,11 +37,6 @@ const STATUS_META = {
   in_progress: { label: 'In Progress', color: '#E8A838' },
   deployed:    { label: 'Deployed',    color: '#3DBA7E' },
 }
-
-// All predefined cloud tool names — used to distinguish custom tools
-const PREDEFINED_CLOUD_TOOLS = new Set(TOOL_CATEGORIES.flatMap(c => c.tools))
-const PREDEFINED_ONPREM_TOOLS = new Set(ON_PREM_CATEGORIES.flatMap(c => c.tools))
-const PREDEFINED_LEGACY_TOOLS = new Set(LEGACY_SYSTEMS.flatMap(c => c.tools))
 
 const fitColor = s => s >= 80 ? '#3DBA7E' : s >= 60 ? '#4A9FE0' : s >= 40 ? '#E8A838' : 'var(--z-muted)'
 
@@ -459,23 +402,46 @@ export default function AgentStudio() {
     fetch(`${API}/api/clients/${client.id}`)
       .then(r => r.json())
       .then(data => {
+        // Prefer environmentProfile as primary source; fall back to studioConfig
+        const ep   = data.environmentProfile
         const saved = data.studioConfig
 
-        if (saved?.vertical)                  setVertical(saved.vertical)
-        else if (client?.industry)             setVertical(client.industry)
+        const vertical_ = ep?.vertical || saved?.vertical
+        if (vertical_)              setVertical(vertical_)
+        else if (client?.industry)  setVertical(client.industry)
 
-        if (saved?.deploymentModel)            setDeploymentModel(saved.deploymentModel)
-        if (saved?.tools?.length)              setTools(saved.tools)
-        if (saved?.toolCategoryMap)            setToolCategoryMap(saved.toolCategoryMap)
-        if (saved?.onPremTools?.length)        setOnPremTools(saved.onPremTools)
-        if (saved?.onPremToolCategoryMap)      setOnPremToolCategoryMap(saved.onPremToolCategoryMap)
-        if (saved?.legacySystems?.length)      setLegacySystems(saved.legacySystems)
-        if (saved?.legacyCategoryMap)          setLegacyCategoryMap(saved.legacyCategoryMap)
-        if (saved?.complianceFrameworks?.length) setComplianceFrameworks(saved.complianceFrameworks)
-        if (saved?.focusAreas?.length)         setFocusAreas(saved.focusAreas)
-        else                                   setFocusAreas(af)
+        const dm = ep?.deploymentModel || saved?.deploymentModel
+        if (dm)  setDeploymentModel(dm)
 
-        const hasConfig = saved?.tools?.length > 0 || saved?.onPremTools?.length > 0
+        // cloudTools (env) ↔ tools (studio)
+        if (ep?.cloudTools?.length)              setTools(ep.cloudTools)
+        else if (saved?.tools?.length)           setTools(saved.tools)
+
+        if (ep?.cloudToolCategoryMap)            setToolCategoryMap(ep.cloudToolCategoryMap)
+        else if (saved?.toolCategoryMap)         setToolCategoryMap(saved.toolCategoryMap)
+
+        if (ep?.onPremTools?.length)             setOnPremTools(ep.onPremTools)
+        else if (saved?.onPremTools?.length)     setOnPremTools(saved.onPremTools)
+
+        // onPremCategoryMap (env) ↔ onPremToolCategoryMap (studio)
+        if (ep?.onPremCategoryMap)               setOnPremToolCategoryMap(ep.onPremCategoryMap)
+        else if (saved?.onPremToolCategoryMap)   setOnPremToolCategoryMap(saved.onPremToolCategoryMap)
+
+        if (ep?.legacySystems?.length)           setLegacySystems(ep.legacySystems)
+        else if (saved?.legacySystems?.length)   setLegacySystems(saved.legacySystems)
+
+        if (ep?.legacyCategoryMap)               setLegacyCategoryMap(ep.legacyCategoryMap)
+        else if (saved?.legacyCategoryMap)       setLegacyCategoryMap(saved.legacyCategoryMap)
+
+        if (ep?.complianceFrameworks?.length)              setComplianceFrameworks(ep.complianceFrameworks)
+        else if (saved?.complianceFrameworks?.length)      setComplianceFrameworks(saved.complianceFrameworks)
+
+        // focusAreas is studio-specific
+        if (saved?.focusAreas?.length)           setFocusAreas(saved.focusAreas)
+        else                                     setFocusAreas(af)
+
+        const hasConfig = (ep?.cloudTools?.length || saved?.tools?.length || 0) > 0 ||
+                          (ep?.onPremTools?.length || saved?.onPremTools?.length || 0) > 0
         if (hasConfig) setConfigExpanded(false)
 
         setBacklog(data.agentBacklog || [])
@@ -490,18 +456,29 @@ export default function AgentStudio() {
     clearTimeout(saveTimeoutRef.current)
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`${API}/api/clients/${client.id}/studio-config`, {
+        // Save environment fields to /environment endpoint (mapped field names)
+        const envRes = await fetch(`${API}/api/clients/${client.id}/environment`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            vertical: v, deploymentModel: dm,
-            tools: t, toolCategoryMap: tcm,
-            onPremTools: opt, onPremToolCategoryMap: optcm,
-            legacySystems: ls, legacyCategoryMap: lcm,
-            complianceFrameworks: cf, focusAreas: fa,
+            vertical: v,
+            deploymentModel: dm,
+            cloudTools: t,
+            cloudToolCategoryMap: tcm,
+            onPremTools: opt,
+            onPremCategoryMap: optcm,
+            legacySystems: ls,
+            legacyCategoryMap: lcm,
+            complianceFrameworks: cf,
           }),
         })
-        if (res.ok) {
+        // Save focusAreas (studio-specific) to /studio-config
+        const studioRes = await fetch(`${API}/api/clients/${client.id}/studio-config`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ focusAreas: fa }),
+        })
+        if (envRes.ok && studioRes.ok) {
           clearTimeout(savedToastRef.current)
           setShowSaved(true)
           savedToastRef.current = setTimeout(() => setShowSaved(false), 2000)
@@ -629,10 +606,11 @@ export default function AgentStudio() {
         body: JSON.stringify({
           vertical,
           deploymentModel,
-          toolsByCat:       buildCatSummary(tools, toolCategoryMap, TOOL_CATEGORIES),
+          toolsByCat:       buildCatSummary(tools, toolCategoryMap, CLOUD_TOOL_CATEGORIES),
           onPremToolsByCat: buildCatSummary(onPremTools, onPremToolCategoryMap, ON_PREM_CATEGORIES),
           legacySystems:    legacySystems.join(', '),
           complianceFrameworks: complianceFrameworks.join(', '),
+          constraints:      (client?.environmentProfile?.constraints || []).join(', '),
           tools:            [...tools, ...onPremTools],
           focusAreas,
           clientScores:     client?.scores,
@@ -700,7 +678,7 @@ export default function AgentStudio() {
       if (ep.cloudTools?.length)   setTools(ep.cloudTools)
       if (ep.cloudToolCategoryMap) setToolCategoryMap(ep.cloudToolCategoryMap)
       if (ep.onPremTools?.length)  setOnPremTools(ep.onPremTools)
-      if (ep.onPremCategoryMap)    setOnPremCategoryMap(ep.onPremCategoryMap)
+      if (ep.onPremCategoryMap)    setOnPremToolCategoryMap(ep.onPremCategoryMap)
       if (ep.legacySystems?.length) setLegacySystems(ep.legacySystems)
       if (ep.legacyCategoryMap)    setLegacyCategoryMap(ep.legacyCategoryMap)
       if (ep.complianceFrameworks?.length) setComplianceFrameworks(ep.complianceFrameworks)
@@ -838,7 +816,7 @@ export default function AgentStudio() {
                     </span>
                   </div>
                   <div className="tool-categories">
-                    {LEGACY_SYSTEMS.map(cat => (
+                    {LEGACY_CATEGORIES.map(cat => (
                       <ToolCategoryRow
                         key={cat.id}
                         cat={cat}
@@ -889,7 +867,7 @@ export default function AgentStudio() {
               <div className="config-field">
                 <label className="config-label">Cloud Tooling Stack</label>
                 <div className="tool-categories">
-                  {TOOL_CATEGORIES
+                  {CLOUD_TOOL_CATEGORIES
                     .filter(cat => !cat.verticals || cat.verticals.includes(vertical) || !vertical)
                     .map(cat => (
                       <ToolCategoryRow

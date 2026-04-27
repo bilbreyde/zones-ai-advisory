@@ -280,7 +280,7 @@ app.post("/api/agents/discover", async (req, res) => {
   try {
     const {
       vertical, tools, focusAreas, clientScores, clientName, customDescription,
-      deploymentModel, toolsByCat, onPremToolsByCat, legacySystems, complianceFrameworks,
+      deploymentModel, toolsByCat, onPremToolsByCat, legacySystems, complianceFrameworks, constraints,
     } = req.body
 
     const deployLabels = { cloud_native: 'Cloud Native (Azure)', hybrid: 'Hybrid (cloud + on-prem)', on_prem: 'On-Premises', air_gapped: 'Air-Gapped / Disconnected' }
@@ -293,6 +293,7 @@ Cloud tools by category: ${toolsByCat || (tools || []).join(', ') || 'Not specif
 On-premises tools: ${onPremToolsByCat || 'None'}
 Legacy systems: ${legacySystems || 'None'}
 Compliance requirements: ${complianceFrameworks || 'None specified'}
+Operational constraints: ${(constraints || []).join(', ') || 'None'}
 Focus areas: ${(focusAreas || []).join(', ') || 'All pillars'}
 Pillar scores: ${JSON.stringify(clientScores || {})}${customDescription ? '\nMake this agent specific to the description above while fitting the client context.' : ''}
 ${deploymentModel === 'air_gapped' ? '\nCRITICAL: All agents must be fully air-gapped compatible — no internet, no external APIs, on-prem open-source models only.' : ''}
