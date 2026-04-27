@@ -37,6 +37,7 @@ router.post('/', async (req, res) => {
       currentSession: 1,
       scores: { governance: null, risk: null, strategy: null, operations: null, enablement: null },
       overallScore: null,
+      agentBacklog: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -59,17 +60,85 @@ router.patch('/:id', async (req, res) => {
   }
 })
 
-// Agent backlog — push an agent to client.agentBacklog[]
+// POST /api/clients/:id/agents — add agent to backlog
 router.post('/:id/agents', async (req, res) => {
+  try {
+    console.log('Adding agent to backlog for client:', req.params.id)
+    console.log('Agent data:', req.body)
+
+    const { resource: existing } = await containers.clients.item(req.params.id, req.params.id).read()
+    if (!existing) return res.status(404).json({ error: 'Client not found' })
+
+    if (!existing.agentBacklog) existing.agentBacklog = []
+
+    // Avoid duplicates — match by id if present, otherwise by name
+    const alreadyExists = existing.agentBacklog.some(
+      a => (req.body.id && a.id === req.body.id) || a.name === req.body.name
+    )
+    if (alreadyExists) {
+      console.log('Agent already in backlog, skipping duplicate')
+      return res.json(existing)
+    }
+
+    existing.agentBacklog.push({
+      ...req.body,
+      status: 'backlog',
+      addedAt: new Date().toISOString(),
+    })
+    existing.updatedAt = new Date().toISOString()
+
+    const { resource: updated } = await containers.clients
+      .item(req.params.id, req.params.id)
+      .replace(existing)
+
+    console.log('Backlog saved. New length:', updated.agentBacklog.length)
+    res.json(updated)
+  } catch (err) {
+    console.error('Error saving to backlog:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /api/clients/:id/agents/:agentId — update agent status
+router.patch('/:id/agents/:agentId', async (req, res) => {
   try {
     const { resource: existing } = await containers.clients.item(req.params.id, req.params.id).read()
     if (!existing) return res.status(404).json({ error: 'Client not found' })
-    const entry = { ...req.body, status: 'backlog', addedAt: new Date().toISOString() }
-    const agentBacklog = [...(existing.agentBacklog || []), entry]
-    const { resource } = await containers.clients.item(req.params.id, req.params.id).replace({
-      ...existing, agentBacklog, updatedAt: new Date().toISOString(),
-    })
-    res.json(resource)
+
+    const idx = (existing.agentBacklog || []).findIndex(a => a.id === req.params.agentId)
+    if (idx === -1) return res.status(404).json({ error: 'Agent not found in backlog' })
+
+    existing.agentBacklog[idx] = {
+      ...existing.agentBacklog[idx],
+      ...req.body,
+      updatedAt: new Date().toISOString(),
+    }
+    existing.updatedAt = new Date().toISOString()
+
+    const { resource: updated } = await containers.clients
+      .item(req.params.id, req.params.id)
+      .replace(existing)
+
+    res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// DELETE /api/clients/:id/agents/:agentId — remove from backlog
+router.delete('/:id/agents/:agentId', async (req, res) => {
+  try {
+    const { resource: existing } = await containers.clients.item(req.params.id, req.params.id).read()
+    if (!existing) return res.status(404).json({ error: 'Client not found' })
+
+    existing.agentBacklog = (existing.agentBacklog || []).filter(a => a.id !== req.params.agentId)
+    existing.updatedAt = new Date().toISOString()
+
+    const { resource: updated } = await containers.clients
+      .item(req.params.id, req.params.id)
+      .replace(existing)
+
+    res.json(updated)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

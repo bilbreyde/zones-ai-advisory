@@ -566,12 +566,67 @@
   text-align: center;
 }
 
-.backlog-status {
+.backlog-count-badge {
+  display: inline-block;
   font-size: 9px;
-  font-weight: 600;
-  padding: 1px 7px;
+  font-weight: 700;
+  padding: 1px 6px;
   border-radius: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  align-self: flex-start;
+  background: rgba(74,159,224,0.15);
+  color: var(--z-blue-bright);
+  margin-left: 6px;
+  vertical-align: middle;
 }
+
+.backlog-saved-flash {
+  font-size: 11px;
+  font-weight: 500;
+  color: #3DBA7E;
+  background: rgba(61,186,126,0.1);
+  border: 1px solid rgba(61,186,126,0.25);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  text-align: center;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.backlog-item-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.backlog-remove-btn {
+  background: none;
+  border: none;
+  color: var(--z-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  line-height: 1.4;
+  transition: color 0.1s, background 0.1s;
+}
+.backlog-remove-btn:hover { color: #EF4444; background: rgba(239,68,68,0.1); }
+
+.backlog-fit {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.backlog-status-select {
+  width: 100%;
+  background: var(--z-surface);
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.backlog-status-select:focus { outline: none; }

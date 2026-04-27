@@ -96,18 +96,9 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
   }
 
   async function handleAddToBacklog() {
-    if (!client?.id || addedToBacklog) return
-    try {
-      await fetch(`${API}/api/clients/${client.id}/agents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(agent),
-      })
-      setAddedToBacklog(true)
-      onAddToBacklog?.(agent)
-    } catch (err) {
-      console.error('Failed to add to backlog:', err)
-    }
+    if (addedToBacklog) return
+    setAddedToBacklog(true)
+    await onAddToBacklog?.(agent)
   }
 
   async function downloadPDF() {
@@ -350,7 +341,7 @@ function AgentCard({ agent, onDesign }) {
 
 /* ── Main page ────────────────────────────────────────────────────────── */
 export default function AgentStudio() {
-  const { client } = useClient()
+  const { client, refreshClient } = useClient()
 
   // Derive auto-selected focus areas from lowest pillar scores
   const autoFocus = Object.entries(client?.scores || {})
@@ -367,12 +358,16 @@ export default function AgentStudio() {
   const [agents,        setAgents]        = useState([])
   const [discovering,   setDiscovering]   = useState(false)
   const [selectedAgent, setSelectedAgent] = useState(null)
-  const [backlog,       setBacklog]       = useState(client?.agentBacklog || [])
+  const [backlog,       setBacklog]       = useState([])
+  const [backlogLoading, setBacklogLoading] = useState(false)
+  const [backlogSaved,  setBacklogSaved]  = useState(null) // agent id of recently saved item
   const [filter,        setFilter]        = useState({ pillar: '', complexity: '' })
   const [customInput,   setCustomInput]   = useState('')
   const [customOpen,    setCustomOpen]    = useState(false)
 
-  // Re-derive focus areas when client changes
+  // Load backlog fresh from API on mount and whenever the active client changes.
+  // Never trust the stale ClientContext snapshot for this — it was set when the
+  // session was started and is not updated as agents are added.
   useEffect(() => {
     const af = Object.entries(client?.scores || {})
       .filter(([, v]) => v !== null && v !== undefined)
@@ -380,9 +375,73 @@ export default function AgentStudio() {
       .slice(0, 2)
       .map(([k]) => k)
     setFocusAreas(af)
-    setBacklog(client?.agentBacklog || [])
     if (client?.industry) setVertical(client.industry)
+
+    if (!client?.id) {
+      setBacklog([])
+      return
+    }
+
+    console.log('Loading backlog for client:', client.id)
+    setBacklogLoading(true)
+    fetch(`${API}/api/clients/${client.id}`)
+      .then(r => r.json())
+      .then(data => {
+        console.log('agentBacklog from API:', data.agentBacklog)
+        setBacklog(data.agentBacklog || [])
+      })
+      .catch(err => console.error('Failed to load backlog:', err))
+      .finally(() => setBacklogLoading(false))
   }, [client?.id])
+
+  async function addToBacklog(agent) {
+    if (!client?.id) return
+    console.log('Saving agent to backlog:', agent)
+    try {
+      const res = await fetch(`${API}/api/clients/${client.id}/agents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(agent),
+      })
+      const updatedClient = await res.json()
+      console.log('POST response agentBacklog length:', updatedClient.agentBacklog?.length)
+      setBacklog(updatedClient.agentBacklog || [])
+      // Also update context + localStorage so other pages see fresh data
+      refreshClient(client.id)
+      setBacklogSaved(agent.id)
+      setTimeout(() => setBacklogSaved(null), 2500)
+    } catch (err) {
+      console.error('Backlog save error:', err)
+    }
+  }
+
+  async function updateAgentStatus(agentId, newStatus) {
+    if (!client?.id) return
+    try {
+      const res = await fetch(`${API}/api/clients/${client.id}/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      const updatedClient = await res.json()
+      setBacklog(updatedClient.agentBacklog || [])
+    } catch (err) {
+      console.error('Status update error:', err)
+    }
+  }
+
+  async function removeFromBacklog(agentId) {
+    if (!client?.id) return
+    try {
+      const res = await fetch(`${API}/api/clients/${client.id}/agents/${agentId}`, {
+        method: 'DELETE',
+      })
+      const updatedClient = await res.json()
+      setBacklog(updatedClient.agentBacklog || [])
+    } catch (err) {
+      console.error('Remove error:', err)
+    }
+  }
 
   function toggleTool(tool) {
     setTools(prev => prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool])
@@ -655,19 +714,57 @@ export default function AgentStudio() {
 
       {/* Backlog sidebar */}
       <div className="studio-sidebar">
-        <div className="sidebar-heading">Agent Backlog</div>
-        {backlog.length === 0 ? (
-          <div className="sidebar-empty">No agents added yet. Click "Design" on any agent card, then "Add to Backlog".</div>
+        <div className="sidebar-heading">
+          Agent Backlog
+          {backlog.length > 0 && (
+            <span className="backlog-count-badge">{backlog.length}</span>
+          )}
+        </div>
+
+        {backlogSaved && (
+          <div className="backlog-saved-flash">✓ Saved to backlog</div>
+        )}
+
+        {backlogLoading ? (
+          <div className="sidebar-empty">Loading…</div>
+        ) : backlog.length === 0 ? (
+          <div className="sidebar-empty">
+            <div style={{ fontSize: 22, marginBottom: 6 }}>⚡</div>
+            No agents yet. Generate recommendations, click "Design →", then "Add to Agent Backlog".
+          </div>
         ) : (
           <div className="backlog-list">
-            {backlog.map((entry, i) => {
+            {backlog.map((entry) => {
               const sm = STATUS_META[entry.status] || STATUS_META.backlog
               return (
-                <div key={i} className="backlog-item" onClick={() => setSelectedAgent(entry)}>
-                  <div className="backlog-item-name">{entry.name}</div>
-                  <span className="backlog-status" style={{ color: sm.color, background: sm.color + '18' }}>
-                    {sm.label}
-                  </span>
+                <div key={entry.id || entry.name} className="backlog-item">
+                  <div className="backlog-item-top">
+                    <div className="backlog-item-name" onClick={() => setSelectedAgent(entry)} style={{ cursor: 'pointer', flex: 1 }}>
+                      {entry.name}
+                    </div>
+                    <button
+                      className="backlog-remove-btn"
+                      onClick={() => removeFromBacklog(entry.id)}
+                      title="Remove from backlog"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {entry.fit_score > 0 && (
+                    <div className="backlog-fit" style={{ color: fitColor(entry.fit_score) }}>
+                      {entry.fit_score}% fit
+                    </div>
+                  )}
+                  <select
+                    className="backlog-status-select"
+                    value={entry.status || 'backlog'}
+                    onChange={e => updateAgentStatus(entry.id, e.target.value)}
+                    style={{ borderColor: sm.color + '55', color: sm.color }}
+                  >
+                    <option value="backlog">Backlog</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="deployed">Deployed</option>
+                  </select>
                 </div>
               )
             })}
@@ -683,10 +780,7 @@ export default function AgentStudio() {
           vertical={vertical}
           tools={tools}
           onClose={() => setSelectedAgent(null)}
-          onAddToBacklog={agent => setBacklog(prev => {
-            if (prev.some(e => e.id === agent.id)) return prev
-            return [...prev, { ...agent, status: 'backlog', addedAt: new Date().toISOString() }]
-          })}
+          onAddToBacklog={addToBacklog}
         />
       )}
     </div>
