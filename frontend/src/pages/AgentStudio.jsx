@@ -360,38 +360,63 @@ export default function AgentStudio() {
   const [selectedAgent, setSelectedAgent] = useState(null)
   const [backlog,       setBacklog]       = useState([])
   const [backlogLoading, setBacklogLoading] = useState(false)
-  const [backlogSaved,  setBacklogSaved]  = useState(null) // agent id of recently saved item
+  const [backlogSaved,  setBacklogSaved]  = useState(null)
   const [filter,        setFilter]        = useState({ pillar: '', complexity: '' })
   const [customInput,   setCustomInput]   = useState('')
   const [customOpen,    setCustomOpen]    = useState(false)
+  const [configLoaded,  setConfigLoaded]  = useState(false)
+  const [configExpanded, setConfigExpanded] = useState(true)
+  const [showSaved,     setShowSaved]     = useState(false)
+  const saveTimeoutRef = useRef(null)
+  const savedToastRef  = useRef(null)
 
-  // Load backlog fresh from API on mount and whenever the active client changes.
-  // Never trust the stale ClientContext snapshot for this — it was set when the
-  // session was started and is not updated as agents are added.
+  // Load client data on mount / client change:
+  //   - restore saved studioConfig (vertical, tools, focusAreas)
+  //   - collapse the config form if a config already exists
+  //   - load backlog fresh (never trust the stale context snapshot)
   useEffect(() => {
+    setConfigLoaded(false)
+
+    // Derive default focus areas from lowest pillar scores
     const af = Object.entries(client?.scores || {})
       .filter(([, v]) => v !== null && v !== undefined)
       .sort(([, a], [, b]) => a - b)
       .slice(0, 2)
       .map(([k]) => k)
-    setFocusAreas(af)
-    if (client?.industry) setVertical(client.industry)
 
     if (!client?.id) {
+      setFocusAreas(af)
       setBacklog([])
+      setConfigLoaded(true)
       return
     }
 
-    console.log('Loading backlog for client:', client.id)
     setBacklogLoading(true)
     fetch(`${API}/api/clients/${client.id}`)
       .then(r => r.json())
       .then(data => {
-        console.log('agentBacklog from API:', data.agentBacklog)
+        const saved = data.studioConfig
+
+        if (saved?.vertical)         setVertical(saved.vertical)
+        else if (client?.industry)   setVertical(client.industry)
+
+        if (saved?.tools?.length)    setTools(saved.tools)
+        if (saved?.focusAreas?.length) setFocusAreas(saved.focusAreas)
+        else                         setFocusAreas(af)
+
+        // Collapse config form if they already have a saved stack
+        if (saved?.tools?.length > 0) setConfigExpanded(false)
+
         setBacklog(data.agentBacklog || [])
       })
-      .catch(err => console.error('Failed to load backlog:', err))
-      .finally(() => setBacklogLoading(false))
+      .catch(() => {
+        if (client?.industry) setVertical(client.industry)
+        setFocusAreas(af)
+      })
+      .finally(() => {
+        setBacklogLoading(false)
+        setConfigLoaded(true)
+      })
   }, [client?.id])
 
   async function addToBacklog(agent) {
@@ -442,6 +467,34 @@ export default function AgentStudio() {
       console.error('Remove error:', err)
     }
   }
+
+  // Debounced auto-save of studio config to Cosmos DB
+  function saveConfig(v, t, fa) {
+    if (!client?.id || !configLoaded) return
+    clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API}/api/clients/${client.id}/studio-config`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vertical: v, tools: t, focusAreas: fa }),
+        })
+        if (res.ok) {
+          clearTimeout(savedToastRef.current)
+          setShowSaved(true)
+          savedToastRef.current = setTimeout(() => setShowSaved(false), 2000)
+          refreshClient(client.id)
+        }
+      } catch (err) {
+        console.error('Failed to save studio config:', err)
+      }
+    }, 800)
+  }
+
+  // Trigger save whenever config fields change (only after initial load)
+  useEffect(() => {
+    if (configLoaded) saveConfig(vertical, tools, focusAreas)
+  }, [vertical, tools, focusAreas, configLoaded])
 
   function toggleTool(tool) {
     setTools(prev => prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool])
@@ -519,6 +572,8 @@ export default function AgentStudio() {
 
   const clientName = client?.name || 'this client'
 
+  const hasExistingConfig = tools.length > 0
+
   /* ── Configure ──────────────────────────────────────────────────────── */
   if (stage === 'configure') {
     return (
@@ -532,92 +587,120 @@ export default function AgentStudio() {
             </div>
           </div>
 
-          <div className="config-field">
-            <label className="config-label">Industry Vertical</label>
-            <select
-              className="config-select"
-              value={vertical}
-              onChange={e => setVertical(e.target.value)}
-            >
-              <option value="">Select industry…</option>
-              {INDUSTRIES.map(ind => (
-                <option key={ind} value={ind}>{ind}</option>
-              ))}
-            </select>
-          </div>
+          {/* Compact summary bar shown when config is saved and collapsed */}
+          {!configExpanded ? (
+            <div className="config-summary">
+              <div className="config-summary-left">
+                {vertical && <span className="config-vertical-badge">{vertical}</span>}
+                <span className="config-tool-count">
+                  {tools.length} tool{tools.length !== 1 ? 's' : ''} configured
+                </span>
+                {focusAreas.length > 0 && (
+                  <span className="config-focus-count">
+                    {focusAreas.length} focus area{focusAreas.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <button className="config-edit-btn" onClick={() => setConfigExpanded(true)}>
+                Edit configuration ✎
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="config-field">
+                <label className="config-label">Industry Vertical</label>
+                <select
+                  className="config-select"
+                  value={vertical}
+                  onChange={e => setVertical(e.target.value)}
+                >
+                  <option value="">Select industry…</option>
+                  {INDUSTRIES.map(ind => (
+                    <option key={ind} value={ind}>{ind}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="config-field">
-            <label className="config-label">Current Tooling Stack</label>
-            <div className="tool-categories">
-              {TOOL_CATEGORIES.map(cat => (
-                <div key={cat.label} className="tool-category">
-                  <div className="tool-category-label">{cat.label}</div>
-                  <div className="tool-chips">
-                    {cat.tools.map(tool => (
-                      <button
-                        key={tool}
-                        className={`tool-chip${tools.includes(tool) ? ' selected' : ''}`}
-                        onClick={() => toggleTool(tool)}
-                      >
-                        {tool}
-                      </button>
-                    ))}
+              <div className="config-field">
+                <label className="config-label">Current Tooling Stack</label>
+                <div className="tool-categories">
+                  {TOOL_CATEGORIES.map(cat => (
+                    <div key={cat.label} className="tool-category">
+                      <div className="tool-category-label">{cat.label}</div>
+                      <div className="tool-chips">
+                        {cat.tools.map(tool => (
+                          <button
+                            key={tool}
+                            className={`tool-chip${tools.includes(tool) ? ' selected' : ''}`}
+                            onClick={() => toggleTool(tool)}
+                          >
+                            {tool}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="tool-category">
+                    <div className="tool-category-label">Other</div>
+                    <div className="tool-chips">
+                      <input
+                        className="tool-custom-input"
+                        placeholder="Type tool name + Enter"
+                        value={customTool}
+                        onChange={e => setCustomTool(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && customTool.trim()) {
+                            toggleTool(customTool.trim())
+                            setCustomTool('')
+                          }
+                        }}
+                      />
+                      {tools.filter(t => !TOOL_CATEGORIES.flatMap(c => c.tools).includes(t)).map(t => (
+                        <button key={t} className="tool-chip selected" onClick={() => toggleTool(t)}>{t} ×</button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              ))}
-              <div className="tool-category">
-                <div className="tool-category-label">Other</div>
-                <div className="tool-chips">
-                  <input
-                    className="tool-custom-input"
-                    placeholder="Type tool name + Enter"
-                    value={customTool}
-                    onChange={e => setCustomTool(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && customTool.trim()) {
-                        toggleTool(customTool.trim())
-                        setCustomTool('')
-                      }
-                    }}
-                  />
-                  {tools.filter(t => !TOOL_CATEGORIES.flatMap(c => c.tools).includes(t)).map(t => (
-                    <button key={t} className="tool-chip selected" onClick={() => toggleTool(t)}>{t} ×</button>
-                  ))}
+              </div>
+
+              <div className="config-field">
+                <label className="config-label">
+                  Focus Areas
+                  {autoFocus.length > 0 && <span className="config-label-hint">auto-selected from lowest scores</span>}
+                </label>
+                <div className="focus-list">
+                  {Object.entries(PILLAR_META).map(([key, meta]) => {
+                    const score   = client?.scores?.[key]
+                    const checked = focusAreas.includes(key)
+                    const gap     = score !== null && score !== undefined && score < 2.5 ? 'critical gap' : score < 3.5 ? 'moderate gap' : null
+                    return (
+                      <label key={key} className={`focus-item${checked ? ' checked' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleFocus(key)}
+                        />
+                        <span className="focus-dot" style={{ background: meta.color }} />
+                        <span className="focus-label">{meta.label}</span>
+                        {score !== null && score !== undefined && (
+                          <span className="focus-score">
+                            {score.toFixed(1)}/5
+                            {gap && <span className="focus-gap" style={{ color: gap === 'critical gap' ? '#E05A4E' : '#E8A838' }}> — {gap}</span>}
+                          </span>
+                        )}
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="config-field">
-            <label className="config-label">
-              Focus Areas
-              {autoFocus.length > 0 && <span className="config-label-hint">auto-selected from lowest scores</span>}
-            </label>
-            <div className="focus-list">
-              {Object.entries(PILLAR_META).map(([key, meta]) => {
-                const score   = client?.scores?.[key]
-                const checked = focusAreas.includes(key)
-                const gap     = score !== null && score !== undefined && score < 2.5 ? 'critical gap' : score < 3.5 ? 'moderate gap' : null
-                return (
-                  <label key={key} className={`focus-item${checked ? ' checked' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleFocus(key)}
-                    />
-                    <span className="focus-dot" style={{ background: meta.color }} />
-                    <span className="focus-label">{meta.label}</span>
-                    {score !== null && score !== undefined && (
-                      <span className="focus-score">
-                        {score.toFixed(1)}/5
-                        {gap && <span className="focus-gap" style={{ color: gap === 'critical gap' ? '#E05A4E' : '#E8A838' }}> — {gap}</span>}
-                      </span>
-                    )}
-                  </label>
-                )
-              })}
-            </div>
-          </div>
+              {hasExistingConfig && (
+                <button className="config-collapse-btn" onClick={() => setConfigExpanded(false)}>
+                  ↑ Collapse configuration
+                </button>
+              )}
+            </>
+          )}
 
           <button
             className="studio-generate-btn"
@@ -629,6 +712,8 @@ export default function AgentStudio() {
               : <><Zap size={15} /> Generate Agent Recommendations</>}
           </button>
         </div>
+
+        {showSaved && <div className="studio-saved-toast">✓ Configuration saved</div>}
       </div>
     )
   }
@@ -783,6 +868,8 @@ export default function AgentStudio() {
           onAddToBacklog={addToBacklog}
         />
       )}
+
+      {showSaved && <div className="studio-saved-toast">✓ Configuration saved</div>}
     </div>
   )
 }

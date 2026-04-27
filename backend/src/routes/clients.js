@@ -60,6 +60,31 @@ router.patch('/:id', async (req, res) => {
   }
 })
 
+// PATCH /api/clients/:id/studio-config — persist vertical + tools + focus areas
+router.patch('/:id/studio-config', async (req, res) => {
+  try {
+    const { resource: existing } = await containers.clients.item(req.params.id, req.params.id).read()
+    if (!existing) return res.status(404).json({ error: 'Client not found' })
+
+    existing.studioConfig = {
+      vertical:    req.body.vertical    ?? existing.studioConfig?.vertical    ?? '',
+      tools:       req.body.tools       ?? existing.studioConfig?.tools       ?? [],
+      focusAreas:  req.body.focusAreas  ?? existing.studioConfig?.focusAreas  ?? [],
+      updatedAt:   new Date().toISOString(),
+    }
+    existing.updatedAt = new Date().toISOString()
+
+    const { resource: updated } = await containers.clients
+      .item(req.params.id, req.params.id)
+      .replace(existing)
+
+    res.json(updated)
+  } catch (err) {
+    console.error('Error saving studio config:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // POST /api/clients/:id/agents — add agent to backlog
 router.post('/:id/agents', async (req, res) => {
   try {

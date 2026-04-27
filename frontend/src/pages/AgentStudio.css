@@ -213,6 +213,91 @@
   font-weight: 500;
 }
 
+/* ── Config summary (collapsed state) ───────────────────────────────── */
+.config-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--z-surface-2);
+  border: 1px solid var(--z-border);
+  border-radius: var(--radius-md);
+  gap: 12px;
+}
+
+.config-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.config-vertical-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--z-blue-bright);
+  background: var(--z-blue-glow);
+  border: 1px solid rgba(74,159,224,0.3);
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+
+.config-tool-count,
+.config-focus-count {
+  font-size: 12px;
+  color: var(--z-muted);
+}
+
+.config-edit-btn {
+  font-size: 11px;
+  color: var(--z-muted);
+  background: none;
+  border: 1px solid var(--z-border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.1s, border-color 0.1s;
+}
+.config-edit-btn:hover { color: var(--z-white); border-color: var(--z-border-mid); }
+
+.config-collapse-btn {
+  font-size: 11px;
+  color: var(--z-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.1s;
+  align-self: flex-start;
+}
+.config-collapse-btn:hover { color: var(--z-white); }
+
+/* ── Saved toast ─────────────────────────────────────────────────────── */
+.studio-saved-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3DBA7E;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 20px;
+  z-index: 1000;
+  pointer-events: none;
+  animation: studioToastIn 2s ease forwards;
+}
+
+@keyframes studioToastIn {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .studio-generate-btn {
   display: flex;
   align-items: center;
