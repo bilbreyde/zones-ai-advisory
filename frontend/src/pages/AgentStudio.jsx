@@ -121,7 +121,14 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
     fetch(`${API}/api/agents/design`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent, clientName: client?.name, clientScores: client?.scores, vertical, tools }),
+      body: JSON.stringify({
+        agent,
+        clientName:         client?.name        || 'Client',
+        clientScores:       client?.scores       || {},
+        vertical:           vertical             || client?.industry || 'Technology',
+        tools,
+        environmentProfile: client?.environmentProfile || null,
+      }),
     })
       .then(r => r.json())
       .then(data => {

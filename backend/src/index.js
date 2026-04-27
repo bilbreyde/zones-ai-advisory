@@ -304,54 +304,6 @@ SCORING: fit 80-100 = critical gap + available tools. fit 60-79 = moderate gap o
 Name real industry workflows. Sort by fit_score desc within each complexity group.
 Only include deployment_note and compliance_notes fields when they add meaningful context — omit them (or set to null) if not applicable.`
 
-const DESIGN_SYSTEM_PROMPT = `You are a senior AI solutions architect at Zones Innovation Center. Generate a concise but complete agent design blueprint.
-
-Return ONLY a raw JSON object with NO markdown fences, NO text before or after. Start with { and end with }:
-{
-  "reply": "2-3 sentence executive overview specific to this client",
-  "visuals": [
-    {
-      "narrative": { "headline": "punchy so-what headline", "context": "2 sentences max", "actions": ["Action 1", "Action 2"] },
-      "type": "agent_spec",
-      "title": "Agent Specification",
-      "name": "...",
-      "purpose": "...",
-      "trigger": "...",
-      "inputs": ["..."],
-      "outputs": ["..."],
-      "tools": ["..."],
-      "integrations": ["..."],
-      "human_in_loop": "...",
-      "latency": "...",
-      "data_requirements": "..."
-    },
-    {
-      "narrative": { "headline": "...", "context": "2 sentences max", "actions": ["Action 1", "Action 2"] },
-      "type": "mermaid",
-      "title": "Agent Architecture",
-      "chart": "graph TD with MAX 8 nodes — keep it concise"
-    },
-    {
-      "narrative": { "headline": "...", "context": "2 sentences max", "actions": ["Action 1", "Action 2"] },
-      "type": "checklist",
-      "title": "Implementation Checklist",
-      "categories": [
-        { "name": "Prerequisites", "color": "#4A9FE0", "items": ["item 1", "item 2", "item 3"] },
-        { "name": "Phase 1 — POC", "color": "#E8A838", "items": ["item 1", "item 2", "item 3"] },
-        { "name": "Phase 2 — Production", "color": "#3DBA7E", "items": ["item 1", "item 2", "item 3"] }
-      ]
-    }
-  ]
-}
-
-CRITICAL RULES:
-- Return ONLY the JSON object. Start with { and end with }
-- Keep Mermaid chart to MAX 8 nodes — shorter charts parse more reliably
-- Keep each narrative context to 2 sentences maximum
-- Keep each actions array to 2 items maximum
-- Total response must be under 3000 tokens
-- The response will be cut off if too long — prioritise completeness over detail
-- Write as a senior Zones consultant. Reference client's actual scores. Be prescriptive.`
 
 app.post("/api/agents/discover", async (req, res) => {
   try {
@@ -431,39 +383,123 @@ ${deploymentModel === 'on_prem' ? '\nIMPORTANT: Prefer on-premises deployment pa
 
 app.post("/api/agents/design", async (req, res) => {
   try {
-    const { agent, clientName, clientScores, vertical, tools } = req.body
-    const userPrompt = `Design a complete agent blueprint for: ${agent?.name}
-Purpose: ${agent?.purpose}
-Client: ${clientName}
-Industry: ${vertical}
-Available tools: ${(tools || []).join(', ')}
-Client scores: ${JSON.stringify(clientScores || {})}
-Primary Azure service: ${agent?.azure_service || 'Azure AI Foundry'}
-Make the blueprint specific to ${clientName}'s actual gaps and tooling. Reference their pillar scores directly.`
+    const {
+      agent              = {},
+      clientName         = 'Client',
+      clientScores       = {},
+      vertical           = 'Technology',
+      tools              = [],
+      environmentProfile = null,
+    } = req.body || {}
+
+    // Build environment constraints before the prompt
+    const dm           = environmentProfile?.deploymentModel || 'cloud_native'
+    const compliance   = environmentProfile?.complianceFrameworks || []
+    const constraints  = environmentProfile?.constraints || []
+    const legacySystems = environmentProfile?.legacySystems || []
+    const onPremTools  = environmentProfile?.onPremTools || []
+    const cloudTools   = environmentProfile?.cloudTools?.length ? environmentProfile.cloudTools : tools
+    const noCloudAI    = constraints.includes('no_cloud_ai') || dm === 'air_gapped'
+    const isOnPrem     = ['on_prem', 'air_gapped'].includes(dm)
+    const isHybrid     = dm === 'hybrid'
+    const isAirGapped  = dm === 'air_gapped'
+
+    const availableRuntimes = (() => {
+      if (isAirGapped || noCloudAI) return `AVAILABLE AI RUNTIMES (strictly on-premises only):
+- Local LLM inference (Ollama, vLLM, or similar)
+- NVIDIA GPU servers (if in on-prem infrastructure)
+- Edge inference hardware / private model hosting
+DO NOT mention Azure OpenAI, Azure AI Foundry, AWS Bedrock, Google Vertex AI, or any cloud AI API as the runtime.
+The client has no internet access or has explicitly restricted external AI API usage.`
+
+      if (isOnPrem) return `AVAILABLE AI RUNTIMES (on-premises primary):
+- Local model inference preferred (Ollama, vLLM)
+- Azure Arc (bridges on-prem to Azure without cloud data egress) is acceptable
+- Cloud AI APIs may be referenced as FUTURE state only, not current recommendation
+DO NOT recommend cloud-only SaaS AI services as the primary runtime.`
+
+      if (isHybrid) return `AVAILABLE AI RUNTIMES (hybrid — cloud and on-prem):
+- Azure AI Foundry / Azure OpenAI acceptable for cloud workloads
+- Azure Arc for workloads that span environments
+- Local inference for on-premises components
+- Clearly separate which components run in cloud vs on-prem`
+
+      return `AVAILABLE AI RUNTIMES (cloud native):
+- Azure AI Foundry, Azure OpenAI, AWS Bedrock, Google Vertex AI all acceptable
+- Recommend based on tools already in their stack: ${cloudTools.slice(0, 5).join(', ')}`
+    })()
+
+    const complianceConstraints = compliance.length > 0 ? `COMPLIANCE CONSTRAINTS — hard requirements:
+${compliance.includes('hipaa')   ? '- HIPAA: NO PHI can be processed by external AI APIs. All PHI processing must occur within the client environment.' : ''}
+${compliance.includes('fedramp') ? '- FedRAMP: Only FedRAMP-authorised services. Azure Government, AWS GovCloud, or on-premises.' : ''}
+${compliance.includes('itar')    ? '- ITAR: Controlled technical data cannot leave US jurisdiction or be processed by foreign-owned services.' : ''}
+${compliance.includes('pci')     ? '- PCI-DSS: Cardholder data cannot be sent to external AI services. Stay within the compliant environment.' : ''}
+${compliance.includes('gdpr')    ? '- GDPR: Personal data of EU residents cannot leave the EU. Recommend EU-region deployments or on-premises.' : ''}`.trim() : ''
+
+    const legacyContext = legacySystems.length > 0
+      ? `LEGACY SYSTEMS IN SCOPE: ${legacySystems.join(', ')}\nThe agent architecture MUST address integration with these systems. Include specific patterns (APIs, ETL, middleware, file-based).`
+      : ''
+
+    const onPremContext = onPremTools.length > 0
+      ? `ON-PREMISES INFRASTRUCTURE AVAILABLE: ${onPremTools.join(', ')}\nDesign the agent to leverage this existing infrastructure where possible.`
+      : ''
+
+    const buildVsBuyGuidance = (isAirGapped || isOnPrem)
+      ? `BUILD VS ALTERNATIVES for on-premises/air-gapped client:
+- Option 1: Custom build using open-source models (Llama, Mistral) on local GPU infrastructure
+- Option 2: Private commercial deployment (e.g. Azure Arc-enabled private deployment)
+- Option 3: Existing on-prem automation tools extended with local AI (RPA + local LLM)
+- Option 4: Off-the-shelf on-prem AI appliances (NVIDIA AI Enterprise, IBM Watson on-prem)
+DO NOT recommend cloud SaaS products as the off-the-shelf option for this client.`
+      : `BUILD VS ALTERNATIVES: Compare custom build on ${cloudTools.includes('Azure AI Foundry') || cloudTools.includes('Azure') ? 'Azure AI Foundry' : cloudTools.includes('AWS') || cloudTools.includes('AWS Bedrock') ? 'AWS Bedrock' : 'their cloud platform'} vs relevant off-the-shelf products that integrate with their existing stack.`
+
+    const designPrompt = `You are a senior AI solutions architect at Zones Innovation Center designing an agent blueprint for a specific client environment.
+
+CLIENT: ${clientName}
+INDUSTRY: ${vertical}
+DEPLOYMENT MODEL: ${dm}
+SCORES: ${JSON.stringify(clientScores)}
+
+${availableRuntimes}
+${complianceConstraints ? '\n' + complianceConstraints : ''}
+${legacyContext ? '\n' + legacyContext : ''}
+${onPremContext ? '\n' + onPremContext : ''}
+
+AGENT TO DESIGN:
+Name: ${agent.name || 'Agent'}
+Purpose: ${agent.purpose || ''}
+Pillar: ${agent.pillar || 'strategy'}
+Tools available to client: ${[...cloudTools, ...onPremTools].join(', ') || 'not specified'}
+
+${buildVsBuyGuidance}
+
+Return ONLY a raw JSON object. Start with { and end with }. No markdown. No code fences. No text outside the JSON.
+Include exactly 3 visuals in this order: agent_spec, mermaid, vendor_comparison.
+Keep each section concise to avoid truncation. Mermaid chart MAX 6 nodes.
+
+{"reply":"2-3 sentence executive overview referencing the client deployment model","visuals":[{"narrative":{"headline":"One so-what sentence specific to ${clientName}","context":"2 sentences on their ${dm} environment","actions":["Action 1","Action 2"]},"type":"agent_spec","title":"Agent Specification","name":"${(agent.name || 'Agent').replace(/"/g, '\\"')}","purpose":"Full purpose","trigger":"What triggers this agent","inputs":["Input 1","Input 2"],"outputs":["Output 1","Output 2"],"tools":["Only tools available in their environment — no cloud AI if on_prem or air_gapped"],"integrations":["Specific integrations"],"human_in_loop":"Where humans review","latency":"Expected response time","data_requirements":"What data access is needed"},{"narrative":{"headline":"Architecture for ${dm} environment","context":"2 sentences on why this architecture suits their constraints","actions":["Action 1","Action 2"]},"type":"mermaid","title":"Agent Architecture","chart":"graph TD with MAX 6 nodes using only tools available in the client environment"},{"narrative":{"headline":"Build vs buy for ${dm} deployment","context":"2 sentences on recommended approach given their constraints","actions":["Next step 1","Next step 2"]},"type":"vendor_comparison","title":"Build vs Alternatives","criteria":["Time to value","Customisation","Cost","Maintenance","Compliance fit"],"vendors":[{"name":"Custom build (recommended for ${dm})","recommended":true,"scores":{"Time to value":3,"Customisation":5,"Cost":3,"Maintenance":3,"Compliance fit":5},"pros":["Full control","Meets all constraints","No data leaves environment"],"cons":["Higher initial build effort","Requires internal expertise"]},{"name":"Best alternative for their environment","recommended":false,"scores":{"Time to value":4,"Customisation":3,"Cost":4,"Maintenance":4,"Compliance fit":3},"pros":["Faster deployment","Less maintenance"],"cons":["May not meet all compliance requirements","Less customisable"]}]}]}`
 
     const completion = await openai.chat.completions.create({
-      model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
-      messages: [
-        { role: "system", content: DESIGN_SYSTEM_PROMPT },
-        { role: "user",   content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 8000,
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
+      messages:    [{ role: "user", content: designPrompt }],
+      temperature: 0.3,
+      max_tokens:  4000,
     })
 
     const rawContent = completion.choices[0].message.content.trim()
-    console.log("[design] raw response (first 500):", rawContent.slice(0, 500))
+    console.log("[design] response length:", rawContent.length)
+    console.log("[design] raw response (first 300):", rawContent.slice(0, 300))
     console.log("[design] raw response (last 100):", rawContent.slice(-100))
     const extracted = extractVisualFromResponse(rawContent)
-    console.log("[design] parsed — visuals:", extracted.visuals?.length || 0, "| reply:", extracted.text?.slice(0, 80))
+    console.log("[design] parsed — visuals:", extracted.visuals?.length || 0, extracted.visuals?.map(v => v.type))
     if (!extracted.visuals?.length && !extracted.text) {
       console.error("[design] empty parse result — returning debug info")
       return res.json({ reply: '', visual: null, visuals: [], debug: rawContent.slice(0, 500) })
     }
     res.json({ reply: extracted.text, visual: extracted.visual, visuals: extracted.visuals || [] })
   } catch (err) {
-    console.error("Agent design error:", err.message)
-    res.status(500).json({ error: "Failed to generate blueprint", detail: err.message })
+    console.error("Agent design error:", err.message, err.stack)
+    res.status(500).json({ error: "Failed to generate blueprint", detail: err.message, visuals: [] })
   }
 })
 
