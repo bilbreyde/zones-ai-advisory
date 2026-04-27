@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, ClipboardCheck, BarChart3,
+  LayoutDashboard, ClipboardList, BarChart3,
   Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
@@ -60,7 +60,7 @@ export default function Layout() {
             <BarChart3 size={15} /> Results & Roadmap
           </NavLink>
           <NavLink to="/assessment" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-            <ClipboardCheck size={15} /> Full Assessment
+            <ClipboardList size={15} /> Assessment Review
           </NavLink>
           <NavLink to="/agents" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
             <Zap size={15} /> Agent Studio
