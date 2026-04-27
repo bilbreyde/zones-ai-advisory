@@ -6,6 +6,7 @@ const SECTIONS = [
   { id: 'stages',       label: '6-Stage Engagement Model' },
   { id: 'prep',         label: 'Before Your Client Meeting' },
   { id: 'assessment',   label: 'Running the Assessment' },
+  { id: 'review',       label: 'Assessment Review' },
   { id: 'ai-chat',      label: 'AI Advisory Assistant' },
   { id: 'results',      label: 'Results Page & Deliverables' },
   { id: 'agents',       label: 'Agent Design Studio' },
@@ -110,6 +111,7 @@ export default function Help() {
           <div className="section-header">
             <h2>Introduction</h2>
             <p>The Zones AI Advisory Framework is a structured sales and consulting tool that helps you assess a client's AI readiness across five pillars, generate executive-grade deliverables, and identify AI agent opportunities — all within a single session.</p>
+            <p style={{ marginTop: 8 }}>The tool is infrastructure-aware — it understands whether clients are cloud-native, hybrid, on-premises, or air-gapped, and adjusts all agent recommendations accordingly. Compliance requirements like HIPAA, FedRAMP, and GDPR are factored into every agent blueprint.</p>
           </div>
 
           <div className="help-tip">
@@ -152,7 +154,7 @@ export default function Help() {
               { num: 3, title: 'AI Analysis', desc: 'The AI Advisory Assistant analyzes scores in real time. Ask it to surface gaps, generate executive summaries, or produce architecture visuals.' },
               { num: 4, title: 'Results & Roadmap', desc: 'The Results page shows the overall maturity score, pillar breakdown, prioritized recommendations, and a 4-phase next-step roadmap.' },
               { num: 5, title: 'Action Planning', desc: 'Click any recommendation card to generate an AI-driven action plan with Gantt chart, RACI matrix, risk heatmap, and narrative context blocks.' },
-              { num: 6, title: 'Agent Design', desc: 'Use the Agent Design Studio to identify and blueprint AI agents that match the client\'s gaps, tools, and transformation readiness.' },
+              { num: 6, title: 'Agent Design', desc: 'Use the Agent Design Studio to identify and blueprint AI agents that match the client\'s gaps, tools, deployment model, and transformation readiness.' },
             ].map((step, i, arr) => (
               <div key={step.num} className="step-row">
                 <div className="step-left">
@@ -248,6 +250,46 @@ export default function Help() {
 
           <h3>Pillar Navigation</h3>
           <p>Use the Framework Pillars section in the sidebar to jump between pillars in any order. You can return to update scores at any point during the session.</p>
+        </section>
+
+        {/* ── Assessment Review ─────────────────────────────────────── */}
+        <section
+          id="review"
+          className={`help-section${!isVisible('review') ? ' section-hidden' : ''}`}
+          ref={el => sectionRefs.current['review'] = el}
+        >
+          <div className="section-header">
+            <h2>Assessment Review</h2>
+            <p>The Assessment Review page (accessible via <strong>Assessment Review</strong> in the sidebar under Outputs) shows a complete overview of all answered questions across all 5 pillars. It is not a restart screen — it shows the client's current answers and lets you update any individual response without losing progress.</p>
+          </div>
+
+          <h3>How It Works</h3>
+          <div className="step-list">
+            {[
+              { num: 1, title: 'See everything at once', desc: 'All 5 pillars are shown expanded with every question and its current answer. Unanswered questions are highlighted in amber so gaps are immediately visible.' },
+              { num: 2, title: 'Update answers inline', desc: 'Click "Change" or "Answer" on any question to update it inline — the answer options appear without navigating away. No page reload needed.' },
+              { num: 3, title: 'Enter full pillar flow if needed', desc: 'Click "Edit all" on any pillar header to enter the full question-by-question flow for that pillar only. You\'ll return to the Assessment Review when done.' },
+              { num: 4, title: 'Scores update in real time', desc: 'Pillar scores and the overall completion progress bar update immediately after each answer change. A "Complete" badge appears when all questions in a pillar are answered.' },
+            ].map((step, i, arr) => (
+              <div key={step.num} className="step-row">
+                <div className="step-left">
+                  <div className="step-circle" style={{ borderColor: 'var(--z-blue)' }}>{step.num}</div>
+                  {i < arr.length - 1 && <div className="step-vline" />}
+                </div>
+                <div className="step-body">
+                  <div className="step-title">{step.title}</div>
+                  <div className="step-desc">{step.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="help-tip">
+            <strong>Best practice:</strong> Use the Assessment Review at the start of each return session to review what was captured last time and update anything that has changed. It is the fastest way to bring a returning client record up to date.
+          </div>
+
+          <h3>Score Badge and Maturity Stage</h3>
+          <p>The top-right of the page shows the client's current overall score and named maturity stage (e.g., "AI Aware", "AI Enabled"). This updates live as you change answers, making it easy to show the client how specific responses affect their overall readiness level.</p>
         </section>
 
         {/* ── AI Advisory Assistant ─────────────────────────────────── */}
@@ -347,15 +389,19 @@ export default function Help() {
         >
           <div className="section-header">
             <h2>Agent Design Studio</h2>
-            <p>The Agent Design Studio uses the client's assessment scores to surface AI agents that match their specific gaps and technology environment, then generates implementation-ready blueprints.</p>
+            <p>The Agent Design Studio generates tailored AI agent recommendations based on the client's full infrastructure profile — not just their cloud tools. The more context you provide, the more accurate and feasible the recommendations will be.</p>
           </div>
 
-          <h3>Three-State Flow</h3>
+          <h3>How to Run an Agent Design Session</h3>
           <div className="step-list">
             {[
-              { num: 1, title: 'Configure', desc: 'Set the industry context (auto-populated from the client record), select tools already in the environment (Microsoft 365, Salesforce, ServiceNow, etc.), and choose which assessment focus areas to prioritize.' },
-              { num: 2, title: 'Discover', desc: 'The AI returns a ranked list of recommended AI agents grouped by implementation complexity (Quick Win / Medium / Strategic). Each card shows a fit score, purpose, fit rationale, and required tools.' },
-              { num: 3, title: 'Design', desc: 'Click "Design →" on any agent card to generate a full blueprint: agent spec table, architecture diagram, implementation flow, and a RACI matrix — all with narrative context blocks.' },
+              { num: 1, title: 'Open Agent Studio and verify the client', desc: 'Navigate to Agent Studio in the sidebar. Confirm the active client shown in the top bar matches the client you are working with. The industry vertical is auto-populated from the client record.' },
+              { num: 2, title: 'Set the industry vertical', desc: 'Select the client\'s primary industry from the dropdown. This scopes the agent catalog to industry-relevant workflows and surfaces vertical-specific tool categories in the tooling section.' },
+              { num: 3, title: 'Set the deployment model', desc: 'Select how the client\'s infrastructure is primarily deployed. This is the most important configuration choice — it determines what agent architectures are feasible:\n• Cloud Native: all workloads in Azure, AWS, or GCP. Any cloud AI service can be used.\n• Hybrid: mix of cloud and on-premises. Agents are designed around Azure Arc and hybrid connectivity.\n• Primarily On-Premises: agents must run entirely in the client\'s data center. Cloud AI APIs are not the primary runtime.\n• Air-Gapped: fully isolated network. Only local model inference is possible. A warning banner appears to flag this constraint.' },
+              { num: 4, title: 'Configure the full infrastructure stack', desc: 'Four sub-sections appear depending on the deployment model:\n\nCloud Tooling Stack — all cloud SaaS and PaaS tools, organized into categories: CRM, ERP, Cloud Platform, Data & Analytics, ITSM/PM, Collaboration, Security, HR/HCM, Finance, Supply Chain, Dev Tools, Document Management, and vertical-specific categories (EHR/Clinical for Healthcare, Retail/POS for Retail, Energy/OT for Energy). Each row has a "+ Add" button to add custom tools directly to that category.\n\nOn-Premises Infrastructure — appears for Hybrid, On-Premises, and Air-Gapped deployments. Categories: Compute, Data, Storage, Connectivity, Identity, AI/Inference.\n\nLegacy Systems — available for all deployment models. Covers Legacy ERP, Mainframe (IBM AS/400, COBOL), and Custom/Other legacy systems. Legacy systems are often the highest-value agent integration targets.\n\nCompliance & Data Residency — select applicable regulatory frameworks. Frameworks relevant to the selected vertical are highlighted. Selections constrain agent architecture: HIPAA prevents PHI from leaving the client\'s environment; FedRAMP/ITAR requires government cloud or on-prem; GDPR enforces EU data residency. Available frameworks: HIPAA, FedRAMP, ITAR, PCI-DSS, GDPR, SOC 2, ISO 27001, NIST AI RMF, CMMC, SOX.' },
+              { num: 5, title: 'Choose focus areas', desc: 'Select which assessment pillars to prioritize for agent discovery. Pillars with lower scores are pre-highlighted as suggested focus areas. You can select all five or narrow to specific areas the client wants to address first.' },
+              { num: 6, title: 'Generate agent recommendations', desc: 'Click "Generate Agent Recommendations". The AI returns a ranked list of agents grouped by implementation complexity: Quick Win, Strategic, and Complex. Each card shows a fit score, purpose, fit rationale, required tools, and — when relevant — a deployment note and compliance note specific to this client\'s configuration.' },
+              { num: 7, title: 'Design a blueprint', desc: 'Click "Design →" on any agent card to generate a full implementation blueprint: agent spec table, architecture diagram (Mermaid), build-vs-buy analysis, and a phased implementation checklist — all with narrative context blocks for use in client presentations.' },
             ].map((step, i, arr) => (
               <div key={step.num} className="step-row">
                 <div className="step-left">
@@ -364,17 +410,41 @@ export default function Help() {
                 </div>
                 <div className="step-body">
                   <div className="step-title">{step.title}</div>
-                  <div className="step-desc">{step.desc}</div>
+                  <div className="step-desc" style={{ whiteSpace: 'pre-line' }}>{step.desc}</div>
                 </div>
               </div>
             ))}
           </div>
 
-          <h3>Backlog</h3>
-          <p>Use the <strong>"Add to Backlog"</strong> button in any Design panel to save the agent to the client's backlog. The backlog appears in the right sidebar of the Discover view and persists in the client record in Cosmos DB.</p>
+          <div className="help-tip" style={{ marginTop: 4 }}>
+            <strong>Configuration is saved automatically.</strong> Everything you configure in the Agent Studio — deployment model, tooling stack, on-prem infrastructure, legacy systems, compliance frameworks — is saved to the client's profile in Cosmos DB. When you return to the studio for the same client, all selections are restored. The form collapses to a compact summary showing the key settings. Click "Edit configuration" to expand and make changes.
+          </div>
 
-          <h3>Fit Score</h3>
-          <p>The fit score (0–100) is calculated by the AI based on how closely the agent addresses the client's lowest-scoring pillars and how many of the required tools the client already has in their environment.</p>
+          <h3>Agent Fit Score</h3>
+          <p>The fit score (0–100) is calculated by the AI based on how closely the agent addresses the client's lowest-scoring pillars and how many of the required tools the client already has. Higher scores indicate both a critical gap and available tooling to implement.</p>
+
+          <div className="help-table-wrap">
+            <table className="help-table">
+              <thead>
+                <tr><th>Score Range</th><th>Meaning</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>80–100</td><td>Critical gap + required tools already available — high priority recommendation</td></tr>
+                <tr><td>60–79</td><td>Moderate gap or one missing tool — strong candidate with minor investment</td></tr>
+                <tr><td>Below 60</td><td>Nice-to-have — relevant but not urgent given current gaps and tooling</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p style={{ marginTop: 12 }}>Each agent card also shows:</p>
+          <ul className="help-ul">
+            <li><strong>Deployment note</strong> — explains how the agent runs given the client's infrastructure model (e.g., "Deployable on-premises via Azure Arc; no cloud egress required")</li>
+            <li><strong>Compliance note</strong> — flags any regulatory considerations specific to this client (e.g., "Must enforce HIPAA audit logging and PHI masking at inference layer")</li>
+          </ul>
+          <p>These notes are generated from the client's actual configuration — not generic templates.</p>
+
+          <h3>Agent Backlog</h3>
+          <p>Use the <strong>"Add to Backlog"</strong> button in any Design panel to save the agent to the client's backlog. The backlog appears in the right sidebar of the Discover view and persists in the client record in Cosmos DB. Use the status dropdown on each backlog item to track progress (Backlog → In Review → Approved → In Progress → Done).</p>
 
           <div className="help-tip">
             <strong>Presenting agents:</strong> Use the "Design →" panel in the meeting itself — the real-time generation creates a compelling live demo effect. Then export the PDF to leave behind as a formal blueprint.
@@ -399,13 +469,32 @@ export default function Help() {
                 <tr><th>Destination</th><th>Sidebar Location</th></tr>
               </thead>
               <tbody>
-                <tr><td>Overall scores & radar</td><td>Overview → Dashboard</td></tr>
+                <tr><td>Overall scores &amp; radar</td><td>Overview → Dashboard</td></tr>
                 <tr><td>Client records</td><td>Overview → Clients</td></tr>
                 <tr><td>Individual pillar scoring</td><td>Framework Pillars → [Pillar name]</td></tr>
-                <tr><td>Results & action plans</td><td>Outputs → Results & Roadmap</td></tr>
-                <tr><td>Full question list</td><td>Outputs → Full Assessment</td></tr>
+                <tr><td>Results &amp; action plans</td><td>Outputs → Results &amp; Roadmap</td></tr>
+                <tr><td>All questions &amp; answers</td><td>Outputs → Assessment Review</td></tr>
                 <tr><td>Agent blueprints</td><td>Outputs → Agent Studio</td></tr>
-                <tr><td>This guide</td><td>Help & Guide (bottom of sidebar)</td></tr>
+                <tr><td>This guide</td><td>Help &amp; Guide (bottom of sidebar)</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Common Actions</h3>
+          <div className="help-table-wrap">
+            <table className="help-table">
+              <thead>
+                <tr><th>Action</th><th>Where</th><th>Notes</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Set deployment model</td><td>Agent Studio → Infrastructure &amp; Deployment Model</td><td>Determines feasible agent architectures</td></tr>
+                <tr><td>Add on-prem infrastructure</td><td>Agent Studio → On-Premises Infrastructure section</td><td>Appears for Hybrid / On-Prem / Air-Gapped models</td></tr>
+                <tr><td>Add legacy systems</td><td>Agent Studio → Legacy &amp; Custom Systems section</td><td>Flags high-value integration targets</td></tr>
+                <tr><td>Set compliance requirements</td><td>Agent Studio → Compliance &amp; Data Residency</td><td>Constrains agent architecture to compliant designs</td></tr>
+                <tr><td>Add custom tool to category</td><td>Agent Studio → any category row → + Add</td><td>Tool saved to that category, persists on return</td></tr>
+                <tr><td>Review assessment answers</td><td>Assessment Review in sidebar</td><td>All 5 pillars with current answers, inline editing</td></tr>
+                <tr><td>Update a single answer</td><td>Assessment Review → Change on any question</td><td>Saves immediately, scores update in real time</td></tr>
+                <tr><td>Access user guide</td><td>Help &amp; Guide in sidebar</td><td>In-app documentation, always current</td></tr>
               </tbody>
             </table>
           </div>
@@ -477,6 +566,31 @@ export default function Help() {
                   <td>Mermaid diagram shows "Syntax error"</td>
                   <td>AI generated invalid Mermaid syntax</td>
                   <td>Ask the assistant to regenerate: "Please redraw the architecture diagram"</td>
+                </tr>
+                <tr>
+                  <td>Agent recommendations ignore on-prem tools</td>
+                  <td>Deployment model set to Cloud Native</td>
+                  <td>Set the deployment model to Hybrid or On-Premises before generating. Cloud Native mode only considers cloud tools.</td>
+                </tr>
+                <tr>
+                  <td>Compliance frameworks not affecting recommendations</td>
+                  <td>Compliance constraints apply to architecture notes, not ranking</td>
+                  <td>Check the "compliance note" field on each agent card — compliance rules affect the agent design, not the fit score sort order.</td>
+                </tr>
+                <tr>
+                  <td>Custom tool not persisting after return</td>
+                  <td>Auto-save may have failed before navigating away</td>
+                  <td>Custom tools added via "+ Add" are saved automatically. If lost, check your internet connection and re-add — the save toast will confirm when it commits.</td>
+                </tr>
+                <tr>
+                  <td>Assessment Review shows all questions as unanswered</td>
+                  <td>Client has not completed the assessment yet</td>
+                  <td>Click "Answer" on any question to start inline, or use the Framework Pillars sidebar nav to run the full question flow for that pillar.</td>
+                </tr>
+                <tr>
+                  <td>Air-gapped warning showing unexpectedly</td>
+                  <td>Deployment model may be set to Air-Gapped in error</td>
+                  <td>Click "Edit configuration" in Agent Studio and change the deployment model to the correct option. The warning disappears immediately.</td>
                 </tr>
               </tbody>
             </table>
