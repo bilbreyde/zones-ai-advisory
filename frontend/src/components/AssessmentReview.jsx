@@ -2,17 +2,26 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClient } from '../ClientContext.jsx'
 import { CheckCircle, AlertCircle, Edit2, ChevronDown, ChevronUp, Users, Settings } from 'lucide-react'
-import { QUESTIONS, PILLAR_META } from '../pages/assessmentData.js'
+import { BASE_QUESTIONS, getEnvironmentQuestions, PILLAR_META } from '../pages/assessmentData.js'
 import EnvironmentProfile from './EnvironmentProfile.jsx'
 import './AssessmentReview.css'
 
 const API = import.meta.env.VITE_API_URL || ''
 
-const TOTAL_QUESTIONS = Object.values(QUESTIONS).reduce((s, qs) => s + qs.length, 0)
-
 export default function AssessmentReview() {
   const { client, setClient } = useClient()
   const navigate = useNavigate()
+
+  // Compute environment-aware questions
+  const envQ = getEnvironmentQuestions(client?.environmentProfile)
+  const ACTIVE_QUESTIONS = {
+    governance:  [...BASE_QUESTIONS.governance,  ...envQ.governance],
+    risk:        [...BASE_QUESTIONS.risk,        ...envQ.risk],
+    strategy:    [...BASE_QUESTIONS.strategy,    ...envQ.strategy],
+    operations:  [...BASE_QUESTIONS.operations,  ...envQ.operations],
+    enablement:  [...BASE_QUESTIONS.enablement,  ...envQ.enablement],
+  }
+  const TOTAL_QUESTIONS = Object.values(ACTIVE_QUESTIONS).reduce((s, qs) => s + qs.length, 0)
 
   const [assessment, setAssessment]     = useState(null)
   const [loading, setLoading]           = useState(true)
@@ -143,7 +152,7 @@ export default function AssessmentReview() {
       <div className="review-pillars">
         {PILLAR_META.map(pillar => {
           const pillarAnswers = answers[pillar.id] || {}
-          const questions     = QUESTIONS[pillar.id] || []
+          const questions     = ACTIVE_QUESTIONS[pillar.id] || []
           const answeredHere  = Object.keys(pillarAnswers).length
           const pillarScore   = assessment?.scores?.[pillar.id]
           const isExpanded    = expanded[pillar.id]

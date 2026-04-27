@@ -185,3 +185,52 @@
 }
 .dot.active { width: 18px; border-radius: 4px; }
 .dot.done { background: rgba(74,159,224,0.4); }
+
+/* ── Environment context banner ──────────────────────────────────────── */
+.env-context-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: rgba(74,159,224,0.06);
+  border: 1px solid rgba(74,159,224,0.2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.ecb-icon { font-size: 14px; }
+
+.ecb-model {
+  font-weight: 500;
+  color: var(--z-white);
+}
+
+.ecb-compliance {
+  color: #A78BFA;
+  font-size: 11px;
+}
+
+.ecb-legacy {
+  color: #E8A838;
+  font-size: 11px;
+}
+
+.ecb-extra {
+  color: #3DBA7E;
+  font-size: 11px;
+}
+
+.ecb-edit {
+  margin-left: auto;
+  background: none;
+  border: 1px solid rgba(74,159,224,0.3);
+  border-radius: var(--radius-sm);
+  color: var(--z-blue-bright);
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.1s, background 0.1s;
+}
+.ecb-edit:hover { background: rgba(74,159,224,0.1); border-color: rgba(74,159,224,0.5); }

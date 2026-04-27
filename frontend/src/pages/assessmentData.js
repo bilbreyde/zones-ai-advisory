@@ -66,3 +66,48 @@ export const PILLAR_META = [
   { id: 'operations', label: 'Operations',        color: '#3DBA7E' },
   { id: 'enablement', label: 'Enablement',        color: '#EC4899' },
 ]
+
+// Alias so consuming components can import BASE_QUESTIONS alongside getEnvironmentQuestions
+export const BASE_QUESTIONS = QUESTIONS
+
+export function getEnvironmentQuestions(env) {
+  if (!env) return { governance: [], risk: [], strategy: [], operations: [], enablement: [] }
+
+  const isOnPrem    = ['on_prem', 'air_gapped'].includes(env.deploymentModel)
+  const isHybrid    = env.deploymentModel === 'hybrid'
+  const isAirGapped = env.deploymentModel === 'air_gapped'
+  const hasLegacy   = env.legacySystems?.length > 0
+  const compliance  = env.complianceFrameworks || []
+  const hasHIPAA    = compliance.includes('hipaa')
+  const hasFedRAMP  = compliance.includes('fedramp')
+
+  return {
+    governance: [
+      ...(hasLegacy ? [{ id: 'g6', text: 'Is there an AI governance policy that covers integration with legacy systems (mainframe, ERP)?', options: ['Not started','In progress','Implemented','Optimized'] }] : []),
+      ...(isAirGapped ? [{ id: 'g7', text: 'Do you have an approved process for evaluating and authorising AI models for use in isolated environments?', options: ['Not started','In progress','Implemented','Optimized'] }] : []),
+    ],
+    risk: [
+      ...(compliance.length > 0 ? [
+        { id: 'r9',  text: `Are your AI systems documented and auditable under your compliance framework (${compliance.join(', ')})?`, options: ['Not started','In progress','Implemented','Optimized'] },
+        { id: 'r10', text: 'Is there a data classification policy that governs what data AI models can access?', options: ['Not started','In progress','Implemented','Optimized'] },
+      ] : []),
+      ...(hasHIPAA   ? [{ id: 'r11', text: 'Have your AI systems undergone a formal HIPAA privacy and security risk assessment?', options: ['Not started','In progress','Implemented','Optimized'] }] : []),
+      ...(hasFedRAMP ? [{ id: 'r12', text: 'Are your AI workloads deployed in FedRAMP-authorised cloud environments or on-premises equivalents?', options: ['Not started','In progress','Implemented','Optimized'] }] : []),
+    ],
+    strategy: [],
+    operations: [
+      ...((isOnPrem || isHybrid) ? [
+        { id: 'o7', text: 'Do you have a defined process for deploying AI models to on-premises infrastructure?', options: ['Not started','In progress','Implemented','Optimized'] },
+        { id: 'o8', text: 'Is your on-premises infrastructure sized and configured to support AI workloads?', options: ['Not started','In progress','Implemented','Optimized'] },
+      ] : []),
+      ...(isHybrid ? [{ id: 'o9', text: 'Do you have a defined process for managing AI data movement between on-premises and cloud environments?', options: ['Not started','In progress','Implemented','Optimized'] }] : []),
+      ...(isAirGapped ? [
+        { id: 'o10', text: 'Do you have approved local LLM or model hosting infrastructure in your isolated environment?', options: ['Not started','In progress','Implemented','Optimized'] },
+        { id: 'o11', text: 'Is there a process for model updates and retraining without internet connectivity?', options: ['Not started','In progress','Implemented','Optimized'] },
+      ] : []),
+    ],
+    enablement: [
+      ...((isOnPrem || isHybrid) ? [{ id: 'e6', text: 'Do teams responsible for on-premises systems have access to AI literacy training relevant to their environment?', options: ['Not started','In progress','Implemented','Optimized'] }] : []),
+    ],
+  }
+}

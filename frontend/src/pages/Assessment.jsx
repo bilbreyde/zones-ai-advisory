@@ -3,29 +3,45 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, CheckCircle, Users } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import AssessmentReview from '../components/AssessmentReview.jsx'
-import { QUESTIONS, PILLAR_COLORS, PILLAR_LABELS, ALL_PILLARS } from './assessmentData.js'
+import EnvironmentProfile from '../components/EnvironmentProfile.jsx'
+import { BASE_QUESTIONS, getEnvironmentQuestions, PILLAR_COLORS, PILLAR_LABELS, ALL_PILLARS } from './assessmentData.js'
 import './Assessment.css'
+import '../components/EnvironmentProfile.css'
 
 const API = import.meta.env.VITE_API_URL || ''
 
-export default function Assessment() {
-  const { pillar } = useParams()
-  const navigate = useNavigate()
-  const { client } = useClient()
+const DEPLOY_LABELS = {
+  cloud_native: { icon: '☁️', label: 'Cloud Native' },
+  hybrid:       { icon: '🔀', label: 'Hybrid' },
+  on_prem:      { icon: '🏢', label: 'On-Premises' },
+  air_gapped:   { icon: '🔒', label: 'Air-Gapped' },
+}
 
-  // No pillar in URL → show the full review/summary screen
-  if (!pillar) {
-    return <AssessmentReview />
+export default function Assessment() {
+  const { pillar }               = useParams()
+  const navigate                 = useNavigate()
+  const { client, setClient }    = useClient()
+
+  // Compute environment-aware questions (pure function — safe before hooks)
+  const envQ = getEnvironmentQuestions(client?.environmentProfile)
+  const ACTIVE_QUESTIONS = {
+    governance:  [...BASE_QUESTIONS.governance,  ...envQ.governance],
+    risk:        [...BASE_QUESTIONS.risk,        ...envQ.risk],
+    strategy:    [...BASE_QUESTIONS.strategy,    ...envQ.strategy],
+    operations:  [...BASE_QUESTIONS.operations,  ...envQ.operations],
+    enablement:  [...BASE_QUESTIONS.enablement,  ...envQ.enablement],
   }
 
-  const activePillar = QUESTIONS[pillar] ? pillar : 'governance'
-  const questions = QUESTIONS[activePillar]
-  const color = PILLAR_COLORS[activePillar]
+  // Derive pillar before hooks (no conditional hook calls)
+  const activePillar = pillar && ACTIVE_QUESTIONS[pillar] ? pillar : 'governance'
+  const questions    = ACTIVE_QUESTIONS[activePillar]
+  const color        = PILLAR_COLORS[activePillar]
 
-  const [currentQ, setCurrentQ] = useState(0)
-  const [answers, setAnswers] = useState({})
+  // All hooks declared before any conditional returns
+  const [currentQ,      setCurrentQ]      = useState(0)
+  const [answers,       setAnswers]        = useState({})
+  const [showEnvModal,  setShowEnvModal]   = useState(false)
 
-  // Load existing answers from Cosmos when client changes
   useEffect(() => {
     if (!client) return
     setAnswers({})
@@ -33,7 +49,6 @@ export default function Assessment() {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.answers) return
-        // Flatten { governance: { g1: 'X' }, risk: { r1: 'Y' }, ... } → { g1: 'X', r1: 'Y', ... }
         const flat = {}
         for (const pillarAnswers of Object.values(data.answers)) {
           Object.assign(flat, pillarAnswers)
@@ -43,10 +58,14 @@ export default function Assessment() {
       .catch(() => {})
   }, [client?.id, activePillar])
 
-  // Reset to Q0 when pillar changes
   useEffect(() => {
     setCurrentQ(0)
   }, [activePillar])
+
+  // Conditional returns are safe here — all hooks have been called above
+  if (!pillar) {
+    return <AssessmentReview />
+  }
 
   if (!client) {
     return (
@@ -63,8 +82,10 @@ export default function Assessment() {
     )
   }
 
-  const q = questions[currentQ]
+  const q        = questions[currentQ]
   const answered = answers[q.id]
+  const env      = client?.environmentProfile
+  const deploy   = env ? DEPLOY_LABELS[env.deploymentModel] : null
 
   async function select(option) {
     setAnswers(prev => ({ ...prev, [q.id]: option }))
@@ -89,6 +110,15 @@ export default function Assessment() {
 
   return (
     <div className="assessment">
+      {/* Environment Profile modal */}
+      {showEnvModal && (
+        <EnvironmentProfile
+          client={client}
+          onComplete={updated => { setClient(updated); setShowEnvModal(false) }}
+          onSkip={() => setShowEnvModal(false)}
+        />
+      )}
+
       <div className="assessment-header">
         <div>
           <h1 className="page-title" style={{color}}>
@@ -109,6 +139,26 @@ export default function Assessment() {
           ))}
         </div>
       </div>
+
+      {/* Environment context banner */}
+      {env && (
+        <div className="env-context-banner">
+          {deploy && <span className="ecb-icon">{deploy.icon}</span>}
+          {deploy && <span className="ecb-model">{deploy.label}</span>}
+          {env.complianceFrameworks?.length > 0 && (
+            <span className="ecb-compliance">· {env.complianceFrameworks.join(', ')}</span>
+          )}
+          {env.legacySystems?.length > 0 && (
+            <span className="ecb-legacy">· Legacy systems present</span>
+          )}
+          {(envQ.governance.length + envQ.risk.length + envQ.operations.length + envQ.enablement.length) > 0 && (
+            <span className="ecb-extra">
+              · +{envQ.governance.length + envQ.risk.length + envQ.operations.length + envQ.enablement.length} environment-specific question{(envQ.governance.length + envQ.risk.length + envQ.operations.length + envQ.enablement.length) !== 1 ? 's' : ''} added
+            </span>
+          )}
+          <button className="ecb-edit" onClick={() => setShowEnvModal(true)}>Edit ✎</button>
+        </div>
+      )}
 
       <div className="progress-bar">
         <div
@@ -156,7 +206,7 @@ export default function Assessment() {
           <div className="sidebar-card">
             <div className="sidebar-card-title">Pillar Progress</div>
             {ALL_PILLARS.map(p => {
-              const qs = QUESTIONS[p]
+              const qs   = ACTIVE_QUESTIONS[p]
               const done = qs.filter(q => answers[q.id]).length
               return (
                 <div key={p} className="pillar-progress-row">
