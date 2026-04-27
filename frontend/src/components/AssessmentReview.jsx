@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClient } from '../ClientContext.jsx'
-import { CheckCircle, AlertCircle, Edit2, ChevronDown, ChevronUp, Users, Settings } from 'lucide-react'
+import { CheckCircle, AlertCircle, Edit2, ChevronDown, ChevronUp, Users, Settings, FileText } from 'lucide-react'
 import { BASE_QUESTIONS, getEnvironmentQuestions, PILLAR_META } from '../pages/assessmentData.js'
 import EnvironmentProfile from './EnvironmentProfile.jsx'
 import './AssessmentReview.css'
@@ -209,9 +209,11 @@ export default function AssessmentReview() {
               {isExpanded && (
                 <div className="pillar-questions">
                   {questions.map((q, qi) => {
-                    const currentAnswer = pillarAnswers[q.id]
+                    const currentAnswer  = pillarAnswers[q.id]
                     const isEditing     = editingQ?.pillar === pillar.id && editingQ?.questionId === q.id
                     const isSaving      = saving === q.id
+                    const sourceInfo    = assessment?.answerSources?.[pillar.id]?.[q.id]
+                    const fromNotes     = sourceInfo?.source === 'meeting_notes'
 
                     return (
                       <div
@@ -253,6 +255,14 @@ export default function AssessmentReview() {
                                 </span>
                               ) : (
                                 <span className="rq-unanswered">Not answered</span>
+                              )}
+                              {fromNotes && (
+                                <span
+                                  className="rq-source-badge"
+                                  title={`Updated from meeting notes on ${new Date(sourceInfo.appliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                                >
+                                  <FileText size={10} /> meeting notes
+                                </span>
                               )}
                               <button
                                 className="rq-change"

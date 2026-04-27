@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles } from 'lucide-react'
+import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
+import MeetingNotes from '../components/MeetingNotes.jsx'
 import './Dashboard.css'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -31,19 +32,25 @@ function fmt(dateStr) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { client } = useClient()
+  const { client, setClient } = useClient()
 
-  // Task 2: live assessment scores
+  // Live assessment scores
   const [assessment, setAssessment] = useState(null)
 
   // Session notes
-  const [sessions, setSessions] = useState([])
-  const [noteText, setNoteText] = useState('')
-  const [savingNote, setSavingNote] = useState(false)
-  const [noteSaved, setNoteSaved] = useState(false)
+  const [sessions,    setSessions]    = useState([])
+  const [noteText,    setNoteText]    = useState('')
+  const [savingNote,  setSavingNote]  = useState(false)
+  const [noteSaved,   setNoteSaved]   = useState(false)
+
+  // Meeting notes modal
+  const [showMeetingNotes, setShowMeetingNotes] = useState(false)
+
+  // Session history collapse state
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // Executive narrative card
-  const [narrative, setNarrative] = useState('')
+  const [narrative,        setNarrative]        = useState('')
   const [narrativeLoading, setNarrativeLoading] = useState(false)
 
   useEffect(() => {
@@ -139,12 +146,24 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
+      {/* Meeting Notes modal */}
+      {showMeetingNotes && client && (
+        <MeetingNotes
+          client={client}
+          onComplete={updated => setClient(updated)}
+          onClose={() => setShowMeetingNotes(false)}
+        />
+      )}
+
       <div className="page-header">
         <div>
           <h1 className="page-title">AI Maturity Dashboard</h1>
           <p className="page-sub">{client.name}{client.advisor ? ` · Advisor: ${client.advisor}` : ''} · Session {client.currentSession}</p>
         </div>
         <div className="header-actions">
+          <button className="btn-outline" onClick={() => setShowMeetingNotes(true)}>
+            <FileText size={13} /> Add Meeting Notes
+          </button>
           <button className="btn-outline" onClick={() => navigate('/results')}>
             View Full Report
           </button>
@@ -298,6 +317,9 @@ export default function Dashboard() {
           rows={4}
         />
         <div className="notes-actions">
+          <button className="notes-import-link" onClick={() => setShowMeetingNotes(true)}>
+            Import from meeting transcript
+          </button>
           <button className="btn-primary" onClick={saveNote} disabled={savingNote}>
             {savingNote
               ? <><Loader size={13} className="spin" /> Saving…</>
@@ -319,6 +341,37 @@ export default function Dashboard() {
                   <span className="prev-session-date">{fmt(s.updatedAt)}</span>
                 </div>
                 <div className="prev-session-notes">{s.notes || <em>No notes recorded.</em>}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Session History from meeting notes */}
+        {(client.sessionHistory?.length > 0) && (
+          <div className="session-history">
+            <div
+              className="session-history-label"
+              onClick={() => setHistoryOpen(o => !o)}
+            >
+              <span>Meeting History ({client.sessionHistory.length})</span>
+              {historyOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </div>
+            {historyOpen && client.sessionHistory.slice(0, 5).map(session => (
+              <div key={session.id} className="session-history-item">
+                <div className="shi-date">
+                  {new Date(session.meetingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {session.status === 'applied' && (
+                    <span className="shi-applied-badge">Applied</span>
+                  )}
+                </div>
+                <div className="shi-summary">{session.extractedSummary || 'No summary available.'}</div>
+                <div className="shi-stats">
+                  {(session.confirmedProfileChanges?.length || 0)} profile changes ·{' '}
+                  {(session.confirmedAssessmentChanges?.length || 0)} assessment updates
+                  {session.participants?.length > 0 && (
+                    <> · {session.participants.join(', ')}</>
+                  )}
+                </div>
               </div>
             ))}
           </div>

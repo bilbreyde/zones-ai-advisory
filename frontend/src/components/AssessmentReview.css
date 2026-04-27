@@ -261,6 +261,14 @@
   font-style: italic;
 }
 
+.rq-source-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; color: #8B5CF6;
+  background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25);
+  border-radius: 3px; padding: 1px 6px; cursor: default;
+  white-space: nowrap;
+}
+
 .rq-change {
   font-size: 11px;
   color: var(--z-muted);

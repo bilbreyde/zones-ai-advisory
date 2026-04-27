@@ -20,6 +20,7 @@
 .header-actions { display: flex; gap: 8px; align-items: center; }
 
 .btn-outline {
+  display: flex; align-items: center; gap: 6px;
   padding: 7px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--z-border-mid);
@@ -318,7 +319,16 @@
 .notes-textarea:focus { border-color: var(--z-blue); }
 .notes-textarea::placeholder { color: var(--z-muted); }
 
-.notes-actions { display: flex; justify-content: flex-end; }
+.notes-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+
+/* Import link */
+.notes-import-link {
+  font-size: 11px; color: var(--z-blue-bright);
+  background: none; border: none; cursor: pointer; padding: 0;
+  margin-right: auto;
+  text-decoration: underline; transition: color 0.1s;
+}
+.notes-import-link:hover { color: var(--z-white); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.8s linear infinite; }
@@ -362,3 +372,34 @@
   white-space: pre-wrap;
 }
 .prev-session-notes em { font-style: italic; }
+
+/* Session history from meeting notes */
+.session-history { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
+
+.session-history-label {
+  font-size: 10px; font-weight: 500; color: var(--z-muted);
+  text-transform: uppercase; letter-spacing: 0.07em;
+  padding-top: 8px; border-top: 1px solid var(--z-border);
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none;
+  transition: color 0.1s;
+}
+.session-history-label:hover { color: var(--z-white); }
+
+.session-history-item {
+  background: var(--z-bg); border: 1px solid var(--z-border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+
+.shi-date {
+  font-size: 10px; font-weight: 500; color: var(--z-blue-bright);
+  display: flex; align-items: center; gap: 8px;
+}
+.shi-applied-badge {
+  font-size: 9px; padding: 1px 6px; border-radius: 3px;
+  background: rgba(61,186,126,0.15); color: #3DBA7E; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.shi-summary { font-size: 12px; color: var(--z-white); line-height: 1.5; }
+.shi-stats   { font-size: 10px; color: var(--z-muted); }
