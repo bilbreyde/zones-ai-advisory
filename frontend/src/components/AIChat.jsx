@@ -169,6 +169,13 @@ export default function AIChat() {
       const apiMessages    = newMessages.map(({ role, content }) => ({ role, content }))
       const assessmentData = assessmentCache[client?.id]
 
+      console.log('Sending to /api/chat:', {
+        messagesCount:    newMessages.length,
+        lastMessage:      newMessages.slice(-1)[0]?.content?.slice(0, 50),
+        hasClientContext: !!client,
+        hasEnvProfile:    !!envProfile,
+      })
+
       const res = await fetch(`${API}/api/chat`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,11 +194,10 @@ export default function AIChat() {
       })
 
       const data = await res.json()
-      console.log('Chat API response:', {
-        reply:          data.reply?.slice(0, 80),
-        hasVisual:      !!data.visual,
-        visualsCount:   data.visuals?.length || 0,
-        showAgentStudio: data.showAgentStudio,
+      console.log('Received from /api/chat:', {
+        replyLength:  data.reply?.length  || 0,
+        hasVisual:    !!data.visual,
+        visualsCount: data.visuals?.length || 0,
       })
       setMessages(prev => [...prev, {
         role:            'assistant',

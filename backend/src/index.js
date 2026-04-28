@@ -144,90 +144,157 @@ function extractVisualFromResponse(raw) {
     return { text: '', visual: null, visuals: [], agents: [] }
   }
 
-  // Clean markdown fences
-  let cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+  // Strip markdown fences
+  let cleaned = raw
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim()
 
   const firstBrace   = cleaned.indexOf('{')
   const firstBracket = cleaned.indexOf('[')
 
-  // No JSON found — return as plain text
   if (firstBrace === -1 && firstBracket === -1) {
-    return { text: raw, visual: null, visuals: [], agents: [] }
+    // Pure text response — no JSON
+    return { text: cleaned, visual: null, visuals: [], agents: [] }
   }
 
-  // Split any plain text that precedes the JSON
+  // Split plain text preamble from JSON
   let plainText = ''
-  let jsonStr   = cleaned
-
-  if (firstBrace > 20) {
+  if (firstBrace > 30) {
     plainText = cleaned.slice(0, firstBrace).trim()
-    jsonStr   = cleaned.slice(firstBrace)
-  } else if (firstBrace !== -1) {
+  }
+
+  // Bracket-counting parser — correctly handles deeply nested JSON
+  // Unlike lastIndexOf('}') which breaks on nested objects
+  function findMatchingBrace(str, startIdx) {
+    let depth  = 0
+    let inStr  = false
+    let escape = false
+
+    for (let i = startIdx; i < str.length; i++) {
+      const ch = str[i]
+      if (escape)            { escape = false; continue }
+      if (ch === '\\' && inStr) { escape = true;  continue }
+      if (ch === '"')        { inStr = !inStr;  continue }
+      if (inStr)             { continue }
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) return i
+      }
+    }
+    return -1 // Unclosed — truncated response
+  }
+
+  const closingIdx = findMatchingBrace(cleaned, firstBrace)
+  let jsonStr
+
+  if (closingIdx === -1) {
+    // Response truncated — take from { to end and recover open brackets
+    console.warn('[extract] Strategic response truncated — attempting recovery')
     jsonStr = cleaned.slice(firstBrace)
-  }
 
-  // Find closing brace; attempt bracket recovery if truncated
-  const lastBrace = jsonStr.lastIndexOf('}')
-  if (lastBrace === -1) {
-    console.warn('[extract] JSON truncated, attempting bracket recovery')
-    let opens = 0, arrOpens = 0
+    let braceDepth = 0, bracketDepth = 0
+    let inStr = false, esc = false
     for (const ch of jsonStr) {
-      if (ch === '{') opens++
-      else if (ch === '}') opens--
-      else if (ch === '[') arrOpens++
-      else if (ch === ']') arrOpens--
+      if (esc)              { esc = false; continue }
+      if (ch === '\\' && inStr) { esc = true;  continue }
+      if (ch === '"')       { inStr = !inStr; continue }
+      if (inStr)            { continue }
+      if (ch === '{') braceDepth++
+      else if (ch === '}') braceDepth--
+      else if (ch === '[') bracketDepth++
+      else if (ch === ']') bracketDepth--
     }
-    jsonStr += ']'.repeat(Math.max(0, arrOpens))
-    jsonStr += '}'.repeat(Math.max(0, opens))
+    if (bracketDepth > 0) jsonStr += ']'.repeat(bracketDepth)
+    if (braceDepth > 0)   jsonStr += '}'.repeat(braceDepth)
+    console.log('[extract] Recovery added:', bracketDepth, 'brackets,', braceDepth, 'braces')
   } else {
-    jsonStr = jsonStr.slice(0, lastBrace + 1)
+    jsonStr = cleaned.slice(firstBrace, closingIdx + 1)
   }
 
+  // Attempt parse
+  let parsed
   try {
-    const parsed = JSON.parse(jsonStr)
-
-    // Case 1 — Strategic envelope { text, visuals: [...] }
-    if (parsed.visuals && Array.isArray(parsed.visuals) && parsed.visuals.length > 0) {
-      const summaryText = parsed.text || parsed.reply || plainText || ''
-      console.log(`[extract] multi-visual: ${parsed.visuals.length} visuals, summary: "${summaryText.slice(0, 60)}"`)
-      return { text: summaryText, visual: null, visuals: parsed.visuals, agents: [] }
-    }
-
-    // Case 2 — Single visual envelope { text/reply, visual: {...} }
-    if (parsed.visual?.type) {
-      const summaryText = parsed.text || parsed.reply || plainText || ''
-      console.log(`[extract] single visual: ${parsed.visual.type}`)
-      return { text: summaryText, visual: parsed.visual, visuals: [parsed.visual], agents: [] }
-    }
-
-    // Case 3 — Bare visual (the JSON IS the visual)
-    if (parsed.type && VISUAL_TYPES.has(parsed.type)) {
-      console.log(`[extract] bare visual: ${parsed.type}`)
-      return { text: plainText || '', visual: parsed, visuals: [parsed], agents: [] }
-    }
-
-    // Case 4 — Agent discover response { agents: [...] }
-    if (parsed.agents && Array.isArray(parsed.agents)) {
-      return { text: parsed.text || parsed.reply || plainText || '', visual: null, visuals: [], agents: parsed.agents }
-    }
-
-    // Case 5 — Parsed JSON but no recognised structure — never dump raw JSON as text
-    const textContent = parsed.text || parsed.reply || plainText
-    if (textContent) {
-      console.warn('[extract] no visual structure — returning text content only')
-      return { text: textContent, visual: null, visuals: [], agents: [] }
-    }
-
-    console.warn('[extract] no visual found in parsed JSON, keys:', Object.keys(parsed).join(', '))
-    return { text: 'Response generated successfully.', visual: null, visuals: [], agents: [] }
-
+    parsed = JSON.parse(jsonStr)
   } catch (e) {
-    console.error('[extract] JSON parse failed:', e.message)
-    console.error('[extract] attempted (first 200):', jsonStr.slice(0, 200))
-    // Return plain text if it exists, otherwise a safe fallback — never raw JSON
-    if (plainText) return { text: plainText, visual: null, visuals: [], agents: [] }
-    return { text: 'The response was generated but could not be fully parsed. Please try again.', visual: null, visuals: [], agents: [] }
+    console.error('[extract] Parse failed after bracket recovery:', e.message)
+    console.error('[extract] JSON start (200):', jsonStr.slice(0, 200))
+    console.error('[extract] JSON end (200):', jsonStr.slice(-200))
+
+    // Last-chance: truncate to last complete visual via }] sequence
+    const lastComplete = jsonStr.lastIndexOf('}]')
+    if (lastComplete > 100) {
+      try {
+        parsed = JSON.parse(jsonStr.slice(0, lastComplete + 2) + '}}')
+        console.log('[extract] Recovered by truncating to last complete visual')
+      } catch (e2) {
+        console.error('[extract] Last-chance recovery also failed:', e2.message)
+        return { text: plainText || 'Response generated — please try again.', visual: null, visuals: [], agents: [] }
+      }
+    } else {
+      return { text: plainText || 'Response generated — please try again.', visual: null, visuals: [], agents: [] }
+    }
   }
+
+  // CASE 1: Strategic envelope { text, visuals: [...] }
+  if (parsed.visuals && Array.isArray(parsed.visuals) && parsed.visuals.length > 0) {
+    console.log('[extract] Strategic response — visuals:', parsed.visuals.length)
+    return {
+      text:    parsed.text || parsed.reply || plainText || '',
+      visual:  null,
+      visuals: parsed.visuals,
+      agents:  [],
+    }
+  }
+
+  // CASE 2: Single visual wrapper { text/reply, visual: {...} }
+  if (parsed.visual?.type) {
+    console.log('[extract] Single visual:', parsed.visual.type)
+    return {
+      text:    parsed.text || parsed.reply || plainText || '',
+      visual:  parsed.visual,
+      visuals: [parsed.visual],
+      agents:  [],
+    }
+  }
+
+  // CASE 3: Bare visual (the JSON IS the visual)
+  const knownTypes = [
+    'gantt', 'scorecard', 'priority_matrix', 'timeline', 'checklist',
+    'raci_matrix', 'risk_heatmap', 'mermaid', 'reference_architecture',
+    'maturity_journey', 'vendor_comparison', 'process_flow', 'agent_spec',
+  ]
+  if (parsed.type && knownTypes.includes(parsed.type)) {
+    console.log('[extract] Bare visual:', parsed.type)
+    return {
+      text:    plainText || '',
+      visual:  parsed,
+      visuals: [parsed],
+      agents:  [],
+    }
+  }
+
+  // CASE 4: Agent discover { agents: [...] }
+  if (parsed.agents && Array.isArray(parsed.agents)) {
+    return {
+      text:    parsed.text || parsed.reply || plainText || '',
+      visual:  null,
+      visuals: [],
+      agents:  parsed.agents,
+    }
+  }
+
+  // CASE 5: Has text/reply but no visual structure
+  const textContent = parsed.text || parsed.reply || plainText
+  if (textContent) {
+    console.warn('[extract] No visual structure — text only')
+    return { text: textContent, visual: null, visuals: [], agents: [] }
+  }
+
+  // CASE 6: Unknown — don't render raw JSON
+  console.warn('[extract] JSON parsed but structure not recognised:', Object.keys(parsed))
+  return { text: plainText || '', visual: null, visuals: [], agents: [] }
 }
 
 function isStrategicQuestion(message) {
@@ -543,11 +610,17 @@ RESPONSE RULES:
     })
 
     const raw = completion.choices[0].message.content
-    console.log('[chat] raw response length:', raw.length)
-    console.log('[chat] raw starts with:', raw.slice(0, 80))
+    console.log('=== Chat parse result ===')
+    console.log('Raw length:', raw.length)
+    console.log('Raw first 100:', raw.slice(0, 100))
+    console.log('Raw last 50:', raw.slice(-50))
 
     const parsed = extractVisualFromResponse(raw)
-    console.log('[chat] parsed — text length:', parsed.text?.length, '| visuals:', parsed.visuals?.length)
+    console.log('Parsed text length:', parsed.text?.length || 0)
+    console.log('Parsed visuals count:', parsed.visuals?.length || 0)
+    console.log('Parsed visual type:', parsed.visual?.type || 'none')
+    console.log('Parsed agents count:', parsed.agents?.length || 0)
+    console.log('=========================')
     validateVisualSpecificity(parsed.visual || parsed.visuals?.[0], clientContext)
 
     const showAgentStudio = /\b(agent|automate|automation|workflow|orchestrat)\b/i.test(raw)
