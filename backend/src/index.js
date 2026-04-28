@@ -473,6 +473,12 @@ VISUAL 3 — 90-day Gantt (type:"gantt", title:"90-Day Execution Plan"):
 - Phase 2 must deploy a named agent using their actual tools
 - Phase 3 must include enablement rollout and exec ROI readout
 
+NARRATIVE RULES — apply to every visual:
+- "headline": one sharp so-what sentence naming ${clientContext?.name || 'the client'} and the specific finding (not a generic label)
+- "context": exactly 2 sentences — cite the client's actual score or tool or gap; explain the consequence if unaddressed
+- "actions": exactly 2 items — each names an owner role, a concrete deliverable, and a deadline (e.g. "CIO: approve Semantic Kernel PoC budget by Week 2")
+- NEVER write generic text like "This visual shows…" — every sentence must contain a named tool, person, or measurable number
+
 Each visual MUST include a "narrative" field (headline, context 2 sentences, actions 2 items) BEFORE the type field.
 Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
 
@@ -489,28 +495,32 @@ VISUAL 1 — Priority agent use cases checklist (type:"checklist", title:"Priori
   * Compliance note referencing: ${complianceStr}
 - Categories: one per agent name
 
-VISUAL 2 — Financial model scorecard (type:"scorecard", title:"Investment & ROI Framework"):
+VISUAL 2 — Financial model scorecard (type:"scorecard", title:"Your AI Investment & Returns"):
 CRITICAL: All values must be FORMATTED STRINGS, NOT raw numbers.
 Use "$45K-$65K" NOT 45000. Use "8-14 months" NOT 8. Use "180-240%" NOT 180.
 The renderer detects string vs numeric — strings display as text rows, numbers as bar charts.
+FRAMING: This is a customer-facing deliverable. Use "Your investment", "Your returns". Do NOT reference Zones internal revenue, SOW value, or ARR targets.
 
 rows array — each row: {"label":"...","client":"...","benchmark":"..."}
-Investment rows:
-- {"label":"Phase 1 — Foundation","client":"$45K-$65K","benchmark":"Industry avg: $50K-$80K"}
-- {"label":"Phase 2-3 — Scale","client":"$80K-$120K","benchmark":"Industry avg: $90K-$150K"}
+Your investment rows:
+- {"label":"Phase 1 — Foundation (30 days)","client":"$45K-$65K","benchmark":"Industry avg: $50K-$80K"}
+- {"label":"Phase 2-3 — Deployment & Scale","client":"$80K-$120K","benchmark":"Industry avg: $90K-$150K"}
 - {"label":"Total 90-day program","client":"$125K-$185K","benchmark":"Industry avg: $140K-$230K"}
-- {"label":"Managed service rate","client":"$12K-$18K/mo","benchmark":"Industry avg: $15K-$25K/mo"}
-ROI rows:
+- {"label":"Ongoing managed support","client":"$12K-$18K/mo","benchmark":"Industry avg: $15K-$25K/mo"}
+Your returns rows:
 - {"label":"MTTR reduction (Incident Agent)","client":"40% = ~$180K/yr saved","benchmark":"Typical: 30-50%"}
-- {"label":"Compliance audit savings","client":"~$60K/yr saved","benchmark":"Typical: $40K-$80K/yr"}
-- {"label":"Workflow automation rate","client":"~35% of routine tasks","benchmark":"Typical: 25-45%"}
+- {"label":"Compliance audit cost savings","client":"~$60K/yr saved","benchmark":"Typical: $40K-$80K/yr"}
+- {"label":"Routine tasks automated","client":"~35% of workflows","benchmark":"Typical: 25-45%"}
 - {"label":"Payback period","client":"8-14 months","benchmark":"Industry avg: 9-18 months"}
 - {"label":"3-year ROI","client":"180-240%","benchmark":"Industry avg: 150-200%"}
-Zones opportunity rows:
-- {"label":"AI Integration SOW","client":"$125K-$185K","benchmark":""}
-- {"label":"Agent Factory managed service (12mo ARR)","client":"$144K-$216K","benchmark":""}
-- {"label":"Total first-year Zones opportunity","client":"$270K-$400K","benchmark":""}
+- {"label":"Total Year 1 value delivered","client":"$240K-$400K","benchmark":""}
 Calibrate ranges to ${clientContext?.size || 'mid-market'} company, maturity ${clientContext?.overallScore ?? 3.3}/5.
+
+NARRATIVE RULES — apply to every visual:
+- "headline": one sharp so-what sentence naming ${clientContext?.name || 'the client'} and the specific finding (not a generic label)
+- "context": exactly 2 sentences — cite the client's actual score or tool or gap; explain the consequence if unaddressed
+- "actions": exactly 2 items — each names an owner role, a concrete deliverable, and a deadline (e.g. "CFO: approve Phase 1 budget by end of Week 2")
+- NEVER write generic text like "This visual shows…" — every sentence must contain a named tool, person, or measurable number
 
 Each visual MUST include a "narrative" field (headline, context 2 sentences, actions 2 items) BEFORE the type field.
 Return ONLY valid JSON — no markdown, no fences, start with { end with }.`

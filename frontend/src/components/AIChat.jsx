@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Send, Bot, Sparkles, Zap } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
-import ChatVisual from './ChatVisual.jsx'
+import ChatVisual, { ChatVisualWithNarrative } from './ChatVisual.jsx'
 import { getCheckInQuestion } from '../lib/staleness.js'
 import './AIChat.css'
 
@@ -237,7 +237,11 @@ export default function AIChat() {
   }
 
   async function captureVisuals(msgEl, pdf, yPos, pageWidth, pageHeight, margin, contentWidth) {
-    const wrappers = msgEl?.querySelectorAll('.chat-visual-wrapper') || []
+    // Prefer composite narrative+visual blocks; fall back to bare visual wrappers
+    const composites = msgEl?.querySelectorAll('.visual-with-narrative') || []
+    const wrappers = composites.length
+      ? composites
+      : (msgEl?.querySelectorAll('.chat-visual-wrapper') || [])
     for (const wrapper of wrappers) {
       wrapper.scrollIntoView({ block: 'center' })
       await new Promise(r => setTimeout(r, 200))
@@ -422,8 +426,8 @@ export default function AIChat() {
                       {hasVisuals && (
                         <div className="message-visuals">
                           {m.visuals.map((v, vi) => (
-                            <div key={vi} className="chat-visual-wrapper" style={{ marginTop: vi > 0 ? 12 : 0 }}>
-                              <ChatVisual visual={v} />
+                            <div key={vi} style={{ marginTop: vi > 0 ? 16 : 0 }}>
+                              <ChatVisualWithNarrative visual={v} />
                             </div>
                           ))}
                         </div>

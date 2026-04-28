@@ -702,3 +702,34 @@ export default function ChatVisual({ visual }) {
     </div>
   )
 }
+
+/* ── Narrative + visual composite ──────────────────────────────────────── */
+export function ChatVisualWithNarrative({ visual }) {
+  const n = visual?.narrative
+  const hasNarrative = n?.headline || n?.context
+
+  return (
+    <div className="visual-with-narrative">
+      {hasNarrative && (
+        <div className="visual-narrative">
+          {n.headline && <div className="vn-headline">{n.headline}</div>}
+          {n.context  && <p className="vn-context">{n.context}</p>}
+          {n.actions?.length > 0 && (
+            <div className="vn-actions">
+              <div className="vn-actions-label">KEY ACTIONS</div>
+              {n.actions.map((action, i) => (
+                <div key={i} className="vn-action-item">
+                  <span className="vn-action-arrow">→</span>
+                  {action}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="chat-visual-wrapper">
+        <ChatVisual visual={visual} />
+      </div>
+    </div>
+  )
+}

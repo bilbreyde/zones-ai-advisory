@@ -1001,3 +1001,64 @@
 .scorecard-text-values { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .scorecard-client-text { font-size: 13px; font-weight: 500; color: var(--z-blue-bright); }
 .scorecard-bench-text  { font-size: 11px; color: var(--z-muted); }
+
+/* ── Visual + narrative composite ───────────────────────────────────────── */
+.visual-with-narrative {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.visual-narrative {
+  background: rgba(74,159,224,0.06);
+  border-left: 3px solid var(--z-blue-bright);
+  border-radius: 6px 6px 0 0;
+  padding: 14px 16px 12px;
+  margin-bottom: 0;
+}
+
+.vn-headline {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--z-white);
+  letter-spacing: 0.01em;
+  margin-bottom: 6px;
+}
+
+.vn-context {
+  font-size: 12px;
+  color: var(--z-muted);
+  line-height: 1.65;
+  margin: 0 0 8px;
+}
+
+.vn-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.vn-actions-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--z-blue-bright);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.vn-action-item {
+  font-size: 11.5px;
+  color: var(--z-muted);
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.vn-action-arrow {
+  color: var(--z-blue-bright);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
