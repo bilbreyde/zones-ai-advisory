@@ -995,3 +995,9 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* Scorecard text-mode rows (ROI/cost strings) */
+.cv-sc-text-row { align-items: flex-start; padding: 6px 0; }
+.scorecard-text-values { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.scorecard-client-text { font-size: 13px; font-weight: 500; color: var(--z-blue-bright); }
+.scorecard-bench-text  { font-size: 11px; color: var(--z-muted); }

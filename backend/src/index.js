@@ -422,18 +422,49 @@ Generate ONLY these 3 visuals as a JSON object:
 {"text":"2-3 sentence executive summary naming ${clientContext?.name || 'the client'}, the specific business problem, and the Zones engagement model with estimated value","visuals":[...3 items...]}
 
 VISUAL 1 — Problem diagnosis mermaid (type:"mermaid", title:"[Client] Agentic Wall Analysis"):
-- Max 8 nodes, use subgraph groups
-- Label broken connections: Data wall / Identity wall / Platform wall / Memory wall / Process wall
-- Use ✗ on broken links
-- Use their actual tools: ${cloudToolsShort}
+CRITICAL RENDERING RULES:
+- ALWAYS use "graph TD" (top-down) — NEVER "graph LR" or "flowchart LR"
+- Maximum 6 nodes — no more
+- NO subgraphs — they cause sizing issues — use plain nodes only
+- Each wall gets ONE edge with a short label showing wall type
+- Short node labels — max 3 words each
+- Format: NodeA -->|"✗ Wall type"| NodeB
+
+Correct format example:
+graph TD
+  D365[Dynamics 365] -->|"✗ Data wall"| SN[ServiceNow]
+  AzureOAI[Azure OpenAI] -->|"✗ Memory wall"| Fabric[MS Fabric]
+  Entra[Entra ID] -->|"✗ Identity wall"| AWS[AWS Bedrock]
+
+Pick the 3 most important walls from their tools: ${(ep.cloudTools || []).slice(0, 6).join(', ')}
 
 VISUAL 2 — Multi-agent coordination mermaid (type:"mermaid", title:"Multi-Agent Coordination Model"):
-- Max 8 nodes, use subgraph groups
-- Must show: Supervisor Agent → Planner → Executor Agents pattern
-- Must show: Shared memory (Azure Cognitive Search + Redis Cache)
-- Must show: Event-driven coordination via Azure Event Grid
-- Must show: Human-in-the-loop approval gate for ${complianceStr}
-- Use their actual tools: ${cloudToolsShort}
+CRITICAL RENDERING RULES:
+- ALWAYS use "graph TD" (top-down)
+- NEVER give a subgraph the same label as a node ID inside it — causes cycle error
+- Node IDs must be short unique strings (SK, EA1, EA2, MEM, EG, HG)
+- Maximum 8 nodes, maximum 3 subgraphs
+- Keep edge labels short (max 3 words)
+
+Correct format (node IDs differ from subgraph display names):
+graph TD
+  subgraph Orchestration
+    SK[Semantic Kernel]
+  end
+  subgraph Executors
+    EA1[Incident Agent]
+    EA2[Data Agent]
+  end
+  subgraph Memory
+    MEM[Cognitive Search + Redis]
+  end
+  SK -->|delegates| EA1
+  SK -->|delegates| EA2
+  EA1 -->|reads/writes| MEM
+  EA2 -->|reads/writes| MEM
+  MEM -->|context| SK
+
+Use their actual tools: ${cloudToolsShort}
 
 VISUAL 3 — 90-day Gantt (type:"gantt", title:"90-Day Execution Plan"):
 - 3 phases, 3 tasks each
@@ -459,9 +490,27 @@ VISUAL 1 — Priority agent use cases checklist (type:"checklist", title:"Priori
 - Categories: one per agent name
 
 VISUAL 2 — Financial model scorecard (type:"scorecard", title:"Investment & ROI Framework"):
-- rows array, each row: {"label":"...","client":"...","benchmark":"..."}
-- Include: Phase 1 cost, Phase 2-3 cost, total 90-day program, managed service monthly rate, 2-3 agent ROI outcomes, payback period, 3-year ROI, Zones SOW value, Zones managed service ARR, total first-year Zones opportunity
-- Calibrate to ${clientContext?.size || 'mid-market'} company at ${clientContext?.overallScore ?? 3.3}/5 maturity
+CRITICAL: All values must be FORMATTED STRINGS, NOT raw numbers.
+Use "$45K-$65K" NOT 45000. Use "8-14 months" NOT 8. Use "180-240%" NOT 180.
+The renderer detects string vs numeric — strings display as text rows, numbers as bar charts.
+
+rows array — each row: {"label":"...","client":"...","benchmark":"..."}
+Investment rows:
+- {"label":"Phase 1 — Foundation","client":"$45K-$65K","benchmark":"Industry avg: $50K-$80K"}
+- {"label":"Phase 2-3 — Scale","client":"$80K-$120K","benchmark":"Industry avg: $90K-$150K"}
+- {"label":"Total 90-day program","client":"$125K-$185K","benchmark":"Industry avg: $140K-$230K"}
+- {"label":"Managed service rate","client":"$12K-$18K/mo","benchmark":"Industry avg: $15K-$25K/mo"}
+ROI rows:
+- {"label":"MTTR reduction (Incident Agent)","client":"40% = ~$180K/yr saved","benchmark":"Typical: 30-50%"}
+- {"label":"Compliance audit savings","client":"~$60K/yr saved","benchmark":"Typical: $40K-$80K/yr"}
+- {"label":"Workflow automation rate","client":"~35% of routine tasks","benchmark":"Typical: 25-45%"}
+- {"label":"Payback period","client":"8-14 months","benchmark":"Industry avg: 9-18 months"}
+- {"label":"3-year ROI","client":"180-240%","benchmark":"Industry avg: 150-200%"}
+Zones opportunity rows:
+- {"label":"AI Integration SOW","client":"$125K-$185K","benchmark":""}
+- {"label":"Agent Factory managed service (12mo ARR)","client":"$144K-$216K","benchmark":""}
+- {"label":"Total first-year Zones opportunity","client":"$270K-$400K","benchmark":""}
+Calibrate ranges to ${clientContext?.size || 'mid-market'} company, maturity ${clientContext?.overallScore ?? 3.3}/5.
 
 Each visual MUST include a "narrative" field (headline, context 2 sentences, actions 2 items) BEFORE the type field.
 Return ONLY valid JSON — no markdown, no fences, start with { end with }.`

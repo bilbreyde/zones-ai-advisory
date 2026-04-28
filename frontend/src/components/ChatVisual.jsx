@@ -104,45 +104,73 @@ function TimelineVisual({ data }) {
 
 /* ── Scorecard ─────────────────────────────────────────────────────────── */
 function ScorecardVisual({ data }) {
+  // Detect whether ANY row has numeric values — determines header labels
+  const hasNumericRows = (data.rows || []).some(row => {
+    const c = parseFloat(String(row.client || row.client_score || '').replace(/[^0-9.-]/g, ''))
+    const b = parseFloat(String(row.benchmark || row.industry_benchmark || '').replace(/[^0-9.-]/g, ''))
+    return !isNaN(c) && !isNaN(b) && c > 0 && b > 0
+  })
+
   return (
     <div className="cv-scorecard">
       <div className="cv-title">{data.title}</div>
-      <div className="cv-scorecard-header">
-        <span className="cv-sc-col-label">Pillar</span>
-        <span className="cv-sc-col-label">Client Score</span>
-        <span className="cv-sc-col-label">Industry Benchmark</span>
-        <span className="cv-sc-col-label cv-sc-col-gap">Delta</span>
-      </div>
+      {hasNumericRows && (
+        <div className="cv-scorecard-header">
+          <span className="cv-sc-col-label">Pillar</span>
+          <span className="cv-sc-col-label">Client Score</span>
+          <span className="cv-sc-col-label">Industry Benchmark</span>
+          <span className="cv-sc-col-label cv-sc-col-gap">Delta</span>
+        </div>
+      )}
       {(data.rows || []).map((row, i) => {
-        const clientVal  = Number(row.client)    || 0
-        const benchVal   = Number(row.benchmark) || 0
-        const delta      = clientVal - benchVal
-        const deltaColor = delta >= 0 ? '#3DBA7E' : '#E8A838'
+        const rawClient = String(row.client || row.client_score || '')
+        const rawBench  = String(row.benchmark || row.industry_benchmark || '')
+        const clientNum = parseFloat(rawClient.replace(/[^0-9.-]/g, ''))
+        const benchNum  = parseFloat(rawBench.replace(/[^0-9.-]/g, ''))
+        const isNumeric = !isNaN(clientNum) && !isNaN(benchNum) && clientNum > 0 && benchNum > 0
+
+        if (isNumeric) {
+          const delta      = clientNum - benchNum
+          const deltaColor = delta >= 0 ? '#3DBA7E' : '#E8A838'
+          return (
+            <div key={i} className="cv-sc-row">
+              <span className="cv-sc-label">{row.label || row.pillar || ''}</span>
+              <div className="cv-sc-bar-cell">
+                <div className="cv-sc-bar">
+                  <div className="cv-sc-fill cv-sc-client" style={{ width: `${(clientNum / 5) * 100}%` }} />
+                </div>
+                <span className="cv-sc-val">{clientNum.toFixed(1)}</span>
+              </div>
+              <div className="cv-sc-bar-cell">
+                <div className="cv-sc-bar">
+                  <div className="cv-sc-fill cv-sc-bench" style={{ width: `${(benchNum / 5) * 100}%` }} />
+                </div>
+                <span className="cv-sc-val">{benchNum.toFixed(1)}</span>
+              </div>
+              <span className="cv-sc-gap" style={{ color: deltaColor }}>
+                {(delta >= 0 ? '+' : '') + delta.toFixed(1)}
+              </span>
+            </div>
+          )
+        }
+
+        // Text row — cost ranges, ROI strings, payback periods etc.
         return (
-          <div key={i} className="cv-sc-row">
-            <span className="cv-sc-label">{row.label}</span>
-            <div className="cv-sc-bar-cell">
-              <div className="cv-sc-bar">
-                <div className="cv-sc-fill cv-sc-client" style={{ width: `${(clientVal / 5) * 100}%` }} />
-              </div>
-              <span className="cv-sc-val">{clientVal.toFixed(1)}</span>
+          <div key={i} className="cv-sc-row cv-sc-text-row">
+            <span className="cv-sc-label">{row.label || row.pillar || ''}</span>
+            <div className="scorecard-text-values">
+              <span className="scorecard-client-text">{rawClient}</span>
+              {rawBench && <span className="scorecard-bench-text">{rawBench}</span>}
             </div>
-            <div className="cv-sc-bar-cell">
-              <div className="cv-sc-bar">
-                <div className="cv-sc-fill cv-sc-bench" style={{ width: `${(benchVal / 5) * 100}%` }} />
-              </div>
-              <span className="cv-sc-val">{benchVal.toFixed(1)}</span>
-            </div>
-            <span className="cv-sc-gap" style={{ color: deltaColor }}>
-              {(delta >= 0 ? '+' : '') + delta.toFixed(1)}
-            </span>
           </div>
         )
       })}
-      <div className="cv-sc-legend">
-        <div className="cv-sc-legend-item"><div className="cv-sc-legend-dot" style={{ background: '#4A9FE0' }} /> Client</div>
-        <div className="cv-sc-legend-item"><div className="cv-sc-legend-dot" style={{ background: 'rgba(255,255,255,0.3)' }} /> Industry Benchmark</div>
-      </div>
+      {hasNumericRows && (
+        <div className="cv-sc-legend">
+          <div className="cv-sc-legend-item"><div className="cv-sc-legend-dot" style={{ background: '#4A9FE0' }} /> Client</div>
+          <div className="cv-sc-legend-item"><div className="cv-sc-legend-dot" style={{ background: 'rgba(255,255,255,0.3)' }} /> Industry Benchmark</div>
+        </div>
+      )}
     </div>
   )
 }
