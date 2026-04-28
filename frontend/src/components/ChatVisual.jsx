@@ -103,13 +103,19 @@ function TimelineVisual({ data }) {
 }
 
 /* ── Scorecard ─────────────────────────────────────────────────────────── */
+
+// Only treat as numeric if the value is a plain integer or decimal — no $, K, M, %, letters, or ranges
+function isSimpleNumber(val) {
+  if (val === null || val === undefined) return false
+  return /^-?\d+(\.\d+)?$/.test(String(val).trim())
+}
+
 function ScorecardVisual({ data }) {
-  // Detect whether ANY row has numeric values — determines header labels
-  const hasNumericRows = (data.rows || []).some(row => {
-    const c = parseFloat(String(row.client || row.client_score || '').replace(/[^0-9.-]/g, ''))
-    const b = parseFloat(String(row.benchmark || row.industry_benchmark || '').replace(/[^0-9.-]/g, ''))
-    return !isNaN(c) && !isNaN(b) && c > 0 && b > 0
-  })
+  // Detect whether ANY row has pure numeric values — determines whether to show bar-chart header
+  const hasNumericRows = (data.rows || []).some(row =>
+    isSimpleNumber(row.client ?? row.client_score) &&
+    isSimpleNumber(row.benchmark ?? row.industry_benchmark)
+  )
 
   return (
     <div className="cv-scorecard">
@@ -123,11 +129,13 @@ function ScorecardVisual({ data }) {
         </div>
       )}
       {(data.rows || []).map((row, i) => {
-        const rawClient = String(row.client || row.client_score || '')
-        const rawBench  = String(row.benchmark || row.industry_benchmark || '')
-        const clientNum = parseFloat(rawClient.replace(/[^0-9.-]/g, ''))
-        const benchNum  = parseFloat(rawBench.replace(/[^0-9.-]/g, ''))
-        const isNumeric = !isNaN(clientNum) && !isNaN(benchNum) && clientNum > 0 && benchNum > 0
+        const rawClient = String(row.client ?? row.client_score ?? '')
+        const rawBench  = String(row.benchmark ?? row.industry_benchmark ?? '')
+        const clientNum = parseFloat(rawClient)
+        const benchNum  = parseFloat(rawBench)
+        const isNumeric = isSimpleNumber(row.client ?? row.client_score) &&
+          isSimpleNumber(row.benchmark ?? row.industry_benchmark) &&
+          !isNaN(clientNum) && !isNaN(benchNum) && benchNum > 0
 
         if (isNumeric) {
           const delta      = clientNum - benchNum

@@ -315,3 +315,16 @@
   background: var(--z-surface);
   flex-shrink: 0;
 }
+
+/* ── Narrative font reduction during PDF capture ────────────────────────── */
+.visual-narrative.pdf-capture .vn-headline {
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+}
+.visual-narrative.pdf-capture .vn-context {
+  font-size: 10px !important;
+  line-height: 1.5 !important;
+}
+.visual-narrative.pdf-capture .vn-action-item {
+  font-size: 10px !important;
+}

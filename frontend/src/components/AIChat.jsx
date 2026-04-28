@@ -284,28 +284,83 @@ export default function AIChat() {
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
       const pdf = new jsPDF('p', 'mm', 'a4')
-      const pageWidth = 210, pageHeight = 297, margin = 14, contentWidth = pageWidth - margin * 2
+      const pageW = 210, pageH = 297, margin = 14, contentW = pageW - margin * 2
 
-      makePdfHeader(pdf, pageWidth, margin)
-      let yPos = 44
-
-      // Text content
-      const textContent = message.content
-      if (textContent && !textContent.startsWith('{')) {
-        pdf.setFontSize(11); pdf.setTextColor(30, 41, 59)
-        const lines = pdf.splitTextToSize(textContent, contentWidth)
-        for (const line of lines) {
-          if (yPos > pageHeight - margin) { pdf.addPage(); yPos = margin + 10 }
-          pdf.text(line, margin, yPos); yPos += 5
-        }
-        yPos += 8
+      function addPageHeader(isFirst = false) {
+        if (!isFirst) pdf.addPage()
+        pdf.setFillColor(10, 22, 40)
+        pdf.rect(0, 0, pageW, 28, 'F')
+        pdf.setFontSize(7);  pdf.setTextColor(100, 130, 180)
+        pdf.text('ZONES AI ADVISORY FRAMEWORK', margin, 9)
+        pdf.setFontSize(11); pdf.setTextColor(244, 246, 250)
+        pdf.text(`${client?.name || 'Client'} — AI Advisory Analysis`, margin, 18)
+        pdf.setFontSize(7);  pdf.setTextColor(100, 130, 180)
+        const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        pdf.text(`${dateStr}  ·  Confidential`, margin, 24)
+        pdf.setDrawColor(74, 159, 224); pdf.setLineWidth(0.4)
+        pdf.line(margin, 27, pageW - margin, 27)
+        return 36
       }
 
-      // Visual captures
-      const msgEl = document.querySelector(`[data-message-index="${messageIndex}"]`)
-      yPos = await captureVisuals(msgEl, pdf, yPos, pageWidth, pageHeight, margin, contentWidth)
+      let y = addPageHeader(true)
 
-      addPageFooters(pdf, pageWidth, pageHeight, margin)
+      // Page 1: executive summary text only
+      if (message.content && !message.content.trim().startsWith('{')) {
+        pdf.setFontSize(10); pdf.setTextColor(30, 41, 59)
+        const lines = pdf.splitTextToSize(message.content, contentW)
+        for (const line of lines) {
+          if (y > pageH - margin - 8) { y = addPageHeader(false) }
+          pdf.text(line, margin, y); y += 5
+        }
+      }
+
+      // One page per visual section
+      const msgEl = document.querySelector(`[data-message-index="${messageIndex}"]`)
+      if (msgEl) {
+        const sections = msgEl.querySelectorAll('.visual-with-narrative')
+        const targets  = sections.length > 0
+          ? Array.from(sections)
+          : Array.from(msgEl.querySelectorAll('.chat-visual-wrapper'))
+
+        // Temporarily reduce narrative font size for capture
+        const narrativeEls = msgEl.querySelectorAll('.visual-narrative')
+        narrativeEls.forEach(el => el.classList.add('pdf-capture'))
+
+        for (const section of targets) {
+          section.scrollIntoView({ block: 'nearest' })
+          await new Promise(r => setTimeout(r, 300))
+
+          const canvas = await html2canvas(section, {
+            scale: 1.5,
+            useCORS: true,
+            backgroundColor: '#0F1E35',
+            logging: false,
+            windowWidth: 780,
+          })
+
+          const imgData = canvas.toDataURL('image/jpeg', 0.85)
+          const rawH    = (canvas.height / canvas.width) * contentW
+          const maxH    = pageH - margin - 10
+          const finalH  = Math.min(rawH, maxH)
+          const finalW  = rawH > maxH ? contentW * (maxH / rawH) : contentW
+          const xOffset = margin + (contentW - finalW) / 2
+
+          // Each section on its own page
+          y = addPageHeader(false)
+          pdf.addImage(imgData, 'JPEG', xOffset, y, finalW, finalH)
+        }
+
+        narrativeEls.forEach(el => el.classList.remove('pdf-capture'))
+      }
+
+      // Footers on every page
+      const totalPages = pdf.getNumberOfPages()
+      for (let p = 1; p <= totalPages; p++) {
+        pdf.setPage(p)
+        pdf.setFontSize(7); pdf.setTextColor(80, 110, 160)
+        pdf.text(`${p} / ${totalPages}`, pageW / 2, pageH - 7, { align: 'center' })
+        pdf.text('Confidential — Zones Innovation Center', margin, pageH - 7)
+      }
 
       const filename = `${(client?.name || 'Advisory').replace(/\s+/g, '-')}-Analysis-${new Date().toISOString().split('T')[0]}.pdf`
       pdf.save(filename)

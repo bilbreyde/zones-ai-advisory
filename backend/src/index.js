@@ -139,6 +139,30 @@ const VISUAL_TYPES = new Set([
   "mermaid", "vendor_comparison", "agent_spec",
 ])
 
+function postProcessVisuals(visuals) {
+  if (!Array.isArray(visuals)) return visuals
+  return visuals.map(visual => {
+    if (visual.type !== 'scorecard' || !Array.isArray(visual.rows)) return visual
+    const fixedRows = visual.rows.map(row => {
+      function formatIfRaw(val, label) {
+        if (typeof val !== 'number') return val
+        const lbl = String(label || '').toLowerCase()
+        if (lbl.includes('phase') || lbl.includes('program') || lbl.includes('invest') ||
+            lbl.includes('service') || lbl.includes('year') || lbl.includes('sow')) {
+          return val > 1000 ? `$${Math.round(val / 1000)}K` : `$${val}K`
+        }
+        return val
+      }
+      return {
+        ...row,
+        client:    formatIfRaw(row.client    ?? row.client_score       ?? '', row.label),
+        benchmark: formatIfRaw(row.benchmark ?? row.industry_benchmark ?? '', row.label),
+      }
+    })
+    return { ...visual, rows: fixedRows }
+  })
+}
+
 function extractVisualFromResponse(raw) {
   if (!raw || typeof raw !== 'string') {
     return { text: '', visual: null, visuals: [], agents: [] }
@@ -556,7 +580,7 @@ Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
       return res.json({
         reply:          parsed1.text || `Strategic analysis for ${clientContext?.name || 'this client'} — ${allVisuals.length} sections generated.`,
         visual:         null,
-        visuals:        allVisuals.length ? allVisuals : null,
+        visuals:        allVisuals.length ? postProcessVisuals(allVisuals) : null,
         showAgentStudio: true,
       })
     }
@@ -594,8 +618,8 @@ Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
 
     res.json({
       reply:          parsed.text || '',
-      visual:         parsed.visual || null,
-      visuals:        parsed.visuals?.length ? parsed.visuals : null,
+      visual:         parsed.visual  ? postProcessVisuals([parsed.visual])[0] : null,
+      visuals:        parsed.visuals?.length ? postProcessVisuals(parsed.visuals) : null,
       showAgentStudio,
     })
   } catch (err) {
@@ -878,7 +902,7 @@ Keep each section concise to avoid truncation. Mermaid chart MAX 6 nodes.
       console.error("[design] empty parse result — returning debug info")
       return res.json({ reply: '', visual: null, visuals: [], debug: rawContent.slice(0, 500) })
     }
-    res.json({ reply: extracted.text, visual: extracted.visual, visuals: extracted.visuals || [] })
+    res.json({ reply: extracted.text, visual: extracted.visual, visuals: postProcessVisuals(extracted.visuals || []) })
   } catch (err) {
     console.error("Agent design error:", err.message, err.stack)
     res.status(500).json({ error: "Failed to generate blueprint", detail: err.message, visuals: [] })
