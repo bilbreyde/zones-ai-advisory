@@ -70,6 +70,8 @@ export default function AIChat() {
   const [collapsedVisuals, setCollapsedVisuals] = useState({})
   const [assessmentCache,  setAssessmentCache]  = useState({})
   const [envProfile,       setEnvProfile]       = useState(null)
+  const [exportingIndex,   setExportingIndex]   = useState(null) // number | 'all' | null
+  const [copiedIndex,      setCopiedIndex]      = useState(null)
   const bottomRef = useRef(null)
 
   // Scroll to bottom on new messages
@@ -183,6 +185,173 @@ export default function AIChat() {
     }
   }
 
+  /* ── PDF export helpers ─────────────────────────────────────────────── */
+
+  function makePdfHeader(pdf, pageWidth, margin) {
+    pdf.setFillColor(10, 22, 40)
+    pdf.rect(0, 0, pageWidth, 36, 'F')
+    pdf.setFontSize(7)
+    pdf.setTextColor(100, 130, 180)
+    pdf.text('ZONES AI ADVISORY FRAMEWORK', margin, 10)
+    pdf.setFontSize(13)
+    pdf.setTextColor(244, 246, 250)
+    pdf.text(`${client?.name || 'Client'} — Advisory Analysis`, margin, 20)
+    pdf.setFontSize(8)
+    pdf.setTextColor(120, 150, 190)
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    pdf.text(`Generated ${dateStr}  ·  Confidential`, margin, 28)
+    pdf.setDrawColor(74, 159, 224)
+    pdf.setLineWidth(0.5)
+    pdf.line(margin, 33, pageWidth - margin, 33)
+  }
+
+  async function captureVisuals(msgEl, pdf, yPos, pageWidth, pageHeight, margin, contentWidth) {
+    const wrappers = msgEl?.querySelectorAll('.chat-visual-wrapper') || []
+    for (const wrapper of wrappers) {
+      wrapper.scrollIntoView({ block: 'center' })
+      await new Promise(r => setTimeout(r, 200))
+      const { default: html2canvas } = await import('html2canvas')
+      const canvas = await html2canvas(wrapper, {
+        scale: 2, useCORS: true, backgroundColor: '#0A1628', logging: false,
+        windowWidth: wrapper.scrollWidth, windowHeight: wrapper.scrollHeight,
+      })
+      const imgData    = canvas.toDataURL('image/png')
+      const rawH       = (canvas.height / canvas.width) * contentWidth
+      const maxH       = pageHeight - margin * 2
+      const finalH     = Math.min(rawH, maxH)
+      const finalW     = rawH > maxH ? contentWidth * (maxH / rawH) : contentWidth
+      if (yPos + finalH > pageHeight - margin) {
+        pdf.addPage()
+        pdf.setFontSize(7); pdf.setTextColor(100, 130, 180)
+        pdf.text(`ZONES AI ADVISORY  ·  ${client?.name || ''}`, margin, 8)
+        pdf.setDrawColor(74, 159, 224); pdf.setLineWidth(0.3)
+        pdf.line(margin, 10, pageWidth - margin, 10)
+        yPos = 16
+      }
+      pdf.addImage(imgData, 'PNG', margin, yPos, finalW, finalH)
+      yPos += finalH + 8
+    }
+    return yPos
+  }
+
+  function addPageFooters(pdf, pageWidth, pageHeight, margin) {
+    const total = pdf.getNumberOfPages()
+    for (let p = 1; p <= total; p++) {
+      pdf.setPage(p)
+      pdf.setFontSize(7); pdf.setTextColor(80, 110, 160)
+      pdf.text(`${p} / ${total}`, pageWidth / 2, pageHeight - 8, { align: 'center' })
+      pdf.text('Confidential — Zones Innovation Center', margin, pageHeight - 8)
+    }
+  }
+
+  async function exportMessageToPDF(message, messageIndex) {
+    setExportingIndex(messageIndex)
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = 210, pageHeight = 297, margin = 14, contentWidth = pageWidth - margin * 2
+
+      makePdfHeader(pdf, pageWidth, margin)
+      let yPos = 44
+
+      // Text content
+      const textContent = message.content
+      if (textContent && !textContent.startsWith('{')) {
+        pdf.setFontSize(11); pdf.setTextColor(30, 41, 59)
+        const lines = pdf.splitTextToSize(textContent, contentWidth)
+        for (const line of lines) {
+          if (yPos > pageHeight - margin) { pdf.addPage(); yPos = margin + 10 }
+          pdf.text(line, margin, yPos); yPos += 5
+        }
+        yPos += 8
+      }
+
+      // Visual captures
+      const msgEl = document.querySelector(`[data-message-index="${messageIndex}"]`)
+      yPos = await captureVisuals(msgEl, pdf, yPos, pageWidth, pageHeight, margin, contentWidth)
+
+      addPageFooters(pdf, pageWidth, pageHeight, margin)
+
+      const filename = `${(client?.name || 'Advisory').replace(/\s+/g, '-')}-Analysis-${new Date().toISOString().split('T')[0]}.pdf`
+      pdf.save(filename)
+    } catch (err) {
+      console.error('Chat PDF export failed:', err)
+    } finally {
+      setExportingIndex(null)
+    }
+  }
+
+  async function exportFullConversation() {
+    setExportingIndex('all')
+    try {
+      const [, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = 210, pageHeight = 297, margin = 14, contentWidth = pageWidth - margin * 2
+
+      // Cover page
+      pdf.setFillColor(10, 22, 40)
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F')
+      pdf.setFontSize(8);  pdf.setTextColor(100, 130, 180)
+      pdf.text('ZONES AI ADVISORY FRAMEWORK', margin, 40)
+      pdf.setFontSize(22); pdf.setTextColor(244, 246, 250)
+      pdf.text(`${client?.name || 'Client'}`, margin, 56)
+      pdf.setFontSize(14); pdf.setTextColor(148, 163, 184)
+      pdf.text('Advisory Session Transcript', margin, 68)
+      pdf.setFontSize(9);  pdf.setTextColor(100, 116, 139)
+      const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+      pdf.text(dateStr, margin, 82)
+      pdf.text('Confidential — Zones Innovation Center', margin, 90)
+      pdf.setDrawColor(26, 86, 168); pdf.setLineWidth(0.5)
+      pdf.line(margin, 100, pageWidth - margin, 100)
+
+      let firstContent = true
+      const allMsgEls = document.querySelectorAll('[data-message-index]')
+
+      for (const msgEl of allMsgEls) {
+        const idx = parseInt(msgEl.getAttribute('data-message-index'))
+        const msg = messages[idx]
+        if (!msg || msg.role !== 'assistant') continue
+
+        if (firstContent) { pdf.addPage(); firstContent = false }
+
+        let yPos = margin + 10
+
+        // Section label
+        pdf.setFontSize(7); pdf.setTextColor(100, 130, 180)
+        pdf.text(`Advisory Response ${idx}`, margin, yPos)
+        pdf.setDrawColor(74, 159, 224); pdf.setLineWidth(0.2)
+        pdf.line(margin, yPos + 2, pageWidth - margin, yPos + 2)
+        yPos += 8
+
+        // Text
+        if (msg.content && !msg.content.startsWith('{')) {
+          pdf.setFontSize(10); pdf.setTextColor(30, 41, 59)
+          const lines = pdf.splitTextToSize(msg.content, contentWidth)
+          for (const line of lines) {
+            if (yPos > pageHeight - margin - 10) { pdf.addPage(); yPos = margin + 10 }
+            pdf.text(line, margin, yPos); yPos += 4.5
+          }
+          yPos += 6
+        }
+
+        yPos = await captureVisuals(msgEl, pdf, yPos, pageWidth, pageHeight, margin, contentWidth)
+      }
+
+      addPageFooters(pdf, pageWidth, pageHeight, margin)
+
+      const filename = `${(client?.name || 'Advisory').replace(/\s+/g, '-')}-Session-${new Date().toISOString().split('T')[0]}.pdf`
+      pdf.save(filename)
+    } catch (err) {
+      console.error('Full conversation export failed:', err)
+    } finally {
+      setExportingIndex(null)
+    }
+  }
+
+  /* ── Render ─────────────────────────────────────────────────────────── */
+
+  const hasExportableMessages = messages.some(m => m.role === 'assistant' && (m.visual || m.visuals?.length))
+
   return (
     <div className="ai-chat">
       <div className="chat-header">
@@ -201,7 +370,7 @@ export default function AIChat() {
           const showExpand = m.role === 'assistant' && (hasVisual || hasVisuals)
 
           return (
-            <div key={i} className={`message ${m.role}`}>
+            <div key={i} className={`message ${m.role}`} data-message-index={i}>
               {m.role === 'assistant' && (
                 <div className="msg-avatar"><Sparkles size={10} /></div>
               )}
@@ -224,6 +393,16 @@ export default function AIChat() {
                       <Zap size={11} /> Open Agent Studio{client?.name ? ` for ${client.name}` : ''} →
                     </button>
                   )}
+                  <div className="message-actions">
+                    <button
+                      className="msg-export-btn"
+                      onClick={() => exportMessageToPDF(m, i)}
+                      disabled={exportingIndex === i}
+                      title="Download as PDF"
+                    >
+                      {exportingIndex === i ? 'Generating…' : '↓ Export PDF'}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="msg-content">
@@ -232,6 +411,20 @@ export default function AIChat() {
                     <button className="chat-action-btn" onClick={() => navigate('/agents')}>
                       <Zap size={11} /> Open Agent Studio{client?.name ? ` for ${client.name}` : ''} →
                     </button>
+                  )}
+                  {m.role === 'assistant' && m.content && (
+                    <div className="message-actions">
+                      <button
+                        className="msg-copy-btn"
+                        onClick={() => {
+                          navigator.clipboard.writeText(m.content)
+                          setCopiedIndex(i)
+                          setTimeout(() => setCopiedIndex(null), 2000)
+                        }}
+                      >
+                        {copiedIndex === i ? '✓ Copied' : '⎘ Copy'}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -261,6 +454,19 @@ export default function AIChat() {
           {dynamicStarters.map((s, i) => (
             <button key={i} className="starter-btn" onClick={() => send(s)}>{s}</button>
           ))}
+        </div>
+      )}
+
+      {/* Export full conversation */}
+      {hasExportableMessages && (
+        <div className="chat-export-row">
+          <button
+            className="chat-export-all-btn"
+            onClick={exportFullConversation}
+            disabled={exportingIndex === 'all'}
+          >
+            {exportingIndex === 'all' ? 'Generating PDF…' : '↓ Export full conversation'}
+          </button>
         </div>
       )}
 

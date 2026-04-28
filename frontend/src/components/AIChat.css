@@ -236,3 +236,13 @@
   background: rgba(74,159,224,0.2);
   border-color: rgba(74,159,224,0.5);
 }
+
+.message-actions { display: flex; gap: 6px; margin-top: 6px; padding-left: 2px; }
+.msg-export-btn, .msg-copy-btn { font-size: 10px; font-weight: 500; padding: 3px 9px; border-radius: 4px; border: 0.5px solid var(--z-border); background: var(--z-surface); color: var(--z-muted); cursor: pointer; transition: all 0.12s; font-family: inherit; }
+.msg-export-btn:hover, .msg-copy-btn:hover { background: var(--z-blue-glow); color: var(--z-blue-bright); border-color: var(--z-border-mid); }
+.msg-export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.chat-export-row { display: flex; justify-content: center; padding: 10px 0 4px; }
+.chat-export-all-btn { font-size: 11px; font-weight: 500; padding: 5px 14px; border-radius: 20px; border: 1px solid var(--z-border-mid); background: var(--z-surface); color: var(--z-muted); cursor: pointer; transition: all 0.12s; font-family: inherit; }
+.chat-export-all-btn:hover { background: var(--z-blue-glow); color: var(--z-blue-bright); border-color: rgba(74,159,224,0.4); }
+.chat-export-all-btn:disabled { opacity: 0.5; cursor: not-allowed; }

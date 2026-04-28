@@ -48,6 +48,16 @@ CONSULTING PRINCIPLES — follow these in every response:
    - Never end with "Let me know if you need anything else"
    - Never recommend cloud-only solutions for on-premises or air-gapped clients
 
+6. WHEN GENERATING VISUALS — content must be specific to this client
+   The client's actual tool names and scores must appear inside every visual:
+   - Gantt tasks must reference their actual tools (e.g. "Configure ServiceNow → Dynamics 365 API connector" not "Set up integration")
+   - RACI activities must name specific integrations or systems, not generic categories (e.g. "Dynamics 365 + SQL Server approval workflow" not "Data governance")
+   - Priority matrices must list their actual named initiatives with effort/team (e.g. "Azure Arc deployment to bridge Dynamics 365 cloud and SQL Server on-prem (8 weeks, IT team)")
+   - Checklists must reference specific systems (e.g. "Export Databricks lineage report to SharePoint" not "Document data flows")
+   - Timelines must use realistic week estimates based on their overall score (score ≤2: add 50% to estimates; score ≥4: compress by 25%)
+   BAD: "Audit data flows across agents" | GOOD: "Map ServiceNow ↔ Dynamics 365 data flows (IT Lead, 3 days)"
+   BAD: "Azure Arc deployment" | GOOD: "Azure Arc deployment to bridge Dynamics 365 cloud + SQL Server on-prem (8 wks)"
+
 CRITICAL RULE — VISUAL RESPONSES:
 When a question involves plans, roadmaps, timelines, benchmark comparisons, prioritization, improvement steps, phases, quick wins, or checklists, you MUST respond with ONLY a raw JSON object. No markdown code fences. No text before or after the JSON. The entire response must be valid JSON matching this exact envelope:
 {"text":"1–2 sentence intro shown above the visual","visual":{"type":"gantt","title":"...","phases":[...]}}
@@ -193,6 +203,21 @@ function extractVisualFromResponse(raw) {
   }
 }
 
+function validateVisualSpecificity(visual, clientContext) {
+  if (!visual || !clientContext) return true
+  const tools = [
+    ...(clientContext.environmentProfile?.cloudTools  || []),
+    ...(clientContext.environmentProfile?.onPremTools || []),
+  ]
+  if (!tools.length) return true
+  const visualStr = JSON.stringify(visual).toLowerCase()
+  const hasClientData = tools.some(t => visualStr.includes(t.toLowerCase()))
+    || visualStr.includes((clientContext.name || '').toLowerCase())
+    || Object.keys(clientContext.scores || {}).some(p => visualStr.includes(p))
+  if (!hasClientData) console.warn("[chat] visual may be too generic — no client tools referenced")
+  return true // log only; never block
+}
+
 app.use("/api/clients", clientRoutes)
 app.use("/api/assessments", assessmentRoutes)
 app.use("/api/sessions", sessionRoutes)
@@ -232,6 +257,15 @@ app.post("/api/chat", async (req, res) => {
       return `${pillar} (${score}/5)`
     })()
 
+    // Inject client tools directly into visual generation hint
+    const allClientTools = [...(ep.cloudTools || []), ...(ep.onPremTools || [])].slice(0, 10)
+    const visualHint = allClientTools.length > 0 ? `
+VISUAL GENERATION — when creating any Gantt, RACI, checklist, or priority matrix:
+- Every task/activity MUST reference at least one of their actual tools: ${allClientTools.join(', ')}
+- Use their overall score (${clientContext.overallScore ?? '?'}/5) to calibrate timelines: score ≤2.5 = add 50% to estimates; score ≥4 = compress by 25%
+- Week estimates for a ${clientContext.industry || 'Technology'} company at ${clientContext.overallScore ?? '?'}/5: Quick wins 1-2 wks, Medium 4-8 wks, Complex 12-20 wks
+- Name real roles from ${clientContext.industry || 'Technology'} (e.g. "IT Lead", "Data Engineer", "Risk Officer"), not "Stakeholder"` : ''
+
     const clientSection = clientContext ? `
 ---
 CURRENT CLIENT CONTEXT — reference this specific data in every response:
@@ -246,6 +280,7 @@ On-premises tools: ${(ep.onPremTools || []).join(', ') || 'none'}
 Legacy systems: ${(ep.legacySystems || []).join(', ') || 'none'}
 Compliance: ${complianceList.join(', ') || 'none'}${complianceRules ? `\nCompliance rules: ${complianceRules}` : ''}${legacyNote ? `\n${legacyNote}` : ''}
 Assessment detail: ${JSON.stringify(clientContext.answers || {})}
+${visualHint}
 ---
 You MUST reference this client's specific scores, tools, and deployment model in your response. Do not give generic advice that could apply to any client.`
     : `
@@ -273,6 +308,7 @@ Do not fabricate client data.
     const visual  = extracted.visual  || null
     const visuals = extracted.visuals || []
     console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual:", visual?.type ?? "none", "| visuals:", visuals.length)
+    validateVisualSpecificity(visual || visuals[0], clientContext)
 
     const showAgentStudio = /\b(agent|automate|automation|workflow|orchestrat)\b/i.test(reply)
 
