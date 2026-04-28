@@ -24,6 +24,14 @@ function getDynamicStarters(client, envProfile) {
   const compliance  = envProfile?.complianceFrameworks || []
   const legacy      = envProfile?.legacySystems || []
 
+  const pillarLabels = {
+    governance: 'Governance',
+    risk:       'Risk & Compliance',
+    strategy:   'AI Strategy',
+    operations: 'Operations',
+    enablement: 'Enablement',
+  }
+
   // Lowest pillar first
   const sorted = Object.entries(scores)
     .filter(([, v]) => v !== null)
@@ -31,14 +39,10 @@ function getDynamicStarters(client, envProfile) {
 
   if (sorted[0]) {
     const [pillar, score] = sorted[0]
-    const pillarLabels = {
-      governance: 'Governance',
-      risk:       'Risk & Compliance',
-      strategy:   'AI Strategy',
-      operations: 'Operations',
-      enablement: 'Enablement',
-    }
-    starters.push(`Suggest a 90-day plan to improve our ${pillarLabels[pillar]} score from ${score}/5`)
+    const label = pillarLabels[pillar] || pillar
+    // Comprehensive strategic plan as the very first starter
+    starters.unshift(`Create a comprehensive plan to improve ${label} maturity at ${client.name} — include architecture, 90-day execution plan, and quick wins`)
+    starters.push(`Suggest a 90-day plan to improve our ${label} score from ${score}/5`)
   }
 
   // Environment-specific starters
@@ -72,6 +76,8 @@ export default function AIChat() {
   const [envProfile,       setEnvProfile]       = useState(null)
   const [exportingIndex,   setExportingIndex]   = useState(null) // number | 'all' | null
   const [copiedIndex,      setCopiedIndex]      = useState(null)
+  const [expandedMessage,   setExpandedMessage]   = useState(null)
+  const [showExpandedPanel, setShowExpandedPanel] = useState(false)
   const bottomRef = useRef(null)
 
   // Scroll to bottom on new messages
@@ -136,6 +142,19 @@ export default function AIChat() {
 
   function toggleVisual(idx) {
     setCollapsedVisuals(prev => ({ ...prev, [idx]: !prev[idx] }))
+  }
+
+  function openInPanel(message, messageIndex) {
+    const precedingMsg = messages[messageIndex - 1]
+    const title = precedingMsg?.content?.slice(0, 80) || 'Advisory Analysis'
+    setExpandedMessage({
+      title,
+      reply:        message.content,
+      visuals:      message.visuals?.length ? message.visuals : (message.visual ? [message.visual] : []),
+      message,
+      messageIndex,
+    })
+    setShowExpandedPanel(true)
   }
 
   async function send(text) {
@@ -378,12 +397,22 @@ export default function AIChat() {
                 <div className="msg-content">
                   {m.content && <div className="msg-bubble">{m.content}</div>}
                   {!collapsedVisuals[i] && (
-                    <div className="msg-visual">
-                      {hasVisuals
-                        ? m.visuals.map((v, vi) => <ChatVisual key={vi} visual={v} />)
-                        : <ChatVisual visual={m.visual} />
-                      }
-                    </div>
+                    <>
+                      {hasVisuals && (
+                        <div className="message-visuals">
+                          {m.visuals.map((v, vi) => (
+                            <div key={vi} className="chat-visual-wrapper" style={{ marginTop: vi > 0 ? 12 : 0 }}>
+                              <ChatVisual visual={v} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {m.visual && !hasVisuals && (
+                        <div className="chat-visual-wrapper">
+                          <ChatVisual visual={m.visual} />
+                        </div>
+                      )}
+                    </>
                   )}
                   <button className="visual-toggle" onClick={() => toggleVisual(i)}>
                     {collapsedVisuals[i] ? 'Show visual' : 'Hide visual'}
@@ -394,6 +423,15 @@ export default function AIChat() {
                     </button>
                   )}
                   <div className="message-actions">
+                    {(m.visuals?.length >= 3) && (
+                      <button
+                        className="msg-expand-btn"
+                        onClick={() => openInPanel(m, i)}
+                        title="Open full analysis in side panel"
+                      >
+                        ⤢ Open full analysis
+                      </button>
+                    )}
                     <button
                       className="msg-export-btn"
                       onClick={() => exportMessageToPDF(m, i)}
@@ -481,6 +519,37 @@ export default function AIChat() {
           <Send size={13} />
         </button>
       </div>
+
+      {/* Expanded full-analysis panel */}
+      {showExpandedPanel && expandedMessage && (
+        <div className="expanded-panel-overlay" onClick={() => setShowExpandedPanel(false)}>
+          <div className="expanded-panel" onClick={e => e.stopPropagation()}>
+            <div className="expanded-panel-header">
+              <div className="expanded-panel-title">{expandedMessage.title}</div>
+              <button className="expanded-panel-close" onClick={() => setShowExpandedPanel(false)}>✕</button>
+            </div>
+            <div className="expanded-panel-body">
+              {expandedMessage.reply && (
+                <div className="expanded-panel-text">{expandedMessage.reply}</div>
+              )}
+              {expandedMessage.visuals.map((v, vi) => (
+                <div key={vi} className="chat-visual-wrapper" style={{ marginTop: vi > 0 ? 16 : 0 }}>
+                  <ChatVisual visual={v} />
+                </div>
+              ))}
+            </div>
+            <div className="expanded-panel-footer">
+              <button
+                className="msg-export-btn"
+                onClick={() => exportMessageToPDF(expandedMessage.message, expandedMessage.messageIndex)}
+                disabled={exportingIndex === expandedMessage.messageIndex}
+              >
+                {exportingIndex === expandedMessage.messageIndex ? 'Generating…' : '↓ Export PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

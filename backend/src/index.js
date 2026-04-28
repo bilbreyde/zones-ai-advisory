@@ -203,6 +203,19 @@ function extractVisualFromResponse(raw) {
   }
 }
 
+function isStrategicQuestion(message) {
+  const strategic = [
+    'plan', 'strategy', 'roadmap', 'remove', 'fix', 'solve', 'improve',
+    'how do we', 'how can we', 'how should we', 'what should we do',
+    'agentic wall', 'integration', 'architecture', 'detailed', 'comprehensive',
+    'step by step', 'step-by-step', 'full plan', 'execution', 'implement',
+    'transform', 'modernize', 'migrate', 'consolidate', 'unify', 'bridge',
+    'create a plan', 'build a plan', 'develop a plan', 'give me a plan'
+  ]
+  const lower = message.toLowerCase()
+  return strategic.some(phrase => lower.includes(phrase))
+}
+
 function validateVisualSpecificity(visual, clientContext) {
   if (!visual || !clientContext) return true
   const tools = [
@@ -248,13 +261,15 @@ app.post("/api/chat", async (req, res) => {
       ? `Legacy systems present: ${ep.legacySystems.join(', ')} — treat as highest-value integration targets`
       : ''
 
-    // Compute lowest scoring pillar for quick reference
-    const lowestPillar = (() => {
+    // Compute lowest and highest scoring pillars for context injection
+    const { lowestPillar, highestPillar } = (() => {
       const s = clientContext?.scores || {}
       const valid = Object.entries(s).filter(([, v]) => v !== null && v !== undefined)
-      if (!valid.length) return 'Not assessed'
-      const [pillar, score] = valid.sort(([, a], [, b]) => a - b)[0]
-      return `${pillar} (${score}/5)`
+      if (!valid.length) return { lowestPillar: 'Not assessed', highestPillar: 'Not assessed' }
+      const sorted = valid.sort(([, a], [, b]) => a - b)
+      const [lp, ls] = sorted[0]
+      const [hp, hs] = sorted[sorted.length - 1]
+      return { lowestPillar: `${lp} (${ls}/5)`, highestPillar: `${hp} (${hs}/5)` }
     })()
 
     // Inject client tools directly into visual generation hint
@@ -290,14 +305,76 @@ State clearly that your response is generic. Recommend selecting a client for sp
 Do not fabricate client data.
 ---`
 
+    // Strategic question detection
+    const lastUserMessage = messages.filter(m => m.role === 'user').slice(-1)[0]?.content || ''
+    const isStrategic = isStrategicQuestion(lastUserMessage)
+
+    const strategicInstruction = isStrategic ? `
+
+STRATEGIC QUESTION DETECTED — This question requires a full consulting deliverable, not a summary.
+
+You MUST respond with a comprehensive JSON object in this EXACT structure:
+{"text":"2-3 sentence executive summary — direct and business-focused, no fluff","visuals":[...]}
+
+MANDATORY SECTIONS — every one must be included as a separate visual:
+
+SECTION 1 — PROBLEM DIAGNOSIS (type: "mermaid")
+Map the problem to their SPECIFIC environment. For "${lastUserMessage.slice(0, 100)}":
+- Name exactly which systems in their stack are creating the problem
+- Their tools: ${allClientTools.join(', ')}
+- Use Mermaid graph TD with their actual system names and ✗ markers where integration breaks
+- Show WHERE the walls/gaps/friction points are between named systems
+
+SECTION 2 — TARGET ARCHITECTURE (type: "mermaid")
+Show what "solved" looks like for THIS client.
+- Use their actual system names: ${allClientTools.join(', ')}
+- Show the integration/orchestration layer that resolves the problem
+- Include identity, data, and event layers where relevant
+- This should look like a reference architecture a developer could implement
+
+SECTION 3 — 90-DAY EXECUTION PLAN (type: "gantt")
+Tied to their maturity scores (overall ${clientContext?.overallScore ?? '?'}/5):
+- Lowest pillar: ${lowestPillar} — START here, Phase 1 must address this first
+- Highest pillar: ${highestPillar} — LEVERAGE this as a foundation
+- Phase 1 tasks must reference their specific systems by name
+- Include who does each task (role title), how long it takes, and what the output is
+- Do NOT include tasks a ${clientContext?.overallScore ?? '?'}/5 maturity client would already have done
+- At least 3 phases, at least 3 tasks each
+
+SECTION 4 — QUICK WINS (type: "checklist")
+Name 3-5 SPECIFIC agent use cases using their actual tools.
+Format each item: "[Agent name]: [System A] + [System B] → [specific business outcome] (effort: X weeks, value: High|Medium)"
+Compliance framework respected: ${complianceList.join(', ') || 'standard'}
+
+SECTION 5 — RISKS AND CONSTRAINTS (type: "risk_heatmap")
+Map their specific compliance requirements to agent design risks:
+${complianceList.map(f => {
+  if (f === 'soc2')     return '- SOC 2: All agent actions must be auditable — include audit trail in every agent design'
+  if (f === 'iso27001') return '- ISO 27001: RBAC required for all agent access — no broad service account permissions'
+  if (f === 'hipaa')    return '- HIPAA: No PHI in agent context windows — design data masking layer'
+  if (f === 'fedramp')  return '- FedRAMP: Gov cloud only — Azure Government or on-prem'
+  if (f === 'gdpr')     return '- GDPR: EU data residency — no cross-border agent data flows'
+  return `- ${f}: apply appropriate constraints`
+}).join('\n')}${(ep.constraints || []).includes('no_cloud_ai') ? '\n- No External AI APIs constraint: design all agents for private model deployment from day 1' : ''}${(ep.legacySystems || []).length > 0 ? `\n- Legacy systems (${(ep.legacySystems || []).join(', ')}): highest integration risk — plan data extraction layer first` : ''}
+
+Include in the "text" field at the end: what Zones engagement model does this become (AI Integration SOW / Agent Factory retainer / Managed AI Services) and estimated engagement size and duration for a client at ${clientContext?.overallScore ?? '?'}/5 maturity.
+
+CRITICAL RULES:
+1. ALL 5 sections required — do not skip any
+2. Every visual must reference their actual named tools — no generic system names
+3. Quick wins must be named agents with specific system pairs from their stack
+4. Return ONLY raw JSON — no markdown, no fences, start with { end with }
+5. Each visual MUST include a "narrative" object (headline, context, actions[]) BEFORE the type field
+6. max_tokens is increased for this response — use the space to be thorough` : ''
+
     const completion = await openai.chat.completions.create({
       model:       process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
       messages:    [
-        { role: "system", content: SYSTEM_PROMPT + clientSection },
-        ...messages.slice(-12),
+        { role: "system", content: SYSTEM_PROMPT + clientSection + strategicInstruction },
+        ...messages.slice(-10),
       ],
-      temperature: 0.6,
-      max_tokens:  1500,
+      temperature: isStrategic ? 0.4 : 0.6,
+      max_tokens:  isStrategic ? 6000 : 1500,
     })
 
     const rawContent = completion.choices[0].message.content.trim()
