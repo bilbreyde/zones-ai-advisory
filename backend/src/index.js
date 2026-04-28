@@ -318,126 +318,192 @@ Do not fabricate client data.
     const allClientTools12 = [...(ep.cloudTools || []), ...(ep.onPremTools || [])].slice(0, 12)
     const complianceStr = complianceList.join(', ') || 'standard governance'
 
+    // Pre-compute multi-cloud tools list for strategic instruction
+    const multiCloudTools = (ep.cloudTools || []).filter(t => ['Azure', 'Azure AI Foundry', 'Azure OpenAI', 'AWS', 'AWS Bedrock', 'GCP', 'Google Vertex AI'].includes(t)).join(', ')
+    const agentStackTools = (ep.cloudTools || []).filter(t => ['Azure', 'Azure AI Foundry', 'Azure OpenAI', 'ServiceNow', 'Dynamics 365', 'GitHub', 'Microsoft Fabric', 'Microsoft Sentinel', 'Databricks'].includes(t)).join(', ')
+    const enablementScore = clientContext?.scores?.enablement ?? '?'
+    const shadowLikelihood = clientContext?.scores?.enablement != null && clientContext.scores.enablement <= 2.5 ? 5 : 4
+
     const strategicInstruction = isStrategic ? `
 
-STRATEGIC QUESTION DETECTED — produce a comprehensive consulting deliverable, not a summary.
+STRATEGIC QUESTION DETECTED — produce a comprehensive consulting deliverable.
 
 The question is: "${lastUserMessage.slice(0, 150)}"
 
-CRITICAL DISTINCTION — read this before generating:
-If the question involves agents, agentic systems, AI agents, or multi-agent topics:
-- Do NOT produce integration architecture (APIs, data flows, connectivity)
-- DO produce AGENT architecture: orchestration layers, memory, tool registries, planning engines, multi-agent coordination
-- The difference: integration answers "how do systems connect?" — agent architecture answers "how do agents think, remember, coordinate, and act?"
+CRITICAL DISTINCTION — read before generating:
+If the question involves agents, agentic systems, or multi-agent topics:
+- Integration architecture answers "how do systems connect?" — DO NOT produce this
+- Agent architecture answers "how do agents think, remember, coordinate, and act?" — PRODUCE THIS
+- You must show multi-agent BEHAVIOR, not just multi-agent COMPONENTS
 
 Return ONLY a raw JSON object. Start with { end with }. No markdown. No fences.
 
-{
-  "text": "2-3 sentence executive summary. Must name the client. Must state the specific business problem being solved. Must mention the recommended Zones engagement model and estimated value.",
-  "visuals": [VISUAL1, VISUAL2, VISUAL3, VISUAL4, VISUAL5, VISUAL6, VISUAL7]
-}
+{"text":"2-3 sentence executive summary naming the client, the specific business problem, the Zones engagement model, and estimated engagement value range based on their size and maturity.","visuals":[VISUAL_1,VISUAL_2,VISUAL_3,VISUAL_4,VISUAL_5,VISUAL_6,VISUAL_7,VISUAL_8]}
 
-MANDATORY 7 VISUALS — include ALL of them:
+MANDATORY 8 VISUALS — include ALL:
 
 VISUAL 1 — PROBLEM DIAGNOSIS (type: "mermaid")
-Title: "[Client Name] Agentic Wall Analysis" or relevant problem title
-Show WHERE the specific problem exists in their environment using their actual named systems.
-For agentic topics: show where agents CANNOT currently operate across systems.
-For each wall, label it with the TYPE of wall:
+Title: "[Client Name] Agentic Wall Analysis"
+Map WHERE walls exist using their actual named systems: ${allClientTools12.join(', ')}
+Label each broken connection with wall TYPE:
 - "Data wall" — systems don't share data
-- "Identity wall" — auth/access doesn't cross systems
-- "Platform wall" — agents are locked to one cloud/vendor
-- "Process wall" — workflow can't span systems
+- "Identity wall" — auth doesn't cross systems
+- "Platform wall" — agents locked to one vendor
+- "Process wall" — workflows can't span systems
 - "Memory wall" — no shared context between agents
-Use ✗ on broken connections. Use their actual tool names: ${allClientTools12.join(', ')}
-Mermaid chart: max 10 nodes, use subgraph to group related systems
+Use ✗ on broken connections. Use subgraph to group related systems. Max 10 nodes.
 
-VISUAL 2 — TARGET ARCHITECTURE (type: "mermaid")
-Title: "Target Agent Architecture"
-For agentic topics, this MUST show a proper multi-agent architecture with ALL of these layers:
-- Agent Orchestration Layer (Semantic Kernel / Azure AI Foundry / LangGraph — pick based on their stack)
-- Tool & Skill Registry (what capabilities agents can invoke)
-- Memory Layer (vector DB for semantic memory, Redis/cache for working memory — name the specific product from their stack)
-- Planning & Execution Loop (how agents reason and act)
-- Data Abstraction Layer (unified API surface over their specific systems)
-- Identity & Policy Layer (Entra ID + their compliance frameworks: ${complianceStr})
-- Observability Layer (how agents are monitored — reference their monitoring tools)
-The chart MUST show agent-to-agent communication, not just system-to-system
-NOT acceptable: Systems → API Gateway → RBAC
+VISUAL 2 — MULTI-AGENT COORDINATION MODEL (type: "mermaid") — MOST IMPORTANT VISUAL
+Title: "Multi-Agent Coordination Architecture"
+This MUST show HOW AGENTS BEHAVE TOGETHER, not just what components exist.
+Show these specific patterns:
+1. SUPERVISOR AGENT PATTERN: Orchestrator Agent (Semantic Kernel) receives task → breaks into subtasks → delegates to specialist agents → collects results → synthesizes response
+2. PLANNER/EXECUTOR SPLIT: Planner Agent reasons about what needs to happen → Executor Agents carry out specific actions (one per system)
+3. SHARED MEMORY MODEL: All agents read/write to shared vector memory (Azure Cognitive Search) + working memory in Redis Cache (transient) + long-term memory in Fabric (durable)
+4. EVENT-DRIVEN COORDINATION: Azure Event Grid triggers agents based on system events → agents publish results as events → no direct agent-to-agent calls — all via event bus
+5. HUMAN-IN-THE-LOOP GATES: Show where agents pause for human approval before proceeding (critical for ${complianceStr})
+Use their actual agent-relevant tools: ${agentStackTools || allClientTools12.slice(0, 6)}
+Chart must show agent communication FLOWS, not just system boxes.
+Example: "Orchestrator Agent" → delegates → "Incident Analyzer Agent" → reads → "SQL Server logs via Fabric" → writes → "Azure DevOps ticket" → notifies → "ServiceNow auto-close"
 
-VISUAL 3 — OPERATING MODEL (type: "raci_matrix")
-Title: "Agent Operating Model — Roles & Responsibilities"
-This is CRITICAL given their Enablement score of ${clientContext?.scores?.enablement ?? '?'}/5.
-Define who owns agents across their organization.
-Rows (activities): Agent design & build, Agent deployment & release, Agent monitoring & alerts, Agent retirement & versioning, New agent requests, Compliance review, Training & enablement, Incident response
-Roles: Use industry-appropriate titles for ${clientContext?.industry || 'Technology'}: CIO/CTO, AI Platform Team, Business Unit Owner, Risk & Compliance, IT Operations, End Users
-This section directly addresses their Enablement gap — it answers "who owns AI?"
+VISUAL 3 — TARGET AGENT SYSTEM ARCHITECTURE (type: "mermaid")
+Title: "Target Agent System Architecture"
+Show LAYERED ARCHITECTURE with ALL these layers:
+- Agent Orchestration Layer: Semantic Kernel / Azure AI Foundry (orchestrates all agents)
+- Tool & Skill Registry: capabilities agents can invoke (name their specific APIs: ServiceNow, DevOps, Dynamics APIs)
+- Memory Layer: Azure Cognitive Search (semantic/vector), Redis Cache (working), Fabric (long-term)
+- Planning & Execution Loop: Task decomposition → agent selection → execution → result synthesis
+- Data Abstraction Layer: Unified API gateway over all their systems
+- Identity & Policy Layer: Entra ID + ${complianceStr}
+- Observability Layer: Microsoft Sentinel + Azure Monitor (all agent actions logged)
 
-VISUAL 4 — 90-DAY EXECUTION PLAN (type: "gantt")
+VISUAL 4 — AGENT OPERATING MODEL (type: "raci_matrix")
+Title: "Agent Operating Model — Lifecycle & Ownership"
+CRITICAL given their Enablement score of ${enablementScore}/5.
+Rows (lifecycle activities):
+- Agent design & architecture review
+- Agent build & testing
+- Agent deployment & release
+- Agent monitoring & alerting
+- New agent request & approval
+- Compliance & audit review
+- Training & enablement delivery
+- Incident response & agent rollback
+- Agent retirement & versioning
+Roles for ${clientContext?.industry || 'Technology'}: CIO/CTO, AI Platform Team, Business Unit Owner, Risk & Compliance, IT Operations
+Include in narrative field — AGENT TYPES with clear ownership:
+- Orchestrator agents (owned by AI Platform Team)
+- Task/executor agents (owned by Business Unit)
+- Data agents (owned by IT Operations under AI Platform oversight)
+- Governance agents (owned by Risk & Compliance)
+
+VISUAL 5 — ENABLEMENT ENGINE (type: "checklist") — LARGEST SECTION given Enablement score ${enablementScore}/5
+Title: "AI Enablement Engine — Closing the ${enablementScore}/5 Gap"
+Enablement is their LOWEST pillar — this MUST be the most detailed section with 4 complete categories:
+
+CATEGORY 1 — TRAINING CURRICULUM:
+- Agent design patterns course for developers (Semantic Kernel, LangGraph fundamentals) — 2 weeks, mandatory for AI Platform Team
+- AI literacy program for business users: what agents can/cannot do, how to request agents — 1 week, all business units
+- Agent governance training for Risk & Compliance: audit requirements, ${complianceStr} agent compliance — 1 week
+- Executive AI briefing: ROI framework, decision rights, investment approval — half-day
+
+CATEGORY 2 — AGENT DESIGN PATTERNS LIBRARY:
+- Reusable agent templates for common workflows (incident response, data extraction, report generation) using their tools
+- Integration connector library for their specific systems (${(ep.cloudTools || []).slice(0, 5).join(', ')})
+- Testing & validation framework for agents before production deployment
+- Prompt engineering guidelines with ${complianceStr} guardrails
+
+CATEGORY 3 — INTERNAL AGENT MARKETPLACE:
+- Internal catalog of approved, production-ready agents
+- Request workflow: Business Unit submits → AI Platform reviews → Risk approves → Deploy
+- Agent versioning and rollback procedures
+- Usage analytics and ROI tracking per agent
+
+CATEGORY 4 — GOVERNANCE GUARDRAILS (critical given ${enablementScore}/5 Enablement — shadow AI is the biggest risk):
+- Shadow AI detection and remediation policy
+- Approved model list and update cadence
+- Data classification rules for agent access
+- Mandatory audit logging checklist for every agent (required for ${complianceStr})
+
+VISUAL 6 — 90-DAY EXECUTION PLAN (type: "gantt")
 Title: "90-Day Execution Plan"
-TIED TO MATURITY SCORES — mandatory:
-- Start with their LOWEST pillar: ${lowestPillar} — Phase 1 MUST address this first
-- Leverage their STRONGEST pillar: ${highestPillar} — use as a foundation
-Phase 1 (Days 1-30) — Foundation & Quick Pilots:
-- Tasks must be outcome-driven: BAD: "Deploy Azure Arc" — GOOD: "Deploy Azure Arc to enable cross-system agent handoff (IT Lead, 2 weeks) → Output: First cross-system agent prototype"
-- Include: who does it (role), how long, what the deliverable is
+Sequence MUST start with lowest gap, leverage highest strength:
+- LOWEST — ${lowestPillar} — start here
+- HIGHEST — ${highestPillar} — leverage this
+
+Phase 1 (Days 1-30) — Foundation & Enablement First:
+Each task format: "[WHO] does [WHAT] ([HOW LONG]) → Output: [DELIVERABLE]"
+Must include: at least one enablement task (lowest pillar) + at least one specific agent prototype task
+Example: "AI Platform Team: build ServiceNow→Azure OpenAI→DevOps incident agent prototype (2 weeks) → Output: working demo with 40% MTTR improvement measured"
+
 Phase 2 (Days 31-60) — First Production Agents:
-- Name the specific agent being deployed (e.g. "Incident Resolution Agent: ServiceNow → Azure DevOps → auto-ticket")
-- Include measurable outcome (e.g. "Target: 40% reduction in MTTR")
-Phase 3 (Days 61-90) — Scale & Govern:
-- Given Enablement score ${clientContext?.scores?.enablement ?? '?'}/5 — this phase MUST be heavy on training and governance
-At least 3 phases, at least 3 tasks each. All tasks must name actual client systems.
+Name SPECIFIC agents going to production using actual tool names
+Include measurable business outcome for each agent (specific KPI)
+Include compliance checkpoint: ${complianceStr} audit log validation (Risk Officer, 1 week)
 
-VISUAL 5 — QUICK WINS: AGENT USE CASES (type: "checklist")
-Title: "Priority Agent Use Cases"
-Each item is a mini solution brief:
-- Agent name (specific and descriptive)
-- Workflow: Step 1 → Step 2 → Step 3 → Step 4 using their actual system names
-- Decision logic (what the agent decides, and when it escalates to human)
-- Measurable outcome (specific KPI: "reduces MTTR by 40%", "saves 3 hours/incident")
-- Effort: X weeks, Y people
-- Compliance fit: references their frameworks
-Use EXACTLY their tools: ${(ep.cloudTools || []).slice(0, 8).join(', ')}
-Example format: "Incident Resolution Agent: ServiceNow (trigger: P1 alert) → Azure OpenAI (root cause on logs) → Azure DevOps (create fix branch) → ServiceNow (auto-close after merge) | Outcome: 40% MTTR reduction | SOC 2: all steps audit-logged"
-Cross-system agents are mandatory for agentic wall topics.
+Phase 3 (Days 61-90) — Scale, Govern & Productize:
+- Agent marketplace launch
+- Enablement rollout to all business units
+- Zones managed services handoff preparation
+- Executive ROI readout with measured outcomes vs. targets
 
-VISUAL 6 — ${hasMultiCloud ? 'CROSS-CLOUD STRATEGY (type: "mermaid")' : 'AI SERVICE ARCHITECTURE (type: "mermaid")'}
-Title: "${hasMultiCloud ? 'Multi-Cloud AI Strategy' : 'AI Service Architecture'}"
-${hasMultiCloud ? `Client has multi-cloud environment — this section is MANDATORY.
-Show:
-- Model routing layer: when to use Azure OpenAI vs AWS Bedrock vs Google Vertex AI (task type, cost, latency)
-- Data residency: which data stays in which cloud and why (compliance: ${complianceStr})
-- Vendor lock-in mitigation: abstraction patterns that let agents switch models
-- Fallback strategy: what happens when a model endpoint is unavailable
-Layers: Agent Request → Model Router → Azure OpenAI | AWS Bedrock | GCP Vertex AI → Private fallback (if applicable)` : `Client is primarily single-cloud. Show cloud AI service architecture:
-- Primary AI services from their stack
-- Redundancy and failover design
-- Cost optimization through model tiering (premium for reasoning, smaller for classification)
-- Monitoring and observability layer`}
+VISUAL 7 — MULTI-CLOUD AI STRATEGY (type: "mermaid")
+Title: "${hasMultiCloud ? 'Multi-Cloud AI Model Routing Strategy' : 'AI Service Architecture & Tiering'}"
+${hasMultiCloud ? `MANDATORY — client has multi-cloud environment: ${multiCloudTools}
 
-VISUAL 7 — AGENT-SPECIFIC RISKS (type: "risk_heatmap")
-Title: "Agent Design Risk Profile"
-ONLY agent-specific risks — no generic IT risks:
-- Prompt injection: malicious input manipulates agent behavior across systems (likelihood: 4, impact: 5)
-- Tool misuse: over-permissioned agents invoke destructive operations (likelihood: 3, impact: 4)
-- Agent runaway: autonomous agent executes unintended action chain (likelihood: 3, impact: 4)
-- Cross-system data leakage: agent carries sensitive data between security boundaries (likelihood: 4 for hybrid, impact: 5 — critical given ${complianceStr})
-- Context poisoning: corrupted memory layer affects all agents sharing it (likelihood: 2, impact: 4)
-- Hallucinated tool calls: agent invokes non-existent or wrong API endpoint (likelihood: 3, impact: 3)
-- Shadow agents: business users build ungoverned agents outside platform (likelihood: ${clientContext?.scores?.enablement != null && clientContext.scores.enablement <= 2.5 ? 5 : 4} given Enablement score ${clientContext?.scores?.enablement ?? '?'}/5, impact: 4)
-${complianceList.includes('soc2') || complianceList.includes('iso27001') ? '- Compliance audit gap: agent actions not logged to required standard (likelihood: 3, impact: 5 — SOC 2/ISO 27001 requires immutable audit trail)' : ''}
+Show ALL these layers in the Mermaid chart:
 
-Zones engagement in "text" field: state engagement type, estimated duration, estimated value range, and ongoing managed service opportunity. Base estimate on maturity score (${clientContext?.overallScore ?? '?'}/5) and company size (${clientContext?.size || 'mid-market'}).
+Layer 1 — AGENT REQUEST LAYER (top): All agents submit to a central Model Router — never call models directly
+
+Layer 2 — MODEL ROUTING LAYER: Intelligent routing rules:
+- Complex reasoning (root cause analysis, strategic recommendations) → Azure OpenAI GPT-4o
+- High-volume classification (document tagging, sentiment, intent) → Azure OpenAI GPT-4o-mini OR AWS Bedrock Claude 3 Haiku (cost optimization: 60-80% cheaper)
+- Code generation & technical analysis → Azure OpenAI or GitHub Copilot API
+- Multimodal tasks (image + text) → Azure OpenAI GPT-4o Vision or Google Vertex AI Gemini
+- Privacy-sensitive tasks (${complianceStr}) → private model via Azure Arc
+
+Layer 3 — COST OPTIMIZATION: Premium GPT-4o for complex reasoning + Standard tier for classification = 40-60% cost reduction vs GPT-4o-only
+
+Layer 4 — FALLBACK & RESILIENCE: Azure OpenAI down → AWS Bedrock → Azure Arc private model
+
+Layer 5 — DATA RESIDENCY: ${complianceList.includes('gdpr') ? 'GDPR: EU data stays in EU regions (Azure EU West / AWS EU)' : ''} ${complianceList.includes('fedramp') ? 'FedRAMP: Azure Government or AWS GovCloud only' : ''} SOC 2/ISO 27001: all model API calls logged via Microsoft Sentinel` : `Client is primarily single-cloud. Show Azure AI service tiering:
+- Premium: Azure OpenAI GPT-4o (complex reasoning, strategic recommendations)
+- Standard: Azure OpenAI GPT-4o-mini (classification, extraction, high-volume tasks) — 80% cheaper
+- Monitoring: Microsoft Sentinel + Azure Monitor for all model calls
+- Cost optimization: intelligent routing between tiers based on task complexity
+- Fallback: Azure Arc private model deployment for compliance-sensitive tasks`}
+
+VISUAL 8 — FINANCIAL MODEL & ROI (type: "scorecard")
+Title: "Investment & ROI Framework"
+Calibrate ALL numbers to company size (${clientContext?.size || 'mid-market'}) and maturity score (${clientContext?.overallScore ?? '?'}/5). Lower maturity = higher cost, longer payback.
+rows array with label, client (their specific estimate as string), benchmark (industry average as string):
+Build costs:
+- {"label":"Phase 1 investment (foundation + 1 agent)","client":"$45K-$65K","benchmark":"Industry avg: $50K-$80K"}
+- {"label":"Phase 2-3 investment (3-5 agents + governance)","client":"$80K-$120K","benchmark":"Industry avg: $90K-$150K"}
+- {"label":"Total 90-day program","client":"$125K-$185K","benchmark":"Industry avg: $140K-$230K"}
+- {"label":"Ongoing managed service (monthly)","client":"$12K-$18K/mo","benchmark":"Industry avg: $15K-$25K/mo"}
+Estimated returns:
+- {"label":"Incident Resolution Agent: MTTR reduction","client":"40% reduction = ~$180K/yr saved","benchmark":"Typical: 30-50%"}
+- {"label":"Compliance Monitoring Agent: audit cost reduction","client":"~$60K/yr saved","benchmark":"Typical: $40K-$80K/yr"}
+- {"label":"Automation rate across 5 agents","client":"~35% of routine workflows","benchmark":"Typical: 25-45%"}
+- {"label":"Estimated payback period","client":"8-14 months","benchmark":"Industry avg: 9-18 months"}
+- {"label":"3-year ROI","client":"180-240%","benchmark":"Industry avg: 150-200%"}
+Zones opportunity:
+- {"label":"90-day AI Integration SOW","client":"$125K-$185K","benchmark":""}
+- {"label":"Agent Factory managed service (12 months)","client":"$144K-$216K ARR","benchmark":""}
+- {"label":"Total first-year Zones opportunity","client":"$270K-$400K","benchmark":""}
+
+AGENT RISKS — add as a 9th visual (type: "risk_heatmap", title: "Agent Design Risk Profile") if token budget allows. Agent-specific risks only: prompt injection (4,5), tool misuse (3,4), agent runaway (3,4), cross-system data leakage (4,5), context poisoning (2,4), hallucinated tool calls (3,3), shadow agents (${shadowLikelihood},4 — elevated given Enablement ${enablementScore}/5)${complianceList.includes('soc2') || complianceList.includes('iso27001') ? ', compliance audit gap (3,5)' : ''}
 
 RESPONSE RULES:
-1. All 7 visuals are mandatory — do not skip any
-2. Every visual must reference their actual named tools — no generic system names
-3. The operating model (Visual 3) is the most differentiating section — make it thorough
-4. Quick wins (Visual 5) must show full agent workflows, not just labels
-5. Agent-specific risks only in Visual 7 — no generic IT risks
+1. All 8 visuals mandatory — do not skip any
+2. Visual 2 (multi-agent coordination) is the most differentiating — make it thorough with all 5 patterns
+3. Visual 5 (enablement) must be the most detailed section — 4 full categories with specific items
+4. Visual 8 (financial model) must include real dollar estimates calibrated to their size
+5. Every visual must reference their actual named tools — no generic system names
 6. Return ONLY raw JSON — start with { end with }
 7. Each visual MUST include a "narrative" object (headline, context, actions[]) BEFORE the type field
-8. If truncation risk: complete each visual fully before starting the next` : ''
+8. If truncation risk: complete each visual fully before starting the next — do not truncate mid-visual` : ''
 
     const completion = await openai.chat.completions.create({
       model:       process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
@@ -446,7 +512,7 @@ RESPONSE RULES:
         ...messages.slice(-10),
       ],
       temperature: isStrategic ? 0.4 : 0.6,
-      max_tokens:  isStrategic ? 6000 : 1500,
+      max_tokens:  isStrategic ? 8000 : 1500,
     })
 
     const rawContent = completion.choices[0].message.content.trim()
