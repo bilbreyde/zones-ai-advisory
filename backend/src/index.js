@@ -407,220 +407,128 @@ Do not fabricate client data.
     const lastUserMessage = messages.filter(m => m.role === 'user').slice(-1)[0]?.content || ''
     const isStrategic = isStrategicQuestion(lastUserMessage)
 
-    // Pre-compute multi-cloud flag for strategic instruction
-    const hasMultiCloud = (ep.cloudTools || []).some(t => ['AWS', 'AWS Bedrock', 'GCP', 'Google Vertex AI'].includes(t))
-    const allClientTools12 = [...(ep.cloudTools || []), ...(ep.onPremTools || [])].slice(0, 12)
-    const complianceStr = complianceList.join(', ') || 'standard governance'
+    // Tool lists used by both two-pass strategic prompts and single-pass visual hints
+    const cloudToolsShort = (ep.cloudTools || []).slice(0, 8).join(', ')
+    const cloudTools6     = (ep.cloudTools || []).slice(0, 6).join(', ')
+    const complianceStr   = complianceList.join(', ') || 'standard governance'
 
-    // Pre-compute multi-cloud tools list for strategic instruction
-    const multiCloudTools = (ep.cloudTools || []).filter(t => ['Azure', 'Azure AI Foundry', 'Azure OpenAI', 'AWS', 'AWS Bedrock', 'GCP', 'Google Vertex AI'].includes(t)).join(', ')
-    const agentStackTools = (ep.cloudTools || []).filter(t => ['Azure', 'Azure AI Foundry', 'Azure OpenAI', 'ServiceNow', 'Dynamics 365', 'GitHub', 'Microsoft Fabric', 'Microsoft Sentinel', 'Databricks'].includes(t)).join(', ')
-    const enablementScore = clientContext?.scores?.enablement ?? '?'
-    const shadowLikelihood = clientContext?.scores?.enablement != null && clientContext.scores.enablement <= 2.5 ? 5 : 4
+    const fullSystemPrompt = SYSTEM_PROMPT + clientSection
 
-    const strategicInstruction = isStrategic ? `
+    // ── STRATEGIC: two-pass generation (avoids token truncation) ───────────
+    if (isStrategic) {
+      const pass1UserContent = lastUserMessage + `
 
-STRATEGIC QUESTION DETECTED — produce a comprehensive consulting deliverable.
+Generate ONLY these 3 visuals as a JSON object:
+{"text":"2-3 sentence executive summary naming ${clientContext?.name || 'the client'}, the specific business problem, and the Zones engagement model with estimated value","visuals":[...3 items...]}
 
-The question is: "${lastUserMessage.slice(0, 150)}"
+VISUAL 1 — Problem diagnosis mermaid (type:"mermaid", title:"[Client] Agentic Wall Analysis"):
+- Max 8 nodes, use subgraph groups
+- Label broken connections: Data wall / Identity wall / Platform wall / Memory wall / Process wall
+- Use ✗ on broken links
+- Use their actual tools: ${cloudToolsShort}
 
-CRITICAL DISTINCTION — read before generating:
-If the question involves agents, agentic systems, or multi-agent topics:
-- Integration architecture answers "how do systems connect?" — DO NOT produce this
-- Agent architecture answers "how do agents think, remember, coordinate, and act?" — PRODUCE THIS
-- You must show multi-agent BEHAVIOR, not just multi-agent COMPONENTS
+VISUAL 2 — Multi-agent coordination mermaid (type:"mermaid", title:"Multi-Agent Coordination Model"):
+- Max 8 nodes, use subgraph groups
+- Must show: Supervisor Agent → Planner → Executor Agents pattern
+- Must show: Shared memory (Azure Cognitive Search + Redis Cache)
+- Must show: Event-driven coordination via Azure Event Grid
+- Must show: Human-in-the-loop approval gate for ${complianceStr}
+- Use their actual tools: ${cloudToolsShort}
 
-Return ONLY a raw JSON object. Start with { end with }. No markdown. No fences.
+VISUAL 3 — 90-day Gantt (type:"gantt", title:"90-Day Execution Plan"):
+- 3 phases, 3 tasks each
+- Each task format: "Role: action using [ToolName] (X weeks) → Output: deliverable"
+- Phase 1 must start with lowest pillar: ${lowestPillar}
+- Phase 2 must deploy a named agent using their actual tools
+- Phase 3 must include enablement rollout and exec ROI readout
 
-{"text":"2-3 sentence executive summary naming the client, the specific business problem, the Zones engagement model, and estimated engagement value range based on their size and maturity.","visuals":[VISUAL_1,VISUAL_2,VISUAL_3,VISUAL_4,VISUAL_5,VISUAL_6,VISUAL_7,VISUAL_8]}
+Each visual MUST include a "narrative" field (headline, context 2 sentences, actions 2 items) BEFORE the type field.
+Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
 
-MANDATORY 8 VISUALS — include ALL:
+      const pass2UserContent = lastUserMessage + `
 
-VISUAL 1 — PROBLEM DIAGNOSIS (type: "mermaid")
-Title: "[Client Name] Agentic Wall Analysis"
-Map WHERE walls exist using their actual named systems: ${allClientTools12.join(', ')}
-Label each broken connection with wall TYPE:
-- "Data wall" — systems don't share data
-- "Identity wall" — auth doesn't cross systems
-- "Platform wall" — agents locked to one vendor
-- "Process wall" — workflows can't span systems
-- "Memory wall" — no shared context between agents
-Use ✗ on broken connections. Use subgraph to group related systems. Max 10 nodes.
+Generate ONLY these 2 visuals as a JSON object:
+{"visuals":[...2 items...]}
 
-VISUAL 2 — MULTI-AGENT COORDINATION MODEL (type: "mermaid") — MOST IMPORTANT VISUAL
-Title: "Multi-Agent Coordination Architecture"
-This MUST show HOW AGENTS BEHAVE TOGETHER, not just what components exist.
-Show these specific patterns:
-1. SUPERVISOR AGENT PATTERN: Orchestrator Agent (Semantic Kernel) receives task → breaks into subtasks → delegates to specialist agents → collects results → synthesizes response
-2. PLANNER/EXECUTOR SPLIT: Planner Agent reasons about what needs to happen → Executor Agents carry out specific actions (one per system)
-3. SHARED MEMORY MODEL: All agents read/write to shared vector memory (Azure Cognitive Search) + working memory in Redis Cache (transient) + long-term memory in Fabric (durable)
-4. EVENT-DRIVEN COORDINATION: Azure Event Grid triggers agents based on system events → agents publish results as events → no direct agent-to-agent calls — all via event bus
-5. HUMAN-IN-THE-LOOP GATES: Show where agents pause for human approval before proceeding (critical for ${complianceStr})
-Use their actual agent-relevant tools: ${agentStackTools || allClientTools12.slice(0, 6)}
-Chart must show agent communication FLOWS, not just system boxes.
-Example: "Orchestrator Agent" → delegates → "Incident Analyzer Agent" → reads → "SQL Server logs via Fabric" → writes → "Azure DevOps ticket" → notifies → "ServiceNow auto-close"
+VISUAL 1 — Priority agent use cases checklist (type:"checklist", title:"Priority Agent Use Cases"):
+- 3 named agents max — each with:
+  * Full workflow: System A (trigger) → System B (action) → System C (output) — use their tools: ${cloudTools6}
+  * Measurable outcome (specific KPI e.g. "40% MTTR reduction")
+  * Effort: X weeks, Y-person team
+  * Compliance note referencing: ${complianceStr}
+- Categories: one per agent name
 
-VISUAL 3 — TARGET AGENT SYSTEM ARCHITECTURE (type: "mermaid")
-Title: "Target Agent System Architecture"
-Show LAYERED ARCHITECTURE with ALL these layers:
-- Agent Orchestration Layer: Semantic Kernel / Azure AI Foundry (orchestrates all agents)
-- Tool & Skill Registry: capabilities agents can invoke (name their specific APIs: ServiceNow, DevOps, Dynamics APIs)
-- Memory Layer: Azure Cognitive Search (semantic/vector), Redis Cache (working), Fabric (long-term)
-- Planning & Execution Loop: Task decomposition → agent selection → execution → result synthesis
-- Data Abstraction Layer: Unified API gateway over all their systems
-- Identity & Policy Layer: Entra ID + ${complianceStr}
-- Observability Layer: Microsoft Sentinel + Azure Monitor (all agent actions logged)
+VISUAL 2 — Financial model scorecard (type:"scorecard", title:"Investment & ROI Framework"):
+- rows array, each row: {"label":"...","client":"...","benchmark":"..."}
+- Include: Phase 1 cost, Phase 2-3 cost, total 90-day program, managed service monthly rate, 2-3 agent ROI outcomes, payback period, 3-year ROI, Zones SOW value, Zones managed service ARR, total first-year Zones opportunity
+- Calibrate to ${clientContext?.size || 'mid-market'} company at ${clientContext?.overallScore ?? 3.3}/5 maturity
 
-VISUAL 4 — AGENT OPERATING MODEL (type: "raci_matrix")
-Title: "Agent Operating Model — Lifecycle & Ownership"
-CRITICAL given their Enablement score of ${enablementScore}/5.
-Rows (lifecycle activities):
-- Agent design & architecture review
-- Agent build & testing
-- Agent deployment & release
-- Agent monitoring & alerting
-- New agent request & approval
-- Compliance & audit review
-- Training & enablement delivery
-- Incident response & agent rollback
-- Agent retirement & versioning
-Roles for ${clientContext?.industry || 'Technology'}: CIO/CTO, AI Platform Team, Business Unit Owner, Risk & Compliance, IT Operations
-Include in narrative field — AGENT TYPES with clear ownership:
-- Orchestrator agents (owned by AI Platform Team)
-- Task/executor agents (owned by Business Unit)
-- Data agents (owned by IT Operations under AI Platform oversight)
-- Governance agents (owned by Risk & Compliance)
+Each visual MUST include a "narrative" field (headline, context 2 sentences, actions 2 items) BEFORE the type field.
+Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
 
-VISUAL 5 — ENABLEMENT ENGINE (type: "checklist") — LARGEST SECTION given Enablement score ${enablementScore}/5
-Title: "AI Enablement Engine — Closing the ${enablementScore}/5 Gap"
-Enablement is their LOWEST pillar — this MUST be the most detailed section with 4 complete categories:
+      const [pass1, pass2] = await Promise.all([
+        openai.chat.completions.create({
+          model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+          messages:    [{ role: 'system', content: fullSystemPrompt }, { role: 'user', content: pass1UserContent }],
+          temperature: 0.4,
+          max_tokens:  2500,
+        }),
+        openai.chat.completions.create({
+          model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+          messages:    [{ role: 'system', content: fullSystemPrompt }, { role: 'user', content: pass2UserContent }],
+          temperature: 0.4,
+          max_tokens:  2500,
+        }),
+      ])
 
-CATEGORY 1 — TRAINING CURRICULUM:
-- Agent design patterns course for developers (Semantic Kernel, LangGraph fundamentals) — 2 weeks, mandatory for AI Platform Team
-- AI literacy program for business users: what agents can/cannot do, how to request agents — 1 week, all business units
-- Agent governance training for Risk & Compliance: audit requirements, ${complianceStr} agent compliance — 1 week
-- Executive AI briefing: ROI framework, decision rights, investment approval — half-day
+      const parsed1 = extractVisualFromResponse(pass1.choices[0].message.content)
+      const parsed2 = extractVisualFromResponse(pass2.choices[0].message.content)
 
-CATEGORY 2 — AGENT DESIGN PATTERNS LIBRARY:
-- Reusable agent templates for common workflows (incident response, data extraction, report generation) using their tools
-- Integration connector library for their specific systems (${(ep.cloudTools || []).slice(0, 5).join(', ')})
-- Testing & validation framework for agents before production deployment
-- Prompt engineering guidelines with ${complianceStr} guardrails
+      console.log('Pass 1 — finish:', pass1.choices[0].finish_reason, '| visuals:', parsed1.visuals?.length)
+      console.log('Pass 2 — finish:', pass2.choices[0].finish_reason, '| visuals:', parsed2.visuals?.length)
 
-CATEGORY 3 — INTERNAL AGENT MARKETPLACE:
-- Internal catalog of approved, production-ready agents
-- Request workflow: Business Unit submits → AI Platform reviews → Risk approves → Deploy
-- Agent versioning and rollback procedures
-- Usage analytics and ROI tracking per agent
+      const allVisuals = [
+        ...(parsed1.visuals || []),
+        ...(parsed2.visuals || []),
+      ].filter(v => v?.type)
 
-CATEGORY 4 — GOVERNANCE GUARDRAILS (critical given ${enablementScore}/5 Enablement — shadow AI is the biggest risk):
-- Shadow AI detection and remediation policy
-- Approved model list and update cadence
-- Data classification rules for agent access
-- Mandatory audit logging checklist for every agent (required for ${complianceStr})
+      console.log('Total merged visuals:', allVisuals.length)
 
-VISUAL 6 — 90-DAY EXECUTION PLAN (type: "gantt")
-Title: "90-Day Execution Plan"
-Sequence MUST start with lowest gap, leverage highest strength:
-- LOWEST — ${lowestPillar} — start here
-- HIGHEST — ${highestPillar} — leverage this
+      return res.json({
+        reply:          parsed1.text || `Strategic analysis for ${clientContext?.name || 'this client'} — ${allVisuals.length} sections generated.`,
+        visual:         null,
+        visuals:        allVisuals.length ? allVisuals : null,
+        showAgentStudio: true,
+      })
+    }
 
-Phase 1 (Days 1-30) — Foundation & Enablement First:
-Each task format: "[WHO] does [WHAT] ([HOW LONG]) → Output: [DELIVERABLE]"
-Must include: at least one enablement task (lowest pillar) + at least one specific agent prototype task
-Example: "AI Platform Team: build ServiceNow→Azure OpenAI→DevOps incident agent prototype (2 weeks) → Output: working demo with 40% MTTR improvement measured"
-
-Phase 2 (Days 31-60) — First Production Agents:
-Name SPECIFIC agents going to production using actual tool names
-Include measurable business outcome for each agent (specific KPI)
-Include compliance checkpoint: ${complianceStr} audit log validation (Risk Officer, 1 week)
-
-Phase 3 (Days 61-90) — Scale, Govern & Productize:
-- Agent marketplace launch
-- Enablement rollout to all business units
-- Zones managed services handoff preparation
-- Executive ROI readout with measured outcomes vs. targets
-
-VISUAL 7 — MULTI-CLOUD AI STRATEGY (type: "mermaid")
-Title: "${hasMultiCloud ? 'Multi-Cloud AI Model Routing Strategy' : 'AI Service Architecture & Tiering'}"
-${hasMultiCloud ? `MANDATORY — client has multi-cloud environment: ${multiCloudTools}
-
-Show ALL these layers in the Mermaid chart:
-
-Layer 1 — AGENT REQUEST LAYER (top): All agents submit to a central Model Router — never call models directly
-
-Layer 2 — MODEL ROUTING LAYER: Intelligent routing rules:
-- Complex reasoning (root cause analysis, strategic recommendations) → Azure OpenAI GPT-4o
-- High-volume classification (document tagging, sentiment, intent) → Azure OpenAI GPT-4o-mini OR AWS Bedrock Claude 3 Haiku (cost optimization: 60-80% cheaper)
-- Code generation & technical analysis → Azure OpenAI or GitHub Copilot API
-- Multimodal tasks (image + text) → Azure OpenAI GPT-4o Vision or Google Vertex AI Gemini
-- Privacy-sensitive tasks (${complianceStr}) → private model via Azure Arc
-
-Layer 3 — COST OPTIMIZATION: Premium GPT-4o for complex reasoning + Standard tier for classification = 40-60% cost reduction vs GPT-4o-only
-
-Layer 4 — FALLBACK & RESILIENCE: Azure OpenAI down → AWS Bedrock → Azure Arc private model
-
-Layer 5 — DATA RESIDENCY: ${complianceList.includes('gdpr') ? 'GDPR: EU data stays in EU regions (Azure EU West / AWS EU)' : ''} ${complianceList.includes('fedramp') ? 'FedRAMP: Azure Government or AWS GovCloud only' : ''} SOC 2/ISO 27001: all model API calls logged via Microsoft Sentinel` : `Client is primarily single-cloud. Show Azure AI service tiering:
-- Premium: Azure OpenAI GPT-4o (complex reasoning, strategic recommendations)
-- Standard: Azure OpenAI GPT-4o-mini (classification, extraction, high-volume tasks) — 80% cheaper
-- Monitoring: Microsoft Sentinel + Azure Monitor for all model calls
-- Cost optimization: intelligent routing between tiers based on task complexity
-- Fallback: Azure Arc private model deployment for compliance-sensitive tasks`}
-
-VISUAL 8 — FINANCIAL MODEL & ROI (type: "scorecard")
-Title: "Investment & ROI Framework"
-Calibrate ALL numbers to company size (${clientContext?.size || 'mid-market'}) and maturity score (${clientContext?.overallScore ?? '?'}/5). Lower maturity = higher cost, longer payback.
-rows array with label, client (their specific estimate as string), benchmark (industry average as string):
-Build costs:
-- {"label":"Phase 1 investment (foundation + 1 agent)","client":"$45K-$65K","benchmark":"Industry avg: $50K-$80K"}
-- {"label":"Phase 2-3 investment (3-5 agents + governance)","client":"$80K-$120K","benchmark":"Industry avg: $90K-$150K"}
-- {"label":"Total 90-day program","client":"$125K-$185K","benchmark":"Industry avg: $140K-$230K"}
-- {"label":"Ongoing managed service (monthly)","client":"$12K-$18K/mo","benchmark":"Industry avg: $15K-$25K/mo"}
-Estimated returns:
-- {"label":"Incident Resolution Agent: MTTR reduction","client":"40% reduction = ~$180K/yr saved","benchmark":"Typical: 30-50%"}
-- {"label":"Compliance Monitoring Agent: audit cost reduction","client":"~$60K/yr saved","benchmark":"Typical: $40K-$80K/yr"}
-- {"label":"Automation rate across 5 agents","client":"~35% of routine workflows","benchmark":"Typical: 25-45%"}
-- {"label":"Estimated payback period","client":"8-14 months","benchmark":"Industry avg: 9-18 months"}
-- {"label":"3-year ROI","client":"180-240%","benchmark":"Industry avg: 150-200%"}
-Zones opportunity:
-- {"label":"90-day AI Integration SOW","client":"$125K-$185K","benchmark":""}
-- {"label":"Agent Factory managed service (12 months)","client":"$144K-$216K ARR","benchmark":""}
-- {"label":"Total first-year Zones opportunity","client":"$270K-$400K","benchmark":""}
-
-AGENT RISKS — add as a 9th visual (type: "risk_heatmap", title: "Agent Design Risk Profile") if token budget allows. Agent-specific risks only: prompt injection (4,5), tool misuse (3,4), agent runaway (3,4), cross-system data leakage (4,5), context poisoning (2,4), hallucinated tool calls (3,3), shadow agents (${shadowLikelihood},4 — elevated given Enablement ${enablementScore}/5)${complianceList.includes('soc2') || complianceList.includes('iso27001') ? ', compliance audit gap (3,5)' : ''}
-
-RESPONSE RULES:
-1. All 8 visuals mandatory — do not skip any
-2. Visual 2 (multi-agent coordination) is the most differentiating — make it thorough with all 5 patterns
-3. Visual 5 (enablement) must be the most detailed section — 4 full categories with specific items
-4. Visual 8 (financial model) must include real dollar estimates calibrated to their size
-5. Every visual must reference their actual named tools — no generic system names
-6. Return ONLY raw JSON — start with { end with }
-7. Each visual MUST include a "narrative" object (headline, context, actions[]) BEFORE the type field
-8. If truncation risk: complete each visual fully before starting the next — do not truncate mid-visual` : ''
+    // ── NON-STRATEGIC: single-pass ──────────────────────────────────────────
 
     const completion = await openai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
-      messages:    [
-        { role: "system", content: SYSTEM_PROMPT + clientSection + strategicInstruction },
-        ...messages.slice(-10),
-      ],
-      temperature: isStrategic ? 0.4 : 0.6,
-      max_tokens:  isStrategic ? 8000 : 1500,
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      messages:    [{ role: 'system', content: fullSystemPrompt }, ...messages.slice(-10)],
+      temperature: 0.6,
+      max_tokens:  1500,
     })
 
-    const raw = completion.choices[0].message.content
-    console.log('=== Chat parse result ===')
+    const raw          = completion.choices[0].message.content
+    const finishReason = completion.choices[0].finish_reason
+
+    console.log('=== CHAT RESPONSE DEBUG ===')
+    console.log('Finish reason:', finishReason)
     console.log('Raw length:', raw.length)
-    console.log('Raw first 100:', raw.slice(0, 100))
-    console.log('Raw last 50:', raw.slice(-50))
+    console.log('Raw first 150:', raw.slice(0, 150))
+    console.log('Raw last 150:', raw.slice(-150))
+    console.log('Contains "visuals":', raw.includes('"visuals"'))
+    console.log('First { at:', raw.indexOf('{'))
+    console.log('Last } at:', raw.lastIndexOf('}'))
 
     const parsed = extractVisualFromResponse(raw)
     console.log('Parsed text length:', parsed.text?.length || 0)
     console.log('Parsed visuals count:', parsed.visuals?.length || 0)
     console.log('Parsed visual type:', parsed.visual?.type || 'none')
     console.log('Parsed agents count:', parsed.agents?.length || 0)
-    console.log('=========================')
+    console.log('===========================')
     validateVisualSpecificity(parsed.visual || parsed.visuals?.[0], clientContext)
 
     const showAgentStudio = /\b(agent|automate|automation|workflow|orchestrat)\b/i.test(raw)
