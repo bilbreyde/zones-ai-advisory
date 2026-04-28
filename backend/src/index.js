@@ -18,7 +18,35 @@ const openai = new AzureOpenAI({
   deployment: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
 })
 
-const SYSTEM_PROMPT = `You are the Zones AI Advisory Assistant, an expert AI governance and strategy advisor embedded in the Zones AI Advisory Framework tool. You help Zones consultants and their clients by analyzing AI maturity assessment results across 5 pillars: Governance, Risk and Compliance, AI Strategy, Operations, and Enablement. Be concise, specific, and practical.
+const SYSTEM_PROMPT = `You are a senior AI strategy consultant at Zones Innovation Center with 15 years of enterprise AI advisory experience. You help Zones consultants and their clients analyse AI maturity assessment results across 5 pillars: Governance, Risk and Compliance, AI Strategy, Operations, and Enablement. You speak directly, make specific recommendations, and back everything up with reasoning. You do not hedge with generic statements.
+
+CONSULTING PRINCIPLES — follow these in every response:
+
+1. BE SPECIFIC, NOT GENERIC
+   Bad: "You should address organisational bottlenecks and technical silos systematically."
+   Good: "For [client], the primary gap is the disconnection between their ServiceNow ITSM and Databricks platform. Here are 5 specific steps to bridge them, starting with an API gateway layer deployable in Week 1."
+
+2. REFERENCE THE CLIENT'S ACTUAL DATA
+   Always reference their specific pillar scores, named tools, deployment model, and compliance requirements. Never give advice that could apply to any client.
+   Bad: "You should improve your risk management processes."
+   Good: "Your Risk score of 3.4/5 sits just below the 3.5 'Managed' threshold. The two questions dragging it down are model monitoring (In progress) and vendor risk assessments (Not started). Here is what closing those gaps looks like in 60 days."
+
+3. WHEN ASKED FOR STEPS, GIVE ACTUAL STEPS
+   Include who does it, what tool they use, what the output is, and how long it takes.
+   Bad: "Step 1: Identify barriers. Step 2: Assess root causes."
+   Good: "Step 1 (Day 1–2): The IT Lead maps all agent-to-agent data flows in Miro. Output: visual showing every point where Agent A cannot access data owned by Agent B. Time: 4 hours with 2 people."
+
+4. MAKE RECOMMENDATIONS, NOT LISTS OF OPTIONS
+   Bad: "You could consider Option A, B, or C depending on your priorities."
+   Good: "I recommend Option B — Azure Arc as the integration layer — for three reasons specific to this client's hybrid environment: [specific reasons]. Option A requires a cloud migration they are not ready for."
+
+5. LENGTH AND FORMAT
+   - Short direct questions: 2–4 sentences, no visual
+   - "Explain" or "give me detail" requests: structured numbered response
+   - "Step by step" requests: numbered steps with specifics
+   - Never pad with preamble ("Great question! I'd be happy to help...")
+   - Never end with "Let me know if you need anything else"
+   - Never recommend cloud-only solutions for on-premises or air-gapped clients
 
 CRITICAL RULE — VISUAL RESPONSES:
 When a question involves plans, roadmaps, timelines, benchmark comparisons, prioritization, improvement steps, phases, quick wins, or checklists, you MUST respond with ONLY a raw JSON object. No markdown code fences. No text before or after the JSON. The entire response must be valid JSON matching this exact envelope:
@@ -171,84 +199,82 @@ app.use("/api/sessions", sessionRoutes)
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const { messages, clientContext, format, maxTokens } = req.body
+    const { messages, clientContext } = req.body
     if (!messages?.length) return res.status(400).json({ error: "messages required" })
 
-    // Pre-compute infrastructure context variables before building template string
+    // Pre-compute all context variables before building template string
     const ep = clientContext?.environmentProfile || {}
     const deploymentRule = (() => {
       const dm = ep.deploymentModel
       if (!dm || dm === 'cloud_native') return 'Cloud native: recommend any cloud AI service freely'
-      if (dm === 'hybrid')    return 'Hybrid: recommend Azure Arc and hybrid-compatible architectures; flag data movement considerations'
-      if (dm === 'on_prem')   return 'On-premises: do NOT recommend cloud-only AI APIs as primary runtime; flag local inference requirements'
-      if (dm === 'air_gapped') return 'Air-gapped: ALL recommendations must have zero internet dependency; only local model inference; flag this prominently in every response'
+      if (dm === 'hybrid')     return 'Hybrid: recommend Azure Arc and hybrid-compatible architectures; flag data movement considerations'
+      if (dm === 'on_prem')    return 'On-premises: do NOT recommend cloud-only AI APIs as primary runtime; local inference required'
+      if (dm === 'air_gapped') return 'Air-gapped: ALL recommendations must have zero internet dependency; only local model inference; flag this prominently'
       return `Deployment: ${dm}`
     })()
-    const complianceList = (ep.complianceFrameworks || [])
+    const complianceList = ep.complianceFrameworks || []
     const complianceRules = [
-      complianceList.includes('hipaa')   ? '- HIPAA: no PHI can leave the client environment; use private endpoints' : '',
-      complianceList.includes('fedramp') ? '- FedRAMP/ITAR: government cloud or on-prem only' : '',
-      complianceList.includes('itar')    ? '- ITAR: on-prem or GovCloud only; strict data export controls' : '',
-      complianceList.includes('gdpr')    ? '- GDPR: enforce EU data residency in all recommendations' : '',
-    ].filter(Boolean).join('\n')
-    const legacyRule = (ep.legacySystems || []).length > 0
-      ? '- Legacy systems present: always address integration complexity; treat as highest-value agent targets'
+      complianceList.includes('hipaa')   ? 'HIPAA: no PHI can leave the client environment; use private endpoints' : '',
+      complianceList.includes('fedramp') ? 'FedRAMP/ITAR: government cloud or on-prem only' : '',
+      complianceList.includes('itar')    ? 'ITAR: on-prem or GovCloud only; strict data export controls' : '',
+      complianceList.includes('gdpr')    ? 'GDPR: enforce EU data residency in all recommendations' : '',
+    ].filter(Boolean).join('. ')
+    const legacyNote = (ep.legacySystems || []).length > 0
+      ? `Legacy systems present: ${ep.legacySystems.join(', ')} — treat as highest-value integration targets`
       : ''
 
-    const contextPrompt = clientContext ? `
+    // Compute lowest scoring pillar for quick reference
+    const lowestPillar = (() => {
+      const s = clientContext?.scores || {}
+      const valid = Object.entries(s).filter(([, v]) => v !== null && v !== undefined)
+      if (!valid.length) return 'Not assessed'
+      const [pillar, score] = valid.sort(([, a], [, b]) => a - b)[0]
+      return `${pillar} (${score}/5)`
+    })()
 
-Current client: ${clientContext.name || 'Unknown'}
+    const clientSection = clientContext ? `
+---
+CURRENT CLIENT CONTEXT — reference this specific data in every response:
+Client: ${clientContext.name || 'Unknown'}
 Industry: ${clientContext.industry || 'Not specified'}
-Company size: ${clientContext.size || 'Not specified'}
 Overall maturity: ${clientContext.overallScore ?? 'Not assessed'}/5
-Pillar scores: ${JSON.stringify(clientContext.scores || {})}
-Assessment answers: ${JSON.stringify(clientContext.answers || {})}
-
-INFRASTRUCTURE PROFILE:
-Deployment model: ${ep.deploymentModel || 'not specified'}
+Pillar scores: Governance ${clientContext.scores?.governance ?? '?'}/5, Risk ${clientContext.scores?.risk ?? '?'}/5, Strategy ${clientContext.scores?.strategy ?? '?'}/5, Operations ${clientContext.scores?.operations ?? '?'}/5, Enablement ${clientContext.scores?.enablement ?? '?'}/5
+Lowest scoring pillar: ${lowestPillar}
+Deployment model: ${ep.deploymentModel || 'not specified'} — ${deploymentRule}
 Cloud tools: ${(ep.cloudTools || []).join(', ') || 'not specified'}
 On-premises tools: ${(ep.onPremTools || []).join(', ') || 'none'}
 Legacy systems: ${(ep.legacySystems || []).join(', ') || 'none'}
-Compliance requirements: ${complianceList.join(', ') || 'none'}
-Constraints: ${(ep.constraints || []).join(', ') || 'none'}
-
-INFRASTRUCTURE RULES — follow strictly:
-- ${deploymentRule}
-${complianceRules}
-${legacyRule}
-
-Use this context to give precise, infrastructure-aware recommendations. Reference actual scores, deployment constraints, and specific gaps in every response.` : `
-
-NO CLIENT SELECTED — You have no client context. Do not generate client-specific recommendations. Clearly state that responses are generic and not tailored to any specific client. Encourage the user to select a client for personalised advisory assistance.`
+Compliance: ${complianceList.join(', ') || 'none'}${complianceRules ? `\nCompliance rules: ${complianceRules}` : ''}${legacyNote ? `\n${legacyNote}` : ''}
+Assessment detail: ${JSON.stringify(clientContext.answers || {})}
+---
+You MUST reference this client's specific scores, tools, and deployment model in your response. Do not give generic advice that could apply to any client.`
+    : `
+---
+NO CLIENT SELECTED — you have no client context.
+State clearly that your response is generic. Recommend selecting a client for specific advice.
+Do not fabricate client data.
+---`
 
     const completion = await openai.chat.completions.create({
-      model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT + contextPrompt },
-        ...messages.slice(-10),
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
+      messages:    [
+        { role: "system", content: SYSTEM_PROMPT + clientSection },
+        ...messages.slice(-12),
       ],
-      temperature: 0.7,
-      max_tokens: maxTokens || 1200,
+      temperature: 0.6,
+      max_tokens:  1500,
     })
 
     const rawContent = completion.choices[0].message.content.trim()
     console.log("[chat] raw GPT response:", rawContent.slice(0, 300))
 
-    let reply   = rawContent
-    let visual  = null
-    let visuals = null
+    const extracted = extractVisualFromResponse(rawContent)
+    const reply   = extracted.text || rawContent
+    const visual  = extracted.visual  || null
+    const visuals = extracted.visuals || []
+    console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual:", visual?.type ?? "none", "| visuals:", visuals.length)
 
-    if (format !== "text") {
-      const extracted = extractVisualFromResponse(rawContent)
-      reply   = extracted.text
-      visual  = extracted.visual
-      visuals = extracted.visuals || []
-      console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual type:", visual?.type ?? "none", "| visuals:", visuals?.length ?? 0)
-    }
-
-    const AGENT_KW = ['agent', 'automate', 'automation', 'workflow', 'orchestrat']
-    const lowerReply = (reply || rawContent).toLowerCase()
-    const showAgentStudio = AGENT_KW.some(kw => lowerReply.includes(kw))
+    const showAgentStudio = /\b(agent|automate|automation|workflow|orchestrat)\b/i.test(reply)
 
     res.json({ reply, visual, visuals, showAgentStudio })
   } catch (err) {
@@ -444,14 +470,49 @@ ${compliance.includes('gdpr')    ? '- GDPR: Personal data of EU residents cannot
       ? `ON-PREMISES INFRASTRUCTURE AVAILABLE: ${onPremTools.join(', ')}\nDesign the agent to leverage this existing infrastructure where possible.`
       : ''
 
-    const buildVsBuyGuidance = (isAirGapped || isOnPrem)
-      ? `BUILD VS ALTERNATIVES for on-premises/air-gapped client:
-- Option 1: Custom build using open-source models (Llama, Mistral) on local GPU infrastructure
-- Option 2: Private commercial deployment (e.g. Azure Arc-enabled private deployment)
-- Option 3: Existing on-prem automation tools extended with local AI (RPA + local LLM)
-- Option 4: Off-the-shelf on-prem AI appliances (NVIDIA AI Enterprise, IBM Watson on-prem)
-DO NOT recommend cloud SaaS products as the off-the-shelf option for this client.`
-      : `BUILD VS ALTERNATIVES: Compare custom build on ${cloudTools.includes('Azure AI Foundry') || cloudTools.includes('Azure') ? 'Azure AI Foundry' : cloudTools.includes('AWS') || cloudTools.includes('AWS Bedrock') ? 'AWS Bedrock' : 'their cloud platform'} vs relevant off-the-shelf products that integrate with their existing stack.`
+    const hasNvidia  = onPremTools.some(t => /nvidia/i.test(t))
+    const hasIBM     = [...cloudTools, ...onPremTools].some(t => /\bib[ms]\b|db2|mainframe|as.?400/i.test(t))
+    const hasSAP     = [...cloudTools, ...onPremTools].some(t => /\bsap\b/i.test(t))
+    const hasUiPath  = [...cloudTools, ...onPremTools].some(t => /uipath/i.test(t))
+    const hasSFDC    = cloudTools.some(t => /salesforce/i.test(t))
+    const hasSNow    = cloudTools.some(t => /servicenow/i.test(t))
+
+    const buildVsBuyGuidance = (() => {
+      if (isAirGapped || (isOnPrem && noCloudAI)) {
+        const recommendedModel = hasNvidia
+          ? 'Llama 3.1 70B on vLLM (leveraging their NVIDIA GPU infrastructure)'
+          : 'Mistral 7B on Ollama (lightweight, runs on standard server hardware without GPU)'
+        const altProduct = hasIBM ? 'IBM Watson on-premises' : hasUiPath ? 'UiPath AI Center (on-prem)' : 'NVIDIA AI Enterprise on-premises'
+        return `BUILD VS ALTERNATIVES — on-premises/air-gapped environment. Name specific real products.
+Recommended: Custom build using ${recommendedModel}
+- Specify exactly why this model fits this use case (reasoning capability, context window, hardware fit)
+- Hardware requirements: ${hasNvidia ? '2× NVIDIA A100 40GB GPUs already available' : 'CPU-only deployment via Ollama, or add 1× NVIDIA A10 for acceleration'}
+- Runtime: ${hasNvidia ? 'vLLM for high-throughput inference' : 'Ollama for ease of deployment'}
+Alternative: ${altProduct}
+- Choose based on their infrastructure: ${[...cloudTools, ...onPremTools].slice(0, 6).join(', ')}
+DO NOT use generic names like "Alternative option" or "Best alternative for their environment".
+Include: exact product name, vendor, estimated cost range, deployment timeline, specific compliance fit for ${compliance.join(', ') || 'their requirements'}.`
+      }
+      if (isHybrid) {
+        const altProduct = hasSNow ? 'ServiceNow Now Assist' : hasSFDC ? 'Salesforce Einstein Copilot' : 'Microsoft Copilot Studio'
+        return `BUILD VS ALTERNATIVES — hybrid environment. Name specific real products.
+Recommended: Custom build on Azure AI Foundry with Azure Arc for hybrid data routing
+Alternative: ${altProduct} — chosen because it integrates with tools already in their stack (${cloudTools.slice(0, 5).join(', ')})
+Include: exact product names, cost estimates, deployment timelines, compliance fit.
+DO NOT use generic names like "Best alternative for their environment".`
+      }
+      const primaryPlatform = cloudTools.includes('Azure AI Foundry') || cloudTools.includes('Azure') || cloudTools.includes('Azure OpenAI')
+        ? 'Azure AI Foundry (Azure OpenAI GPT-4o)'
+        : cloudTools.includes('AWS') || cloudTools.includes('AWS Bedrock')
+          ? 'AWS Bedrock (Claude 3.5 Sonnet or Titan)'
+          : 'GCP Vertex AI (Gemini 1.5 Pro)'
+      const altProduct = hasSFDC ? 'Salesforce Einstein Copilot' : hasSNow ? 'ServiceNow Now Assist' : hasSAP ? 'SAP AI Core' : 'Microsoft Copilot Studio'
+      return `BUILD VS ALTERNATIVES — cloud native. Name specific real products.
+Recommended: Custom build on ${primaryPlatform}
+Alternative: ${altProduct} — chosen because it fits their existing stack (${cloudTools.slice(0, 5).join(', ')})
+Include: exact product names, cost estimates (e.g. Azure OpenAI GPT-4o at ~$10/1M tokens vs Copilot Studio at $200/tenant/month), deployment timelines, compliance fit.
+DO NOT use generic names like "Best alternative for their environment".`
+    })()
 
     const designPrompt = `You are a senior AI solutions architect at Zones Innovation Center designing an agent blueprint for a specific client environment.
 
@@ -477,7 +538,7 @@ Return ONLY a raw JSON object. Start with { and end with }. No markdown. No code
 Include exactly 3 visuals in this order: agent_spec, mermaid, vendor_comparison.
 Keep each section concise to avoid truncation. Mermaid chart MAX 6 nodes.
 
-{"reply":"2-3 sentence executive overview referencing the client deployment model","visuals":[{"narrative":{"headline":"One so-what sentence specific to ${clientName}","context":"2 sentences on their ${dm} environment","actions":["Action 1","Action 2"]},"type":"agent_spec","title":"Agent Specification","name":"${(agent.name || 'Agent').replace(/"/g, '\\"')}","purpose":"Full purpose","trigger":"What triggers this agent","inputs":["Input 1","Input 2"],"outputs":["Output 1","Output 2"],"tools":["Only tools available in their environment — no cloud AI if on_prem or air_gapped"],"integrations":["Specific integrations"],"human_in_loop":"Where humans review","latency":"Expected response time","data_requirements":"What data access is needed"},{"narrative":{"headline":"Architecture for ${dm} environment","context":"2 sentences on why this architecture suits their constraints","actions":["Action 1","Action 2"]},"type":"mermaid","title":"Agent Architecture","chart":"graph TD with MAX 6 nodes using only tools available in the client environment"},{"narrative":{"headline":"Build vs buy for ${dm} deployment","context":"2 sentences on recommended approach given their constraints","actions":["Next step 1","Next step 2"]},"type":"vendor_comparison","title":"Build vs Alternatives","criteria":["Time to value","Customisation","Cost","Maintenance","Compliance fit"],"vendors":[{"name":"Custom build (recommended for ${dm})","recommended":true,"scores":{"Time to value":3,"Customisation":5,"Cost":3,"Maintenance":3,"Compliance fit":5},"pros":["Full control","Meets all constraints","No data leaves environment"],"cons":["Higher initial build effort","Requires internal expertise"]},{"name":"Best alternative for their environment","recommended":false,"scores":{"Time to value":4,"Customisation":3,"Cost":4,"Maintenance":4,"Compliance fit":3},"pros":["Faster deployment","Less maintenance"],"cons":["May not meet all compliance requirements","Less customisable"]}]}]}`
+{"reply":"2-3 sentence executive overview referencing the client deployment model and why this agent fits their specific constraints","visuals":[{"narrative":{"headline":"One specific so-what sentence referencing ${clientName} and their actual constraints","context":"2 sentences referencing their ${dm} deployment model and specific compliance or legacy context","actions":["Specific action 1 with owner and timeline","Specific action 2"]},"type":"agent_spec","title":"Agent Specification","name":"${(agent.name || 'Agent').replace(/"/g, '\\"')}","purpose":"Detailed 2-3 sentence purpose specific to this client's environment and tools","trigger":"Specific trigger with example timing (e.g. 'Document upload to SharePoint triggers classification within 30 seconds')","inputs":["Specific input 1 with data format","Specific input 2","Specific input 3"],"outputs":["Specific output 1 with format and destination","Specific output 2","Specific output 3"],"tools":["Only tools available in their environment — NEVER list cloud AI services if on_prem or air_gapped"],"integrations":["Specific integration with method e.g. SAP RFC API call","Specific integration 2 with protocol"],"human_in_loop":"Specific description: who reviews, via what system, within what SLA","latency":"Specific time with breakdown (e.g. 'Processing: 3-5 seconds per document; batch: 500 docs/hour')","data_requirements":"Specific data needs with sensitivity classification","recommended_model":"Specific model name and version with rationale (e.g. 'Llama 3.1 70B — strong reasoning, runs fully on-premises. Requires 2x NVIDIA A100 40GB GPUs. Alternative: Mistral 7B for lighter hardware at reduced accuracy.') — if cloud_native, specify Azure OpenAI GPT-4o or appropriate cloud model","deployment_timeline":"Week-by-week: Week 1-2: [specific tasks with owners], Week 3-4: [specific tasks], Month 2: [specific tasks], Month 3: go-live","estimated_effort":"X weeks with team composition (e.g. '10 weeks: 1 ML engineer, 1 backend developer, 1 DevOps engineer')"},{"narrative":{"headline":"Architecture designed for ${dm} environment — no cloud AI dependencies if restricted","context":"2 sentences on why this architecture suits their deployment constraints and compliance requirements","actions":["Action 1 with owner","Action 2"]},"type":"mermaid","title":"Agent Architecture","chart":"graph TD with MAX 6 nodes. Use ONLY tools available in the client environment. NEVER show Azure OpenAI or cloud AI services if client is on_prem or air_gapped."},{"narrative":{"headline":"Custom build on [specific runtime] recommended over [specific named product]","context":"2 sentences explaining the specific tradeoff between these two named options for ${clientName}","actions":["Specific next step 1 with owner and date","Specific next step 2"]},"type":"vendor_comparison","title":"Build vs Alternatives","criteria":["Time to value","Customisation","Cost","Maintenance","Compliance fit"],"vendors":[{"name":"Custom build — [exact model e.g. Llama 3.1 70B on Ollama / Azure AI Foundry GPT-4o]","recommended":true,"scores":{"Time to value":3,"Customisation":5,"Cost":3,"Maintenance":3,"Compliance fit":5},"pros":["Specific pro referencing their environment","Full control over data — no PHI or sensitive data leaves environment","Specific pro 3"],"cons":["Specific con e.g. Requires 2x NVIDIA A100 GPUs (~$30k)","Specific con 2 with mitigation"]},{"name":"[Specific real product name e.g. IBM Watson on-premises / ServiceNow Now Assist / Salesforce Einstein]","recommended":false,"scores":{"Time to value":4,"Customisation":3,"Cost":2,"Maintenance":4,"Compliance fit":3},"pros":["Specific pro 1","Specific pro 2"],"cons":["Specific con referencing their compliance e.g. Does not meet HIPAA BAA without additional configuration","Specific con 2"]}]}]}`
 
     const completion = await openai.chat.completions.create({
       model:       process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",

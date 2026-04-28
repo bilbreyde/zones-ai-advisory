@@ -558,6 +558,7 @@ function AgentSpecVisual({ data }) {
     { label: 'HUMAN IN LOOP',  value: data.human_in_loop },
     { label: 'LATENCY',        value: data.latency },
     { label: 'DATA REQUIRED',  value: data.data_requirements },
+    { label: 'EST. EFFORT',    value: data.estimated_effort },
   ].filter(r => r.value && (Array.isArray(r.value) ? r.value.length > 0 : true))
 
   return (
@@ -580,6 +581,18 @@ function AgentSpecVisual({ data }) {
             </div>
           </div>
         ))}
+        {data.recommended_model && (
+          <div className="cv-agent-spec-row cv-spec-model-row">
+            <div className="cv-agent-spec-label">RECOMMENDED MODEL</div>
+            <div className="cv-agent-spec-value cv-spec-model">{data.recommended_model}</div>
+          </div>
+        )}
+        {data.deployment_timeline && (
+          <div className="cv-agent-spec-row">
+            <div className="cv-agent-spec-label">DEPLOYMENT TIMELINE</div>
+            <div className="cv-agent-spec-value">{data.deployment_timeline}</div>
+          </div>
+        )}
       </div>
     </div>
   )

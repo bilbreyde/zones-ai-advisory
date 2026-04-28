@@ -984,3 +984,14 @@
   color: var(--z-white);
   line-height: 1.6;
 }
+
+.cv-spec-model-row {
+  background: rgba(74,159,224,0.06);
+  border-left: 2px solid var(--z-blue-bright);
+}
+
+.cv-spec-model {
+  color: var(--z-white);
+  font-size: 12px;
+  line-height: 1.6;
+}
