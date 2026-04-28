@@ -109,7 +109,7 @@ export default function AIChat() {
       setMessages([{
         role: 'assistant',
         content: "I'm your Zones AI Advisory assistant. Select a client to get personalised recommendations.",
-        visual: null, visuals: null, showAgentStudio: false,
+        visual: null, visuals: [], showAgentStudio: false,
       }])
       return
     }
@@ -187,17 +187,23 @@ export default function AIChat() {
       })
 
       const data = await res.json()
+      console.log('Chat API response:', {
+        reply:          data.reply?.slice(0, 80),
+        hasVisual:      !!data.visual,
+        visualsCount:   data.visuals?.length || 0,
+        showAgentStudio: data.showAgentStudio,
+      })
       setMessages(prev => [...prev, {
         role:            'assistant',
-        content:         data.reply,
-        visual:          data.visual          || null,
-        visuals:         data.visuals         || null,
+        content:         data.reply || '',
+        visual:          data.visual  || null,
+        visuals:         data.visuals || [],
         showAgentStudio: data.showAgentStudio || false,
       }])
     } catch {
       setMessages(prev => [...prev, {
         role: 'assistant', content: 'Connection error. Please check the backend server is running.',
-        visual: null, visuals: null, showAgentStudio: false,
+        visual: null, visuals: [], showAgentStudio: false,
       }])
     } finally {
       setLoading(false)
@@ -367,6 +373,15 @@ export default function AIChat() {
     }
   }
 
+  /* ── Helpers ───────────────────────────────────────────────────────── */
+
+  function isBareJSON(text) {
+    if (!text) return false
+    const t = text.trim()
+    return (t.startsWith('{') && t.includes('"visuals"')) ||
+      (t.startsWith('{') && t.includes('"type"') && t.length > 200)
+  }
+
   /* ── Render ─────────────────────────────────────────────────────────── */
 
   const hasExportableMessages = messages.some(m => m.role === 'assistant' && (m.visual || m.visuals?.length))
@@ -395,7 +410,7 @@ export default function AIChat() {
               )}
               {showExpand ? (
                 <div className="msg-content">
-                  {m.content && <div className="msg-bubble">{m.content}</div>}
+                  {m.content && !isBareJSON(m.content) && <div className="msg-bubble">{m.content}</div>}
                   {!collapsedVisuals[i] && (
                     <>
                       {hasVisuals && (
@@ -444,7 +459,7 @@ export default function AIChat() {
                 </div>
               ) : (
                 <div className="msg-content">
-                  <div className="msg-bubble" style={{ whiteSpace: 'pre-line' }}>{m.content}</div>
+                  {!isBareJSON(m.content) && <div className="msg-bubble" style={{ whiteSpace: 'pre-line' }}>{m.content}</div>}
                   {m.showAgentStudio && (
                     <button className="chat-action-btn" onClick={() => navigate('/agents')}>
                       <Zap size={11} /> Open Agent Studio{client?.name ? ` for ${client.name}` : ''} →

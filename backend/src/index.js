@@ -140,25 +140,42 @@ const VISUAL_TYPES = new Set([
 ])
 
 function extractVisualFromResponse(raw) {
-  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
-  const firstBrace = cleaned.indexOf("{")
+  if (!raw || typeof raw !== 'string') {
+    return { text: '', visual: null, visuals: [], agents: [] }
+  }
 
-  if (firstBrace === -1) {
+  // Clean markdown fences
+  let cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+
+  const firstBrace   = cleaned.indexOf('{')
+  const firstBracket = cleaned.indexOf('[')
+
+  // No JSON found — return as plain text
+  if (firstBrace === -1 && firstBracket === -1) {
     return { text: raw, visual: null, visuals: [], agents: [] }
   }
 
-  let jsonStr = cleaned.slice(firstBrace)
-  const lastBrace = jsonStr.lastIndexOf("}")
+  // Split any plain text that precedes the JSON
+  let plainText = ''
+  let jsonStr   = cleaned
 
+  if (firstBrace > 20) {
+    plainText = cleaned.slice(0, firstBrace).trim()
+    jsonStr   = cleaned.slice(firstBrace)
+  } else if (firstBrace !== -1) {
+    jsonStr = cleaned.slice(firstBrace)
+  }
+
+  // Find closing brace; attempt bracket recovery if truncated
+  const lastBrace = jsonStr.lastIndexOf('}')
   if (lastBrace === -1) {
-    // Response was truncated — attempt recovery by closing open brackets
-    console.warn("[extract] JSON appears truncated, attempting bracket recovery")
+    console.warn('[extract] JSON truncated, attempting bracket recovery')
     let opens = 0, arrOpens = 0
     for (const ch of jsonStr) {
       if (ch === '{') opens++
-      if (ch === '}') opens--
-      if (ch === '[') arrOpens++
-      if (ch === ']') arrOpens--
+      else if (ch === '}') opens--
+      else if (ch === '[') arrOpens++
+      else if (ch === ']') arrOpens--
     }
     jsonStr += ']'.repeat(Math.max(0, arrOpens))
     jsonStr += '}'.repeat(Math.max(0, opens))
@@ -168,38 +185,48 @@ function extractVisualFromResponse(raw) {
 
   try {
     const parsed = JSON.parse(jsonStr)
-    const summaryText = parsed.reply ?? parsed.text ?? ""
 
-    // Case 1 — { reply/text, visuals: [...] }  (multi-visual / agent design)
-    if (Array.isArray(parsed.visuals)) {
-      const valid = parsed.visuals.filter(v => v?.type && VISUAL_TYPES.has(v.type))
-      console.log(`[extract] multi-visual: ${valid.length} valid visuals, summary: "${String(summaryText).slice(0, 60)}"`)
-      return { text: summaryText, visual: valid[0] || null, visuals: valid, agents: [] }
+    // Case 1 — Strategic envelope { text, visuals: [...] }
+    if (parsed.visuals && Array.isArray(parsed.visuals) && parsed.visuals.length > 0) {
+      const summaryText = parsed.text || parsed.reply || plainText || ''
+      console.log(`[extract] multi-visual: ${parsed.visuals.length} visuals, summary: "${summaryText.slice(0, 60)}"`)
+      return { text: summaryText, visual: null, visuals: parsed.visuals, agents: [] }
     }
 
-    // Case 2 — { reply/text, visual: {...} }  (single visual)
-    if (parsed.visual?.type && VISUAL_TYPES.has(parsed.visual.type)) {
+    // Case 2 — Single visual envelope { text/reply, visual: {...} }
+    if (parsed.visual?.type) {
+      const summaryText = parsed.text || parsed.reply || plainText || ''
       console.log(`[extract] single visual: ${parsed.visual.type}`)
       return { text: summaryText, visual: parsed.visual, visuals: [parsed.visual], agents: [] }
     }
 
-    // Case 3 — the whole object IS a visual
+    // Case 3 — Bare visual (the JSON IS the visual)
     if (parsed.type && VISUAL_TYPES.has(parsed.type)) {
       console.log(`[extract] bare visual: ${parsed.type}`)
-      return { text: "", visual: parsed, visuals: [parsed], agents: [] }
+      return { text: plainText || '', visual: parsed, visuals: [parsed], agents: [] }
     }
 
-    // Case 4 — agents array (discover response)
+    // Case 4 — Agent discover response { agents: [...] }
     if (parsed.agents && Array.isArray(parsed.agents)) {
-      return { text: "", visual: null, visuals: [], agents: parsed.agents }
+      return { text: parsed.text || parsed.reply || plainText || '', visual: null, visuals: [], agents: parsed.agents }
     }
 
-    console.warn("[extract] no visual found in parsed JSON, keys:", Object.keys(parsed).join(", "))
-    return { text: raw, visual: null, visuals: [], agents: [] }
+    // Case 5 — Parsed JSON but no recognised structure — never dump raw JSON as text
+    const textContent = parsed.text || parsed.reply || plainText
+    if (textContent) {
+      console.warn('[extract] no visual structure — returning text content only')
+      return { text: textContent, visual: null, visuals: [], agents: [] }
+    }
+
+    console.warn('[extract] no visual found in parsed JSON, keys:', Object.keys(parsed).join(', '))
+    return { text: 'Response generated successfully.', visual: null, visuals: [], agents: [] }
+
   } catch (e) {
-    console.error("[extract] JSON parse failed after recovery attempt:", e.message)
-    console.error("[extract] attempted (first 300):", jsonStr.slice(0, 300))
-    return { text: raw, visual: null, visuals: [], agents: [] }
+    console.error('[extract] JSON parse failed:', e.message)
+    console.error('[extract] attempted (first 200):', jsonStr.slice(0, 200))
+    // Return plain text if it exists, otherwise a safe fallback — never raw JSON
+    if (plainText) return { text: plainText, visual: null, visuals: [], agents: [] }
+    return { text: 'The response was generated but could not be fully parsed. Please try again.', visual: null, visuals: [], agents: [] }
   }
 }
 
@@ -515,22 +542,25 @@ RESPONSE RULES:
       max_tokens:  isStrategic ? 8000 : 1500,
     })
 
-    const rawContent = completion.choices[0].message.content.trim()
-    console.log("[chat] raw GPT response:", rawContent.slice(0, 300))
+    const raw = completion.choices[0].message.content
+    console.log('[chat] raw response length:', raw.length)
+    console.log('[chat] raw starts with:', raw.slice(0, 80))
 
-    const extracted = extractVisualFromResponse(rawContent)
-    const reply   = extracted.text || rawContent
-    const visual  = extracted.visual  || null
-    const visuals = extracted.visuals || []
-    console.log("[chat] extracted — reply:", reply?.slice(0, 100), "| visual:", visual?.type ?? "none", "| visuals:", visuals.length)
-    validateVisualSpecificity(visual || visuals[0], clientContext)
+    const parsed = extractVisualFromResponse(raw)
+    console.log('[chat] parsed — text length:', parsed.text?.length, '| visuals:', parsed.visuals?.length)
+    validateVisualSpecificity(parsed.visual || parsed.visuals?.[0], clientContext)
 
-    const showAgentStudio = /\b(agent|automate|automation|workflow|orchestrat)\b/i.test(reply)
+    const showAgentStudio = /\b(agent|automate|automation|workflow|orchestrat)\b/i.test(raw)
 
-    res.json({ reply, visual, visuals, showAgentStudio })
+    res.json({
+      reply:          parsed.text || '',
+      visual:         parsed.visual || null,
+      visuals:        parsed.visuals?.length ? parsed.visuals : null,
+      showAgentStudio,
+    })
   } catch (err) {
-    console.error("Azure OpenAI error:", err.message)
-    res.status(500).json({ error: "Failed to get AI response", detail: err.message })
+    console.error('Chat error:', err.message, err.stack)
+    res.status(500).json({ error: 'Failed to get AI response', detail: err.message })
   }
 })
 
