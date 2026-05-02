@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClient } from '../ClientContext.jsx'
-import { CheckCircle, AlertCircle, Edit2, ChevronDown, ChevronUp, Users, Settings, FileText } from 'lucide-react'
+import { CheckCircle, AlertCircle, Edit2, ChevronDown, ChevronUp, Users, Settings, FileText, Database } from 'lucide-react'
 import { BASE_QUESTIONS, getEnvironmentQuestions, PILLAR_META } from '../pages/assessmentData.js'
 import EnvironmentProfile from './EnvironmentProfile.jsx'
 import './AssessmentReview.css'
@@ -127,6 +127,14 @@ export default function AssessmentReview() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <button
+            className="review-btn-secondary"
+            style={{ fontSize: 11, padding: '5px 11px', display: 'flex', alignItems: 'center', gap: 5 }}
+            onClick={() => navigate('/data-intelligence')}
+            title="Run a Data Intelligence assessment"
+          >
+            <Database size={12} /> Data Intelligence
+          </button>
           <button
             className="review-btn-secondary"
             style={{ fontSize: 11, padding: '5px 11px', display: 'flex', alignItems: 'center', gap: 5 }}

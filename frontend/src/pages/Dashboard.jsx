@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles, FileText, ChevronDown, ChevronUp, Database } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import MeetingNotes from '../components/MeetingNotes.jsx'
 import EnvironmentProfile from '../components/EnvironmentProfile.jsx'
@@ -207,6 +207,16 @@ export default function Dashboard() {
           </div>
           <button className="sb-update" onClick={() => setShowEnvProfile(true)}>Update profile</button>
           <button className="sb-dismiss" onClick={() => setBannerDismissed(true)}>✕</button>
+        </div>
+      )}
+
+      {scores?.operations != null && scores.operations < 3.0 && (
+        <div className="di-prompt-card" onClick={() => navigate('/data-intelligence')}>
+          <div className="dipc-icon"><Database size={16} color="#4A9FE0" /></div>
+          <div>
+            <div className="dipc-title">Data walls may be limiting your Operations score</div>
+            <div className="dipc-sub">Run a Data Intelligence assessment to identify fragmentation and get a remediation blueprint →</div>
+          </div>
         </div>
       )}
 

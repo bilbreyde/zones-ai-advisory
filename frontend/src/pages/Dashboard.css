@@ -460,3 +460,15 @@
 }
 .shi-summary { font-size: 12px; color: var(--z-white); line-height: 1.5; }
 .shi-stats   { font-size: 10px; color: var(--z-muted); }
+
+/* ── Data Intelligence prompt card ─────────────────────────────────────── */
+.di-prompt-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--z-blue-glow); border: 0.5px solid var(--z-border-mid);
+  border-radius: var(--radius-md); padding: 12px 16px;
+  cursor: pointer; transition: all 0.12s; margin-bottom: 12px;
+}
+.di-prompt-card:hover { border-color: var(--z-blue-bright); }
+.dipc-icon  { flex-shrink: 0; padding-top: 2px; }
+.dipc-title { font-size: 12px; font-weight: 500; color: var(--z-white); margin-bottom: 2px; }
+.dipc-sub   { font-size: 11px; color: var(--z-muted); }

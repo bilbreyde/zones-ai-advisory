@@ -6,6 +6,7 @@ import { initDb } from "./db.js"
 import clientRoutes from "./routes/clients.js"
 import assessmentRoutes from "./routes/assessments.js"
 import sessionRoutes from "./routes/sessions.js"
+import dataIntelligenceRouter from "./routes/data-intelligence.js"
 
 const app = express()
 app.use(cors())
@@ -356,6 +357,8 @@ function validateVisualSpecificity(visual, clientContext) {
 app.use("/api/clients", clientRoutes)
 app.use("/api/assessments", assessmentRoutes)
 app.use("/api/sessions", sessionRoutes)
+app.use("/api/data-intelligence", dataIntelligenceRouter)
+app.use("/api", dataIntelligenceRouter)
 
 app.post("/api/chat", async (req, res) => {
   try {
