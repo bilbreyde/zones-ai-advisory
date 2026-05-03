@@ -18,12 +18,25 @@ function parseJSON(raw) {
   return JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1))
 }
 
-// GET /api/clients/:id/data-intelligence — load sessions for a client
+// GET /api/clients/:id/data-intelligence — load latest session with full results
 router.get('/clients/:id/data-intelligence', async (req, res) => {
   try {
     const { resource } = await containers.clients
       .item(req.params.id, req.params.id).read()
-    res.json(resource?.dataIntelligence || { sessions: [], latestInventory: [], dataHealthProfile: null })
+
+    const di = resource?.dataIntelligence
+    if (!di?.sessions?.length) return res.json({ hasResults: false })
+
+    const latest = di.sessions[0]
+    res.json({
+      hasResults:         true,
+      session:            latest,
+      latestInventory:    di.latestInventory    || [],
+      dataHealthProfile:  di.dataHealthProfile,
+      recommendedPattern: di.recommendedPattern,
+      sessionCount:       di.sessions.length,
+      lastUpdated:        di.updatedAt,
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

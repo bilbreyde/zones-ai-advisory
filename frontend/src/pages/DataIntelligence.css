@@ -367,3 +367,32 @@
 @media (max-width: 900px) {
   .di-health-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Results banner ───────────────────────────────────────────────────────── */
+.di-results-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px; background: rgba(61,186,126,0.07);
+  border-bottom: 0.5px solid rgba(61,186,126,0.2); flex-shrink: 0;
+}
+.di-rb-left { display: flex; align-items: center; gap: 12px; }
+.di-rb-icon { color: #3DBA7E; flex-shrink: 0; }
+.di-rb-title { font-size: 13px; font-weight: 600; color: var(--z-white); margin-bottom: 2px; }
+.di-rb-count { font-size: 11px; color: var(--z-muted); }
+.di-rb-sub   { font-size: 11px; color: var(--z-muted); }
+.di-rb-actions { display: flex; gap: 8px; align-items: center; }
+.di-rb-actions button {
+  font-size: 11px; padding: 5px 11px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--z-border); background: transparent;
+  color: var(--z-muted); transition: all 0.15s;
+}
+.di-rb-actions button:hover { border-color: var(--z-white); color: var(--z-white); }
+.di-rb-actions .di-rb-primary {
+  background: rgba(61,186,126,0.15); border-color: rgba(61,186,126,0.4);
+  color: #3DBA7E;
+}
+.di-rb-actions .di-rb-primary:hover { background: rgba(61,186,126,0.25); }
+.di-stale-label {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  background: rgba(232,168,56,0.15); color: #E8A838;
+  border: 1px solid rgba(232,168,56,0.3);
+}

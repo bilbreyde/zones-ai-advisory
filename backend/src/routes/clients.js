@@ -406,6 +406,28 @@ router.post('/:id/apply-changes', async (req, res) => {
   }
 })
 
+// PATCH /api/clients/:id/agent-recommendations — save generated recommendations
+router.patch('/:id/agent-recommendations', async (req, res) => {
+  try {
+    const { resource: existing } = await containers.clients
+      .item(req.params.id, req.params.id).read()
+    if (!existing) return res.status(404).json({ error: 'Client not found' })
+
+    existing.agentRecommendations = {
+      agents:          req.body.agents      || [],
+      generatedAt:     new Date().toISOString(),
+      configSnapshot:  req.body.configSnapshot || {},
+    }
+    existing.updatedAt = new Date().toISOString()
+
+    const { resource: updated } = await containers.clients
+      .item(req.params.id, req.params.id).replace(existing)
+    res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // DELETE /api/clients/:id/agents/:agentId — remove from backlog
 router.delete('/:id/agents/:agentId', async (req, res) => {
   try {

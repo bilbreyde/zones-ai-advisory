@@ -76,13 +76,62 @@ export default function DataIntelligence() {
   })
 
   // Stage 4 — Blueprint
-  const [recommendation,            setRecommendation]            = useState(null)
-  const [blueprint,                  setBlueprint]                  = useState(null)
-  const [proposedAssessmentChanges,  setProposedAssessmentChanges]  = useState([])
-  const [saved,                      setSaved]                      = useState(false)
+  const [recommendation,           setRecommendation]           = useState(null)
+  const [blueprint,                setBlueprint]                = useState(null)
+  const [proposedAssessmentChanges,setProposedAssessmentChanges]= useState([])
+  const [saved,                    setSaved]                    = useState(false)
+
+  // Persistence
+  const [hasStoredResults, setHasStoredResults] = useState(false)
+  const [storedSession,    setStoredSession]    = useState(null)
+  const [sessionCount,     setSessionCount]     = useState(0)
+  const [lastUpdated,      setLastUpdated]      = useState(null)
+  const [startMode,        setStartMode]        = useState('checking') // 'checking' | 'results' | 'new'
 
   const clientName = mode === 'linked' ? (client?.name || 'Client') : (standaloneClient || 'Client')
   const vertical   = mode === 'linked' ? (client?.industry || '') : ''
+
+  // ── Staleness helper ──────────────────────────────────────────────────────
+  function isStale(dateString, thresholdDays = 90) {
+    if (!dateString) return false
+    return Math.floor((Date.now() - new Date(dateString)) / (1000 * 60 * 60 * 24)) > thresholdDays
+  }
+
+  // ── Load saved results on mount ───────────────────────────────────────────
+  useState(() => {
+    if (!client?.id || mode === 'standalone') { setStartMode('new'); return }
+
+    fetch(`${API}/api/clients/${client.id}/data-intelligence`)
+      .then(r => r.ok ? r.json() : { hasResults: false })
+      .then(data => {
+        if (data.hasResults && data.session) {
+          setStoredSession(data.session)
+          setHasStoredResults(true)
+          setSessionCount(data.sessionCount || 1)
+          setLastUpdated(data.lastUpdated)
+
+          // Restore state from saved session
+          if (data.session.inventory?.length)               setSources(data.session.inventory)
+          if (data.session.healthProfile)                   setHealthProfile(data.session.healthProfile)
+          if (data.session.findings)                        setFindings(data.session.findings)
+          if (data.session.requirements)                    setRequirements(data.session.requirements)
+          if (data.session.recommendation)                  setRecommendation(data.session.recommendation)
+          if (data.session.optimizeExisting !== undefined)  setOptimizeExisting(data.session.optimizeExisting)
+          if (data.session.summary)                         setSummary(data.session.summary)
+          if (data.session.mode)                            setMode(data.session.mode)
+          if (data.session.scale)                           setScale(data.session.scale)
+          if (data.session.blueprint)                       setBlueprint(data.session.blueprint)
+          if (data.session.recommendation?.assessmentImpacts?.length)
+            setProposedAssessmentChanges(data.session.recommendation.assessmentImpacts)
+
+          setStartMode('results')
+          setStage(4)
+        } else {
+          setStartMode('new')
+        }
+      })
+      .catch(() => setStartMode('new'))
+  })
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -178,8 +227,8 @@ export default function DataIntelligence() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          inventory:       sources,
-          recommendation:  rec,
+          inventory:      sources,
+          recommendation: rec,
           requirements,
           clientName,
           optimizeExisting,
@@ -188,26 +237,32 @@ export default function DataIntelligence() {
       const data = await res.json()
       setBlueprint(data)
       setStage(4)
+
+      // Auto-save everything including blueprint
+      if (mode === 'linked' && client?.id) {
+        const session = {
+          mode, scale, inventory: sources,
+          healthProfile, findings, summary,
+          requirements, recommendation: rec,
+          blueprint: data,
+          optimizeExisting,
+          recommendedPattern: rec?.primaryPattern?.name,
+        }
+        await fetch(`${API}/api/clients/${client.id}/data-intelligence`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ session }),
+        })
+        setSaved(true)
+        setHasStoredResults(true)
+        setLastUpdated(new Date().toISOString())
+        setSessionCount(c => c + 1)
+      }
     } catch (err) {
       console.error('Blueprint error:', err)
     } finally {
       setLoading(false)
     }
-  }
-
-  async function saveSession() {
-    if (mode !== 'linked' || !client?.id) return
-    const session = {
-      mode, scale, inventory: sources, healthProfile, findings,
-      requirements, recommendation, optimizeExisting,
-      recommendedPattern: recommendation?.primaryPattern?.name,
-    }
-    await fetch(`${API}/api/clients/${client.id}/data-intelligence`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ session }),
-    })
-    setSaved(true)
   }
 
   // ── Stage renderers ───────────────────────────────────────────────────────
@@ -621,10 +676,22 @@ export default function DataIntelligence() {
         <div className="di-blueprint-header">
           <div className="di-section-title">Solution blueprint</div>
           <div className="di-bp-actions">
-            {mode === 'linked' && !saved && (
-              <button className="di-btn-secondary" onClick={saveSession}>Save session</button>
+            {saved && <span className="di-saved-badge">✓ Auto-saved</span>}
+            {mode === 'linked' && (
+              <button
+                className="di-btn-ghost"
+                onClick={() => {
+                  if (window.confirm('Start a new assessment? This will clear the current results.')) {
+                    setStage(0); setHasStoredResults(false); setSaved(false)
+                    setSources([]); setHealthProfile(null); setFindings([])
+                    setRecommendation(null); setBlueprint(null)
+                    setProposedAssessmentChanges([])
+                  }
+                }}
+              >
+                ↺ New assessment
+              </button>
             )}
-            {saved && <span className="di-saved-badge">✓ Saved</span>}
           </div>
         </div>
 
@@ -752,20 +819,73 @@ export default function DataIntelligence() {
 
   // ── Main render ───────────────────────────────────────────────────────────
 
+  const pageHeader = (
+    <div className="di-page-header">
+      <div className="di-brand">
+        <Database size={18} color="#4A9FE0" />
+        <div>
+          <div className="di-brand-name">Zones Compass</div>
+          <div className="di-brand-module">Data Intelligence</div>
+        </div>
+      </div>
+      {client && mode === 'linked' && (
+        <div className="di-client-badge">{client.name}</div>
+      )}
+    </div>
+  )
+
+  // Loading state while checking for saved results
+  if (startMode === 'checking' && client?.id && mode === 'linked') {
+    return (
+      <div className="di-page">
+        {pageHeader}
+        <div className="di-loading-state">Loading data intelligence results…</div>
+      </div>
+    )
+  }
+
   return (
     <div className="di-page">
-      <div className="di-page-header">
-        <div className="di-brand">
-          <Database size={18} color="#4A9FE0" />
-          <div>
-            <div className="di-brand-name">Zones Compass</div>
-            <div className="di-brand-module">Data Intelligence</div>
+      {pageHeader}
+
+      {/* Results banner — shown when saved results are loaded */}
+      {hasStoredResults && stage === 4 && (
+        <div className="di-results-banner">
+          <div className="di-rb-left">
+            <span className="di-rb-icon">✓</span>
+            <div>
+              <div className="di-rb-title">
+                Data Intelligence assessment complete
+                {sessionCount > 1 && <span className="di-rb-count">{sessionCount} sessions</span>}
+              </div>
+              <div className="di-rb-sub">
+                Last assessed {lastUpdated
+                  ? new Date(lastUpdated).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                  : 'recently'}
+                {storedSession?.recommendation?.primaryPattern?.name && ` · ${storedSession.recommendation.primaryPattern.name} recommended`}
+              </div>
+            </div>
+          </div>
+          <div className="di-rb-actions">
+            {isStale(lastUpdated) && (
+              <span className="di-stale-label">⏱ {Math.floor((Date.now() - new Date(lastUpdated)) / (1000*60*60*24))} days old</span>
+            )}
+            <button
+              className="di-btn-ghost"
+              onClick={() => {
+                setStage(0); setHasStoredResults(false); setSaved(false)
+                setSources([]); setHealthProfile(null); setFindings([])
+                setRecommendation(null); setBlueprint(null); setProposedAssessmentChanges([])
+              }}
+            >
+              Start new assessment
+            </button>
+            <button className="di-btn-secondary" onClick={() => setStage(1)}>
+              Edit inventory & re-run
+            </button>
           </div>
         </div>
-        {client && mode === 'linked' && (
-          <div className="di-client-badge">{client.name}</div>
-        )}
-      </div>
+      )}
 
       {/* Stage progress */}
       <div className="di-progress">

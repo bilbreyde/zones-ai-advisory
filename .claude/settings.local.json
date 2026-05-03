@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node:*)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(az webapp config appsettings:*)",
+      "Bash(az webapp:*)",
+      "Bash(unzip -o /tmp/applog.zip -d /tmp/applogs)",
+      "Bash(curl -s https://zones-ai-advisory-api.azurewebsites.net/api/clients)",
+      "Bash(az cosmosdb show:*)",
+      "Bash(az cosmosdb keys list:*)",
+      "Bash(echo \"Backend PID: $!\")",
+      "Bash(curl:*)",
+      "Bash(pkill -f \"node --watch src/index.js\")",
+      "Bash(pkill -f \"node src/index.js\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill:*)",
+      "Bash(npm ls:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo:*)",
+      "Bash(gh api:*)",
+      "Bash(npx vite:*)"
+    ]
+  }
+}

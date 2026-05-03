@@ -357,16 +357,21 @@ export default function AgentStudio() {
     .map(([k]) => k)
 
   // ── Core UI state ─────────────────────────────────────────────────────
-  const [stage,           setStage]           = useState('configure')
-  const [vertical,        setVertical]        = useState(client?.industry || '')
-  const [focusAreas,      setFocusAreas]      = useState(autoFocus)
-  const [agents,          setAgents]          = useState([])
-  const [discovering,     setDiscovering]     = useState(false)
-  const [selectedAgent,   setSelectedAgent]   = useState(null)
-  const [filterPillar,    setFilterPillar]    = useState('all')
-  const [filterComplexity,setFilterComplexity]= useState('all')
-  const [customInput,     setCustomInput]     = useState('')
-  const [customOpen,      setCustomOpen]      = useState(false)
+  const [stage,            setStage]            = useState('configure')
+  const [vertical,         setVertical]         = useState(client?.industry || '')
+  const [focusAreas,       setFocusAreas]       = useState(autoFocus)
+  const [agents,           setAgents]           = useState([])
+  const [discovering,      setDiscovering]      = useState(false)
+  const [selectedAgent,    setSelectedAgent]    = useState(null)
+  const [filterPillar,     setFilterPillar]     = useState('all')
+  const [filterComplexity, setFilterComplexity] = useState('all')
+  const [customInput,      setCustomInput]      = useState('')
+  const [customOpen,       setCustomOpen]       = useState(false)
+
+  // ── Persistence state ─────────────────────────────────────────────────
+  const [agentsLoadedAt,   setAgentsLoadedAt]   = useState(null)
+  const [hasStoredResults, setHasStoredResults] = useState(false)
+  const [viewMode,         setViewMode]         = useState('results') // 'results' | 'config'
 
   // ── Infrastructure & deployment ───────────────────────────────────────
   const [deploymentModel,       setDeploymentModel]       = useState('cloud_native')
@@ -458,6 +463,15 @@ export default function AgentStudio() {
         if (hasConfig) setConfigExpanded(false)
 
         setBacklog(data.agentBacklog || [])
+
+        // Load saved agent recommendations — go straight to results if present
+        if (data.agentRecommendations?.agents?.length > 0) {
+          setAgents(data.agentRecommendations.agents)
+          setAgentsLoadedAt(data.agentRecommendations.generatedAt)
+          setHasStoredResults(true)
+          setStage('discover')
+          setViewMode('results')
+        }
       })
       .catch(() => { if (client?.industry) setVertical(client.industry); setFocusAreas(af) })
       .finally(() => { setBacklogLoading(false); setConfigLoaded(true) })
@@ -608,10 +622,16 @@ export default function AgentStudio() {
     return Object.entries(grouped).map(([l, ts]) => `${l}: ${ts.join(', ')}`).join(' | ') || 'None'
   }
 
+  function isStale(dateString, thresholdDays = 90) {
+    if (!dateString) return false
+    return Math.floor((Date.now() - new Date(dateString)) / (1000 * 60 * 60 * 24)) > thresholdDays
+  }
+
   async function discover(customDescription) {
     if (!vertical && !customDescription) return
     setDiscovering(true)
     if (stage !== 'discover') setStage('discover')
+    setViewMode('results')
     try {
       const res = await fetch(`${API}/api/agents/discover`, {
         method: 'POST',
@@ -634,8 +654,25 @@ export default function AgentStudio() {
       const data = await res.json()
       const incoming = data.agents || []
       console.log('Agents received:', incoming.length, incoming.map(a => a.complexity))
-      if (customDescription && incoming.length) setAgents(prev => [...prev, ...incoming])
-      else setAgents(incoming)
+      const newAgents = customDescription && incoming.length
+        ? [...agents, ...incoming]
+        : incoming
+      setAgents(newAgents)
+      const now = new Date().toISOString()
+      setAgentsLoadedAt(now)
+      setHasStoredResults(true)
+
+      // Persist to Cosmos DB
+      if (client?.id && !customDescription) {
+        await fetch(`${API}/api/clients/${client.id}/agent-recommendations`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agents: newAgents,
+            configSnapshot: { vertical, deploymentModel, tools, onPremTools, legacySystems, complianceFrameworks },
+          }),
+        }).catch(err => console.error('Failed to persist agent recommendations:', err))
+      }
     } catch (err) { console.error('Discover error:', err) }
     finally { setDiscovering(false) }
   }
@@ -975,9 +1012,75 @@ export default function AgentStudio() {
             )}
           </div>
           <div className="studio-topbar-right">
-            <button className="studio-back-btn" onClick={() => setStage('configure')}>← Reconfigure</button>
+            <button
+              className={`studio-tab-btn${viewMode === 'config' ? ' active' : ''}`}
+              onClick={() => setViewMode(v => v === 'config' ? 'results' : 'config')}
+            >
+              ⚙ {viewMode === 'config' ? 'Hide configuration' : 'Edit configuration'}
+            </button>
+            {hasStoredResults && (
+              <button
+                className="studio-regen-btn"
+                onClick={() => {
+                  if (window.confirm('Regenerate recommendations? This will replace the current results.')) {
+                    discover()
+                  }
+                }}
+                disabled={discovering}
+              >
+                {discovering ? '↻ Regenerating…' : '↻ Regenerate'}
+              </button>
+            )}
+            {!hasStoredResults && (
+              <button className="studio-back-btn" onClick={() => setStage('configure')}>← Reconfigure</button>
+            )}
           </div>
         </div>
+
+        {/* Staleness warning */}
+        {agentsLoadedAt && isStale(agentsLoadedAt) && viewMode === 'results' && (
+          <div className="studio-stale-banner">
+            ⏱ Recommendations are {Math.floor((Date.now() - new Date(agentsLoadedAt)) / (1000 * 60 * 60 * 24))} days old.
+            Environment changes may affect accuracy.
+            <button onClick={() => {
+              if (window.confirm('Regenerate recommendations? This will replace the current results.')) discover()
+            }}>Regenerate →</button>
+          </div>
+        )}
+
+        {/* Results meta */}
+        {agentsLoadedAt && agents.length > 0 && viewMode === 'results' && (
+          <div className="studio-results-meta">
+            {agents.length} agent{agents.length !== 1 ? 's' : ''} recommended
+            <span className="srm-date">
+              Generated {new Date(agentsLoadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          </div>
+        )}
+
+        {/* Inline config panel — toggled */}
+        {viewMode === 'config' && (
+          <div className="studio-inline-config">
+            <div className="config-field">
+              <label className="config-label">Industry Vertical</label>
+              <select className="config-select" value={vertical} onChange={e => setVertical(e.target.value)}>
+                <option value="">Select industry…</option>
+                {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+              </select>
+            </div>
+            <button
+              className="studio-generate-btn"
+              style={{ marginTop: 12 }}
+              onClick={() => discover()}
+              disabled={!vertical || discovering}
+            >
+              {discovering
+                ? <><Loader size={15} className="ap-spin" /> Generating…</>
+                : <><Zap size={15} /> {hasStoredResults ? '↻ Regenerate recommendations' : '⚡ Generate recommendations'}</>
+              }
+            </button>
+          </div>
+        )}
 
         <div className="studio-filters">
           <select className="filter-select" value={filterPillar} onChange={e => setFilterPillar(e.target.value)}>
@@ -1015,11 +1118,14 @@ export default function AgentStudio() {
             <div className="studio-loading-text">Analyzing {clientName}'s stack and gaps…</div>
             <div className="studio-loading-sub">Identifying highest-value agent opportunities for {vertical}</div>
           </div>
-        ) : agents.length === 0 ? (
+        ) : agents.length === 0 && viewMode === 'results' ? (
           <div className="agents-empty">
             <div className="ae-icon">⚡</div>
-            <div className="ae-title">No recommendations generated yet</div>
-            <div className="ae-desc">Click "Generate Agent Recommendations" to analyse this client's profile and generate tailored agent blueprints.</div>
+            <div className="ae-title">No recommendations yet</div>
+            <div className="ae-desc">Configure this client's environment and generate recommendations.</div>
+            <button className="studio-generate-btn" style={{ marginTop: 12 }} onClick={() => setViewMode('config')}>
+              Configure & generate →
+            </button>
           </div>
         ) : filteredAgents.length === 0 ? (
           <div className="agents-empty">
