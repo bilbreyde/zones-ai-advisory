@@ -7,6 +7,7 @@ import clientRoutes from "./routes/clients.js"
 import assessmentRoutes from "./routes/assessments.js"
 import sessionRoutes from "./routes/sessions.js"
 import dataIntelligenceRouter from "./routes/data-intelligence.js"
+import cloudModernizationRouter from "./routes/cloud-modernization.js"
 import { fixMermaidChart } from "./utils/mermaid.js"
 
 const app = express()
@@ -373,6 +374,8 @@ app.use("/api/assessments", assessmentRoutes)
 app.use("/api/sessions", sessionRoutes)
 app.use("/api/data-intelligence", dataIntelligenceRouter)
 app.use("/api", dataIntelligenceRouter)
+app.use("/api/cloud-modernization", cloudModernizationRouter)
+app.use("/api", cloudModernizationRouter)
 
 app.post("/api/chat", async (req, res) => {
   try {

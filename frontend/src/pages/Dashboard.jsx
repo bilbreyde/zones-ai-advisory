@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles, FileText, ChevronDown, ChevronUp, Database } from 'lucide-react'
+import { Shield, AlertTriangle, Lightbulb, Settings, Zap, ArrowRight, TrendingUp, Users, Save, Loader, Sparkles, FileText, ChevronDown, ChevronUp, Database, Cloud } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import MeetingNotes from '../components/MeetingNotes.jsx'
 import EnvironmentProfile from '../components/EnvironmentProfile.jsx'
@@ -216,6 +216,16 @@ export default function Dashboard() {
           <div>
             <div className="dipc-title">Data walls may be limiting your Operations score</div>
             <div className="dipc-sub">Run a Data Intelligence assessment to identify fragmentation and get a remediation blueprint →</div>
+          </div>
+        </div>
+      )}
+
+      {scores?.operations != null && scores.operations < 2.5 && (
+        <div className="di-prompt-card" onClick={() => navigate('/cloud-modernization')} style={{ borderColor: 'var(--z-blue-bright)' }}>
+          <div className="dipc-icon"><Cloud size={16} color="#8B5CF6" /></div>
+          <div>
+            <div className="dipc-title">Infrastructure complexity may be blocking cloud maturity</div>
+            <div className="dipc-sub">Run a Cloud Modernization assessment — 6R scoring, VMware calculator, and migration blueprint →</div>
           </div>
         </div>
       )}

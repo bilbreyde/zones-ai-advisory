@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3,
-  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle, Database
+  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle, Database, Cloud
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
 import EnvironmentProfile from './EnvironmentProfile.jsx'
@@ -80,6 +80,9 @@ export default function Layout() {
           <div className="nav-section-label" style={{marginTop:16}}>Compass Modules</div>
           <NavLink to="/data-intelligence" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
             <Database size={15} /> Data Intelligence
+          </NavLink>
+          <NavLink to="/cloud-modernization" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <Cloud size={15} /> Cloud Modernization
           </NavLink>
 
           <div className="nav-divider" />
