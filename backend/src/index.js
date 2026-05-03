@@ -7,6 +7,7 @@ import clientRoutes from "./routes/clients.js"
 import assessmentRoutes from "./routes/assessments.js"
 import sessionRoutes from "./routes/sessions.js"
 import dataIntelligenceRouter from "./routes/data-intelligence.js"
+import { fixMermaidChart } from "./utils/mermaid.js"
 
 const app = express()
 app.use(cors())
@@ -162,6 +163,19 @@ function postProcessVisuals(visuals) {
     })
     return { ...visual, rows: fixedRows }
   })
+}
+
+function fixVisualsInResponse(parsed) {
+  if (parsed.visuals) {
+    parsed.visuals = parsed.visuals.map(v => {
+      if (v.type === 'mermaid' && v.chart) v.chart = fixMermaidChart(v.chart)
+      return v
+    })
+  }
+  if (parsed.visual?.type === 'mermaid' && parsed.visual?.chart) {
+    parsed.visual.chart = fixMermaidChart(parsed.visual.chart)
+  }
+  return parsed
 }
 
 function extractVisualFromResponse(raw) {
@@ -567,8 +581,8 @@ Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
         }),
       ])
 
-      const parsed1 = extractVisualFromResponse(pass1.choices[0].message.content)
-      const parsed2 = extractVisualFromResponse(pass2.choices[0].message.content)
+      const parsed1 = fixVisualsInResponse(extractVisualFromResponse(pass1.choices[0].message.content))
+      const parsed2 = fixVisualsInResponse(extractVisualFromResponse(pass2.choices[0].message.content))
 
       console.log('Pass 1 — finish:', pass1.choices[0].finish_reason, '| visuals:', parsed1.visuals?.length)
       console.log('Pass 2 — finish:', pass2.choices[0].finish_reason, '| visuals:', parsed2.visuals?.length)
@@ -609,7 +623,7 @@ Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
     console.log('First { at:', raw.indexOf('{'))
     console.log('Last } at:', raw.lastIndexOf('}'))
 
-    const parsed = extractVisualFromResponse(raw)
+    const parsed = fixVisualsInResponse(extractVisualFromResponse(raw))
     console.log('Parsed text length:', parsed.text?.length || 0)
     console.log('Parsed visuals count:', parsed.visuals?.length || 0)
     console.log('Parsed visual type:', parsed.visual?.type || 'none')
@@ -899,7 +913,7 @@ Keep each section concise to avoid truncation. Mermaid chart MAX 6 nodes.
     console.log("[design] response length:", rawContent.length)
     console.log("[design] raw response (first 300):", rawContent.slice(0, 300))
     console.log("[design] raw response (last 100):", rawContent.slice(-100))
-    const extracted = extractVisualFromResponse(rawContent)
+    const extracted = fixVisualsInResponse(extractVisualFromResponse(rawContent))
     console.log("[design] parsed — visuals:", extracted.visuals?.length || 0, extracted.visuals?.map(v => v.type))
     if (!extracted.visuals?.length && !extracted.text) {
       console.error("[design] empty parse result — returning debug info")

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { AzureOpenAI } from 'openai'
 import { containers } from '../db.js'
+import { fixMermaidChart } from '../utils/mermaid.js'
 
 const router = Router()
 
@@ -240,9 +241,9 @@ router.post('/blueprint', async (req, res) => {
   try {
     const { inventory, recommendation, requirements, clientName, optimizeExisting } = req.body
 
-    const sources  = (inventory || []).slice(0, 10).map(s => s.name)
-    const pattern  = recommendation?.primaryPattern?.name || 'Data Fabric'
-    const products = (recommendation?.primaryPattern?.keyProducts || []).map(p => p.name)
+    const sources    = (inventory || []).slice(0, 10).map(s => s.name)
+    const pattern    = recommendation?.primaryPattern?.name || 'Data Fabric'
+    const products   = (recommendation?.primaryPattern?.keyProducts || []).map(p => p.name)
     const compliance = requirements?.compliance || []
     const investRange = recommendation?.zonesEngagement?.investmentRange || '$75K-$200K'
 
@@ -250,27 +251,79 @@ router.post('/blueprint', async (req, res) => {
 
 Client: ${clientName}
 Pattern: ${pattern}
-Their data sources: ${sources.join(', ')}
-Recommended products: ${products.join(', ')}
+Their data sources (pick the 5 most important): ${sources.slice(0, 5).join(', ')}
+Recommended products: ${products.slice(0, 3).join(', ')}
 Compliance: ${compliance.join(', ') || 'standard'}
-Optimize existing (not replace): ${optimizeExisting}
+Optimize existing: ${optimizeExisting}
 
-Generate a Mermaid architecture diagram showing:
-1. SOURCE LAYER: Their actual named systems grouped by domain
-2. INTEGRATION LAYER: The recommended pattern/products connecting them
-3. CONSUMPTION LAYER: Reporting, AI agents, operational apps
-4. GOVERNANCE BOUNDARY: Compliance and data lineage wrapper
+Generate a Mermaid architecture diagram.
 
-MERMAID RULES:
-- Use graph TD (top-down only)
-- Max 12 nodes total
-- Use subgraph for each layer
-- Node IDs must be short unique strings (no spaces, no special chars)
-- Subgraph display names must DIFFER from any node ID inside them
-- Short labels only (max 4 words per node)
-- No special characters in node IDs
+STRICT MERMAID SYNTAX RULES — violations cause parse errors:
+1. Use "graph TD" as the first line — nothing else
+2. Subgraph syntax MUST be: subgraph NODEID followed by a newline, then nodes, then "end"
+   CORRECT:   subgraph sources
+   WRONG:     subgraph sources [Source Layer]   ← space + bracket causes parse error
+   WRONG:     subgraph "sources"                ← quotes not allowed on subgraph name
+3. Node IDs must be lowercase letters only — no spaces, no hyphens, no numbers starting the ID
+   CORRECT:   d365[Dynamics 365]
+   WRONG:     Dynamics 365[Dynamics 365]        ← spaces in node ID
+   WRONG:     365d[Dynamics 365]                ← starts with number
+4. Node labels in square brackets CAN have spaces: d365[Dynamics 365] is valid
+5. Edge labels use pipe syntax: a -->|label| b  OR  a --> b  (no label)
+   CORRECT:   d365 -->|to fabric| fabriccore
+   WRONG:     d365 --> [label] fabriccore
+6. Max 4 subgraphs, max 3 nodes per subgraph, max 10 edges total
+7. No special characters in node IDs: no dots, slashes, brackets, quotes, apostrophes
+8. Every node ID referenced in an edge MUST be defined in a subgraph first
+9. No style statements — they cause parse errors in this renderer
+10. Subgraph IDs must also be lowercase letters only
 
-Return ONLY raw JSON — no markdown fences, start with { end with }:
+REQUIRED STRUCTURE — 4 subgraphs:
+subgraph sources
+  (3 most important source systems — pick from: ${sources.slice(0, 3).join(', ')})
+end
+subgraph integration
+  (1-2 integration/orchestration products — from: ${products.slice(0, 2).join(', ')})
+end
+subgraph consumption
+  (reporting, aiagents, apps — 3 nodes max)
+end
+subgraph governance
+  (compliance, lineage — 2 nodes max)
+end
+
+Then edges connecting sources → integration → consumption, and governance connecting to integration.
+
+VALID EXAMPLE to follow exactly:
+graph TD
+  subgraph sources
+    crm[Dynamics 365]
+    db[SQL Server]
+    itsm[ServiceNow]
+  end
+  subgraph integration
+    fabric[Microsoft Fabric]
+    purview[Microsoft Purview]
+  end
+  subgraph consumption
+    reporting[Reporting]
+    agents[AI Agents]
+    apps[Operations]
+  end
+  subgraph governance
+    compliance[SOC 2 Controls]
+    lineage[Data Lineage]
+  end
+  crm -->|ingest| fabric
+  db -->|ingest| fabric
+  itsm -->|ingest| fabric
+  fabric --> reporting
+  fabric --> agents
+  fabric --> apps
+  purview --> lineage
+  fabric --> lineage
+
+Return ONLY raw JSON with this structure — no markdown fences:
 {
   "reply": "2-3 sentence description of what this architecture achieves for ${clientName}",
   "visuals": [
@@ -282,7 +335,7 @@ Return ONLY raw JSON — no markdown fences, start with { end with }:
       },
       "type": "mermaid",
       "title": "${clientName} — Target Data Architecture",
-      "chart": "<valid mermaid graph TD with their actual system names, max 12 nodes, subgraph IDs differ from node IDs inside>"
+      "chart": "<THE MERMAID CHART — must follow ALL rules above>"
     },
     {
       "narrative": {
@@ -294,28 +347,40 @@ Return ONLY raw JSON — no markdown fences, start with { end with }:
       "title": "Data Intelligence Implementation Plan",
       "phases": [
         {
-          "name": "Phase 1 — ${optimizeExisting ? 'Optimize & Configure' : 'Foundation'}",
+          "name": "${optimizeExisting ? 'Phase 1 — Optimize & Configure' : 'Phase 1 — Foundation'}",
           "days": "1-30",
           "color": "#E8A838",
-          "tasks": ["Specific task with owner and output", "Specific task 2", "Specific task 3"]
+          "tasks": [
+            "Specific task — owner, duration, output",
+            "Specific task — owner, duration, output",
+            "Specific task — owner, duration, output"
+          ]
         },
         {
           "name": "Phase 2 — Integration",
           "days": "31-60",
           "color": "#4A9FE0",
-          "tasks": ["Specific task with owner and output", "Specific task 2", "Specific task 3"]
+          "tasks": [
+            "Specific task — owner, duration, output",
+            "Specific task — owner, duration, output",
+            "Specific task — owner, duration, output"
+          ]
         },
         {
           "name": "Phase 3 — Govern & Scale",
           "days": "61-90",
           "color": "#3DBA7E",
-          "tasks": ["Specific task with owner and output", "Specific task 2", "Specific task 3"]
+          "tasks": [
+            "Specific task — owner, duration, output",
+            "Specific task — owner, duration, output",
+            "Specific task — owner, duration, output"
+          ]
         }
       ]
     },
     {
       "narrative": {
-        "headline": "Investment summary for ${clientName}",
+        "headline": "Investment and returns for ${clientName}",
         "context": "2 sentences on ROI framing and payback period for this pattern",
         "actions": ["Next step for the advisor to progress the engagement", "Next step for the client to confirm budget"]
       },
@@ -323,11 +388,11 @@ Return ONLY raw JSON — no markdown fences, start with { end with }:
       "title": "Your Data Intelligence Investment",
       "rows": [
         {"label": "Discovery & assessment", "client": "$15K-$25K", "benchmark": "Industry avg: $20K-$35K"},
-        {"label": "Implementation (${pattern})", "client": "${investRange}", "benchmark": "Industry avg: varies by scale"},
+        {"label": "Platform implementation", "client": "${investRange}", "benchmark": "Industry avg: varies by scale"},
         {"label": "Ongoing managed service", "client": "$8K-$15K/month", "benchmark": "Industry avg: $10K-$20K/month"},
-        {"label": "Estimated time to first insight", "client": "4-6 weeks", "benchmark": "Industry avg: 6-12 weeks"},
+        {"label": "Time to first insight", "client": "4-6 weeks", "benchmark": "Industry avg: 6-12 weeks"},
         {"label": "Reporting accuracy improvement", "client": "60-80%", "benchmark": "Industry typical: 50-75%"},
-        {"label": "Data pipeline maintenance reduction", "client": "40-60%", "benchmark": "Industry typical: 35-55%"},
+        {"label": "Pipeline maintenance reduction", "client": "40-60%", "benchmark": "Industry typical: 35-55%"},
         {"label": "Total Year 1 investment", "client": "${investRange}", "benchmark": ""}
       ]
     }
@@ -343,6 +408,17 @@ Return ONLY raw JSON — no markdown fences, start with { end with }:
     })
 
     const result = parseJSON(completion.choices[0].message.content)
+
+    // Fix any Mermaid syntax errors before sending to the client
+    if (result.visuals) {
+      result.visuals = result.visuals.map(visual => {
+        if (visual.type === 'mermaid' && visual.chart) {
+          visual.chart = fixMermaidChart(visual.chart)
+        }
+        return visual
+      })
+    }
+
     res.json(result)
   } catch (err) {
     console.error('DI blueprint error:', err.message)
