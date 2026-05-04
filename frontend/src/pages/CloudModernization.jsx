@@ -166,13 +166,24 @@ export default function CloudModernization() {
       const res  = await fetch(`${API}/api/cloud-modernization/parse-csv`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv: text }),
+        body: JSON.stringify({ csv: text, clientName: client?.name }),
       })
-      if (!res.ok) throw new Error('CSV parse failed')
       const data = await res.json()
-      setCsvPreview(data.workloads || [])
-    } catch (e) { setCsvError(e.message) }
-    finally     { setCsvParsing(false) }
+      console.log('CSV parse response:', res.status, data)
+      if (!res.ok) {
+        setCsvError(data.error || 'CSV parse failed — check backend logs')
+        return
+      }
+      if (!data.workloads?.length) {
+        setCsvError('No workloads found in CSV — check that column names include Name, Type, vCPU, RAM')
+        return
+      }
+      setCsvPreview(data.workloads)
+    } catch (e) {
+      console.error('CSV parse fetch error:', e)
+      setCsvError('Connection error — backend may be starting up, try again')
+    }
+    finally { setCsvParsing(false) }
   }
 
   function acceptCsvImport() {

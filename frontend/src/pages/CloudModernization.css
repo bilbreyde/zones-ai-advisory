@@ -78,6 +78,7 @@
 .cm-csv-name { color:var(--z-white); font-weight:500; flex:2; }
 .cm-csv-type,.cm-csv-os,.cm-csv-size { color:var(--z-muted); flex:1; }
 .cm-csv-more { font-size:11px; color:var(--z-muted); padding:4px 8px; }
+.cm-csv-error { font-size:12px; color:#E05A4E; background:rgba(224,90,78,.08); border:.5px solid rgba(224,90,78,.3); border-radius:4px; padding:8px 12px; margin-top:8px; }
 
 .cm-workload-list { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
 .cm-workload-card { background:var(--z-surface); border:.5px solid var(--z-border); border-radius:var(--radius-md); padding:12px; }
