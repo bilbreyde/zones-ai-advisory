@@ -88,6 +88,8 @@
 .cwc-name-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .cwc-name { font-size:13px; font-weight:500; color:var(--z-white); }
 .cwc-source-tag { font-size:10px; color:var(--z-blue-bright); background:var(--z-blue-glow); padding:1px 6px; border-radius:3px; }
+.cwc-platform-tag { font-size:10px; font-weight:600; padding:1px 6px; border-radius:3px; }
+.cwc-platform-tag.vmware { color:#E8A838; background:rgba(232,168,56,.12); border:.5px solid rgba(232,168,56,.3); }
 .cwc-review-tag { font-size:10px; color:#E8A838; background:rgba(232,168,56,.1); padding:1px 6px; border-radius:3px; }
 .cwc-fields { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
 .cwc-select,.cwc-input { padding:5px 8px; background:var(--z-surface-2,var(--z-navy-mid)); border:.5px solid var(--z-border); border-radius:4px; color:var(--z-white); font-size:11px; font-family:inherit; width:100%; box-sizing:border-box; }
@@ -166,3 +168,9 @@
 .cm-empty-blueprint { text-align:center; padding:40px; color:var(--z-muted); font-size:13px; display:flex; flex-direction:column; align-items:center; gap:16px; }
 .spin { animation:cm-spin 1s linear infinite; }
 @keyframes cm-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+/* Responsive VMware calc grid */
+@media (max-width:900px) {
+  .cm-calc-grid { grid-template-columns:1fr; }
+  .cm-comparison-cards { grid-template-columns:repeat(2,1fr); }
+}
