@@ -410,6 +410,7 @@ router.post('/blueprint', async (req, res) => {
       managedServices = true,
       networkArch    = 'Hub-Spoke',
       additionalReqs = '',
+      advisorAnswers = '',
       clientId,
     } = req.body
 
@@ -496,7 +497,12 @@ ${consolidation.join('\n') || 'None identified'}
 REPURCHASE ALTERNATIVES (from scoring):
 ${repurchase.join('\n') || 'None identified'}
 
-CRITICAL RULES — follow every one:
+${advisorAnswers ? `ADVISOR ANSWERS TO PREVIOUS QUESTIONS — incorporate these into the refined blueprint:
+${advisorAnswers}
+
+Update the migration plan, risk assessment, cost estimate, and architecture diagram to reflect these answers. If an answer clarifies a workload type, dependency, or constraint, update the relevant phase and workload details accordingly.
+
+` : ''}CRITICAL RULES — follow every one:
 1. Reference workloads by EXACT names from the inventory — never generic names like "File Server 1" or "VM-001"
 2. For each task: include the specific workload name, the responsible role, the duration, and the output/deliverable
 3. End-of-life workloads (${eolWorkloads.map(w => w.name).join(', ') || 'none'}) must be called out explicitly as security risks with upgrade path

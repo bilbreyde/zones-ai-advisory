@@ -3,7 +3,8 @@ import { useClient } from '../ClientContext.jsx'
 import ChatVisual from '../components/ChatVisual.jsx'
 import {
   Cloud, Upload, Calculator, ClipboardList, Map, CheckCircle,
-  Loader, AlertCircle, AlertTriangle, ArrowRight, Plus, X, FileText
+  Loader, AlertCircle, AlertTriangle, ArrowRight, Plus, X, FileText,
+  RefreshCw, Download
 } from 'lucide-react'
 import './CloudModernization.css'
 
@@ -144,9 +145,13 @@ export default function CloudModernization() {
   const [scoringError,   setScoringError]   = useState('')
 
   // Stage 5 — Blueprint
-  const [bpLoading, setBpLoading] = useState(false)
-  const [blueprint, setBlueprint] = useState(null)
-  const [bpError,   setBpError]   = useState('')
+  const [bpLoading,         setBpLoading]         = useState(false)
+  const [blueprint,         setBlueprint]         = useState(null)
+  const [bpError,           setBpError]           = useState('')
+  const [questionAnswers,   setQuestionAnswers]   = useState({})
+  const [expandedQuestion,  setExpandedQuestion]  = useState(null)
+  const [refining,          setRefining]          = useState(false)
+  const [exporting,         setExporting]         = useState(false)
 
   // ── Restore stored results ───────────────────────────────────────────────────
   useEffect(() => {
@@ -284,6 +289,118 @@ export default function CloudModernization() {
       setBlueprint(await res.json())
     } catch (e) { setBpError(e.message) }
     finally     { setBpLoading(false) }
+  }
+
+  // ── Refine blueprint with advisor answers ────────────────────────────────────
+  async function refineBlueprintWithAnswers() {
+    if (!blueprint) return
+    setRefining(true); setBpError('')
+    try {
+      const questions = Array.isArray(blueprint.clientQuestions) ? blueprint.clientQuestions : []
+      const answeredQs = questions
+        .map((q, i) => questionAnswers[i]?.trim() ? `Q: ${q}\nA: ${questionAnswers[i].trim()}` : null)
+        .filter(Boolean)
+        .join('\n\n')
+
+      const res = await fetch(`${API}/api/cloud-modernization/blueprint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: client?.id, workloads, scoringResult, calcResult,
+          targetCloud, timeline, budgetRange, constraints,
+          complianceReqs, haRequirement, drRequirement, managedServices, networkArch, additionalReqs,
+          advisorAnswers: answeredQs,
+        }),
+      })
+      if (!res.ok) throw new Error('Blueprint refinement failed')
+      setBlueprint(await res.json())
+      setQuestionAnswers({})
+      setExpandedQuestion(null)
+    } catch (e) { setBpError(e.message) }
+    finally     { setRefining(false) }
+  }
+
+  // ── Export blueprint as PDF ───────────────────────────────────────────────────
+  async function exportBlueprintPDF() {
+    setExporting(true)
+    try {
+      const { default: html2canvas } = await import('html2canvas')
+      const { default: jsPDF }       = await import('jspdf')
+
+      const clientName = client?.name || 'Client'
+      const pdf        = new jsPDF('p', 'mm', 'a4')
+      const pageW = 210, pageH = 297, margin = 14
+      const contentW = pageW - margin * 2
+
+      function addPageHeader(isFirst = false) {
+        if (!isFirst) pdf.addPage()
+        pdf.setFillColor(10, 22, 40)
+        pdf.rect(0, 0, pageW, 28, 'F')
+        pdf.setFontSize(7); pdf.setTextColor(100, 130, 180)
+        pdf.text('ZONES COMPASS · CLOUD MODERNIZATION', margin, 9)
+        pdf.setFontSize(11); pdf.setTextColor(244, 246, 250)
+        pdf.text(`${clientName} — Cloud Modernization Blueprint`, margin, 18)
+        pdf.setFontSize(7); pdf.setTextColor(100, 130, 180)
+        const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        pdf.text(`${dateStr}  ·  Confidential`, margin, 24)
+        pdf.setDrawColor(74, 159, 224); pdf.setLineWidth(0.4)
+        pdf.line(margin, 27, pageW - margin, 27)
+        return 36
+      }
+
+      let y = addPageHeader(true)
+
+      // Executive summary text block
+      const summaryText = typeof blueprint?.summary === 'string' ? blueprint.summary : ''
+      if (summaryText) {
+        pdf.setFontSize(10); pdf.setTextColor(30, 41, 59)
+        const lines = pdf.splitTextToSize(summaryText, contentW)
+        for (const line of lines) {
+          if (y > pageH - margin - 8) y = addPageHeader()
+          pdf.text(line, margin, y); y += 5
+        }
+        y += 8
+      }
+
+      // Capture each blueprint section as image
+      const blueprintEl = document.querySelector('.cm-structured-bp') ||
+                          document.querySelector('.cm-content')
+      if (blueprintEl) {
+        const sections = blueprintEl.querySelectorAll('.cm-bp-section')
+        for (const section of sections) {
+          section.scrollIntoView({ block: 'nearest' })
+          await new Promise(r => setTimeout(r, 150))
+          const canvas = await html2canvas(section, {
+            scale: 1.5, useCORS: true, backgroundColor: '#0F2040',
+            logging: false, windowWidth: 900,
+          })
+          const imgData = canvas.toDataURL('image/jpeg', 0.85)
+          const imgH    = (canvas.height / canvas.width) * contentW
+          const maxH    = pageH - margin - 10
+          const finalH  = imgH > maxH ? maxH : imgH
+          const finalW  = imgH > maxH ? contentW * (maxH / imgH) : contentW
+          if (y + finalH > pageH - margin) y = addPageHeader()
+          pdf.addImage(imgData, 'JPEG', margin + (contentW - finalW) / 2, y, finalW, finalH)
+          y += finalH + 8
+        }
+      }
+
+      // Page footers
+      const total = pdf.getNumberOfPages()
+      for (let i = 1; i <= total; i++) {
+        pdf.setPage(i)
+        pdf.setFontSize(7); pdf.setTextColor(80, 110, 160)
+        pdf.text(`${i} / ${total}`, pageW / 2, pageH - 7, { align: 'center' })
+        pdf.text('Confidential — Zones Compass · Cloud Modernization', margin, pageH - 7)
+      }
+
+      const filename = `${clientName.replace(/\s+/g, '-')}-Cloud-Modernization-Blueprint-${new Date().toISOString().split('T')[0]}.pdf`
+      pdf.save(filename)
+    } catch (err) {
+      console.error('PDF export error:', err)
+    } finally {
+      setExporting(false)
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -867,6 +984,13 @@ export default function CloudModernization() {
           </div>
           <div className="cm-bp-actions">
             {bp && <span className="cm-saved-badge">✓ Saved</span>}
+            {bp && (
+              <button className="cm-btn-secondary" onClick={exportBlueprintPDF} disabled={exporting}>
+                {exporting
+                  ? <><RefreshCw size={13} style={{ animation: 'cm-spin 1s linear infinite' }} /> Exporting…</>
+                  : <><Download size={13} /> Download PDF</>}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1088,17 +1212,60 @@ export default function CloudModernization() {
               </div>
             )}
 
-            {/* Client questions */}
+            {/* Client questions — expandable with answer capture */}
             {bpQuestions.length > 0 && (
               <div className="cm-bp-section">
-                <div className="cm-findings-title">Questions for client</div>
-                <div className="cm-questions-note">Resolve these open items before finalizing the migration plan.</div>
-                {bpQuestions.map((q, i) => (
-                  <div key={i} className="cm-question-card">
-                    <div className="cqc-num">{i + 1}</div>
-                    <div className="cqc-text">{typeof q === 'string' ? q : String(q)}</div>
-                  </div>
-                ))}
+                <div className="cm-findings-title">Questions for the client</div>
+                <div className="cm-questions-note">
+                  Answer these before finalizing the migration plan. Answered questions will be incorporated into a refined blueprint.
+                </div>
+                {bpQuestions.map((q, i) => {
+                  const qText     = typeof q === 'string' ? q : String(q)
+                  const isExpanded = expandedQuestion === i
+                  const answer    = questionAnswers[i] || ''
+                  const hasAnswer = answer.trim().length > 0
+                  return (
+                    <div key={i} className={`cm-question-card ${hasAnswer ? 'answered' : ''}`}>
+                      <div className="cqc-top" onClick={() => setExpandedQuestion(isExpanded ? null : i)}>
+                        <div className="cqc-num" style={{
+                          background:   hasAnswer ? 'rgba(61,186,126,0.15)' : 'rgba(74,159,224,0.1)',
+                          borderColor:  hasAnswer ? '#3DBA7E' : 'var(--z-blue-bright)',
+                          color:        hasAnswer ? '#3DBA7E' : 'var(--z-blue-bright)',
+                        }}>
+                          {hasAnswer ? '✓' : i + 1}
+                        </div>
+                        <div className="cqc-text">{qText}</div>
+                        <div className="cqc-expand">{isExpanded ? '↑' : '↓'}</div>
+                      </div>
+                      {isExpanded && (
+                        <div className="cqc-answer-area">
+                          <textarea
+                            className="cqc-answer-input"
+                            placeholder="Type your answer or notes here — this will be included when you refine the blueprint…"
+                            value={answer}
+                            onChange={e => setQuestionAnswers(prev => ({ ...prev, [i]: e.target.value }))}
+                            rows={3}
+                            autoFocus
+                          />
+                          {answer.trim() && <div className="cqc-answer-saved">✓ Answer captured</div>}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                {Object.values(questionAnswers).some(a => a?.trim()) && (
+                  <button
+                    className="cm-btn-primary"
+                    style={{ marginTop: 12 }}
+                    onClick={refineBlueprintWithAnswers}
+                    disabled={refining}
+                  >
+                    {refining
+                      ? <><RefreshCw size={14} style={{ animation: 'cm-spin 1s linear infinite' }} /> Refining blueprint…</>
+                      : '↻ Refine blueprint with answers'}
+                  </button>
+                )}
               </div>
             )}
 

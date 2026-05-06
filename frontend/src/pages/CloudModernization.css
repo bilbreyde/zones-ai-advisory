@@ -235,11 +235,20 @@
 /* Architecture diagram */
 .cm-diagram-title { background:var(--z-surface); border:.5px solid var(--z-border); border-radius:var(--radius-md); padding:16px; font-size:13px; color:var(--z-muted); line-height:1.7; white-space:pre-wrap; font-family:monospace; }
 
-/* Client questions */
-.cm-questions-note { font-size:12px; color:var(--z-muted); margin-bottom:12px; }
-.cm-question-card { display:flex; align-items:flex-start; gap:12px; background:var(--z-surface); border:.5px solid var(--z-border); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; }
-.cqc-num { width:22px; height:22px; border-radius:50%; background:rgba(74,159,224,.15); border:.5px solid rgba(74,159,224,.3); color:#4A9FE0; font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
-.cqc-text { font-size:13px; color:var(--z-white); line-height:1.6; }
+/* Client questions — expandable */
+.cm-questions-note { font-size:12px; color:var(--z-muted); margin-bottom:10px; line-height:1.6; }
+.cm-question-card { background:var(--z-surface); border:.5px solid var(--z-border); border-radius:var(--radius-sm); margin-bottom:6px; overflow:hidden; transition:border-color .15s; }
+.cm-question-card.answered { border-color:rgba(61,186,126,.35); }
+.cqc-top { display:flex; gap:12px; padding:10px 14px; cursor:pointer; align-items:flex-start; }
+.cqc-top:hover { background:var(--z-surface-2, var(--z-navy-mid)); }
+.cqc-num { width:20px; height:20px; border-radius:50%; border:.5px solid; font-size:10px; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; transition:all .15s; }
+.cqc-text { font-size:12px; color:var(--z-white); line-height:1.6; flex:1; }
+.cqc-expand { font-size:11px; color:var(--z-muted); flex-shrink:0; margin-top:2px; }
+.cqc-answer-area { padding:0 14px 12px 46px; border-top:.5px solid var(--z-border); }
+.cqc-answer-input { width:100%; background:var(--z-surface-2, var(--z-navy-mid)); border:.5px solid var(--z-border); border-radius:4px; color:var(--z-white); font-size:12px; font-family:inherit; padding:8px 10px; resize:vertical; margin-top:10px; line-height:1.6; box-sizing:border-box; color-scheme:dark; }
+.cqc-answer-input:focus { outline:none; border-color:var(--z-blue-bright); }
+.cqc-answer-input::placeholder { color:var(--z-muted); }
+.cqc-answer-saved { font-size:10px; color:#3DBA7E; margin-top:5px; }
 
 /* Responsive VMware calc grid */
 @media (max-width:900px) {
