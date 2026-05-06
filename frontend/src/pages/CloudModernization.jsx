@@ -298,22 +298,33 @@ export default function CloudModernization() {
     try {
       const questions = Array.isArray(blueprint.clientQuestions) ? blueprint.clientQuestions : []
       const answeredQs = questions
-        .map((q, i) => questionAnswers[i]?.trim() ? `Q: ${q}\nA: ${questionAnswers[i].trim()}` : null)
+        .map((q, i) => questionAnswers[i]?.trim()
+          ? `Q${i + 1}: ${q}\nAdvisor answer: ${questionAnswers[i].trim()}`
+          : null)
         .filter(Boolean)
         .join('\n\n')
+
+      console.log('Sending refinement, answers:', answeredQs.slice(0, 300))
 
       const res = await fetch(`${API}/api/cloud-modernization/blueprint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: client?.id, workloads, scoringResult, calcResult,
+          clientId: client?.id,
+          // Pass both old-style fields (for initial context) and explicit advisor answers
+          workloads, scoringResult, calcResult,
           targetCloud, timeline, budgetRange, constraints,
           complianceReqs, haRequirement, drRequirement, managedServices, networkArch, additionalReqs,
           advisorAnswers: answeredQs,
         }),
       })
-      if (!res.ok) throw new Error('Blueprint refinement failed')
-      setBlueprint(await res.json())
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error(errBody.error || 'Blueprint refinement failed')
+      }
+      const data = await res.json()
+      console.log('Refined blueprint received, answersApplied:', data.answersApplied)
+      setBlueprint(data)
       setQuestionAnswers({})
       setExpandedQuestion(null)
     } catch (e) { setBpError(e.message) }
@@ -1009,6 +1020,18 @@ export default function CloudModernization() {
 
         {bp && (
           <div>
+            {/* Answers applied banner — shown after refinement */}
+            {Array.isArray(bp.answersApplied) && bp.answersApplied.length > 0 && (
+              <div className="cm-answers-applied">
+                <div className="caa-title">✓ Blueprint updated based on your answers</div>
+                <ul className="caa-list">
+                  {bp.answersApplied.map((note, i) => (
+                    <li key={i}>{typeof note === 'string' ? note : String(note)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Summary */}
             {bpSummary && (
               <div className="cm-summary-card" style={{ marginBottom: 20 }}>{bpSummary}</div>

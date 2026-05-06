@@ -394,129 +394,149 @@ Return ONLY raw JSON:
 //                   budgetRange, constraints, complianceReqs, haRequirement, drRequirement,
 //                   managedServices, networkArch, additionalReqs }
 
-router.post('/blueprint', async (req, res) => {
-  try {
-    const {
-      workloads      = [],
-      scoringResult,
-      calcResult,
-      targetCloud    = 'Azure',
-      timeline       = '12 months',
-      budgetRange    = '',
-      constraints    = '',
-      complianceReqs = [],
-      haRequirement  = false,
-      drRequirement  = false,
-      managedServices = true,
-      networkArch    = 'Hub-Spoke',
-      additionalReqs = '',
-      advisorAnswers = '',
-      clientId,
-    } = req.body
+// ── Blueprint prompt builders ─────────────────────────────────────────────────
 
-    console.log('blueprint called: workloads', workloads.length, 'target', targetCloud)
+function buildWaveDetail(wls) {
+  if (!wls || !wls.length) return 'None'
+  return wls.map(w =>
+    `  - ${w.name}: ${w.recommendation} → ${w.recommendedPath || w.recommendation}` +
+    (w.endOfLifeRisk ? ' ⚠ END-OF-LIFE' : '') +
+    (w.consolidationNote ? ` [${w.consolidationNote}]` : '') +
+    `\n    Rationale: ${w.rationale || 'no rationale'}` +
+    `\n    Effort: ${w.effort || '?'} · Risk: ${w.risk || '?'}` +
+    (w.waveRationale ? `\n    Wave rationale: ${w.waveRationale}` : '')
+  ).join('\n')
+}
 
-    // Get client name if clientId provided
-    let clientName = 'Client'
-    if (clientId) {
-      try {
-        const { resource } = await containers.clients.item(clientId, clientId).read()
-        if (resource?.name) clientName = resource.name
-      } catch (_) {}
+function buildRefinementPrompt(ctx) {
+  return `You are a senior cloud solutions architect at Zones. An advisor has answered clarifying questions about a client migration. Update the blueprint based on these answers.
+
+Client: ${ctx.clientName}
+Compliance: ${ctx.complianceReqs?.join(', ') || 'standard'}
+Target cloud: ${ctx.targetCloud || 'Azure'}
+Timeline: ${ctx.timeline || 'not specified'}
+
+ADVISOR ANSWERS TO CLARIFYING QUESTIONS:
+${ctx.advisorAnswers}
+
+ORIGINAL WORKLOAD SCORING:
+Wave 1 (quick wins):
+${ctx.wave1Detail}
+
+Wave 2 (core migration):
+${ctx.wave2Detail}
+
+Wave 3 (complex/critical):
+${ctx.wave3Detail}
+
+INSTRUCTIONS — this is a REFINEMENT, not a fresh blueprint:
+1. Read each advisor answer carefully
+2. Update ONLY the parts of the blueprint that the answers change
+3. If an answer clarifies a workload type (e.g. "BMS is a Building Management System with OT dependencies") — update that workload's recommendation, phase, and risks accordingly
+4. If an answer reveals a constraint (e.g. "we have a change freeze in Q4") — update the timeline
+5. If an answer reveals a dependency (e.g. "File Servers 1-5 all feed the ERP") — update wave sequencing
+6. If an answer reveals licensing info (e.g. "we have Software Assurance") — update cost estimates
+7. Generate NEW questions ONLY if the answers revealed new unknowns — otherwise set clientQuestions to [] or at most 1-2 targeted follow-ups
+8. The phases must reference workloads by EXACT names
+9. Never say "Azure AD" — always say "Microsoft Entra ID"
+10. Cost estimates must break down into: Azure consumption / Zones services / tooling
+
+Return ONLY raw JSON:
+{
+  "summary": "Updated 3-4 sentence executive summary reflecting the advisor answers",
+  "phases": [
+    {
+      "name": "Phase name",
+      "months": "X-Y",
+      "color": "#4A9FE0",
+      "workloads": ["exact workload names"],
+      "tasks": ["specific task with owner and output"]
     }
-
-    const aiClient = await getAiClient()
-
-    const scored  = scoringResult?.workloads || []
-    const wave1   = scored.filter(w => w.wave === 1 || (!w.wave && w.effort === 'Low')).slice(0, 8)
-    const wave2   = scored.filter(w => w.wave === 2 || (!w.wave && w.effort === 'Medium')).slice(0, 8)
-    const wave3   = scored.filter(w => w.wave === 3 || (!w.wave && w.effort === 'High')).slice(0, 8)
-
-    // Fall back: distribute remaining workloads if wave fields weren't set
-    if (wave1.length === 0 && wave2.length === 0 && wave3.length === 0 && scored.length > 0) {
-      const chunk = Math.ceil(scored.length / 3)
-      wave1.push(...scored.slice(0, chunk))
-      wave2.push(...scored.slice(chunk, chunk * 2))
-      wave3.push(...scored.slice(chunk * 2))
+  ],
+  "consolidationOpportunities": [],
+  "repurchaseAlternatives": [],
+  "risks": [
+    {
+      "risk": "specific risk",
+      "likelihood": "High|Medium|Low",
+      "mitigation": "specific mitigation"
     }
+  ],
+  "drStrategy": {
+    "rpoTarget": "string",
+    "rtoTarget": "string",
+    "approach": "string",
+    "tooling": "string"
+  },
+  "costEstimate": {
+    "azureConsumption": { "monthly": "string", "annual": "string", "breakdown": "string" },
+    "zonesServices": { "total": "string", "breakdown": "string" },
+    "toolingAndLicenses": { "total": "string", "breakdown": "string" }
+  },
+  "clientQuestions": [],
+  "architectureDiagram": {
+    "type": "mermaid",
+    "title": "${ctx.clientName} — Target Cloud Architecture",
+    "chart": "graph TD with max 10 nodes, lowercase IDs, no spaces in node IDs"
+  },
+  "answersApplied": [
+    "Brief one-sentence note on what each answer changed — e.g. BMS moved from Wave 1 Rehost to Retain due to OT serial-port dependencies"
+  ]
+}`
+}
 
-    function buildWaveDetail(wls) {
-      if (!wls.length) return 'None'
-      return wls.map(w =>
-        `  - ${w.name}: ${w.recommendation} → ${w.recommendedPath || w.recommendation}` +
-        (w.endOfLifeRisk ? ' ⚠ END-OF-LIFE' : '') +
-        (w.consolidationNote ? ` [${w.consolidationNote}]` : '') +
-        `\n    Rationale: ${w.rationale || 'no rationale'}` +
-        `\n    Effort: ${w.effort || '?'} · Risk: ${w.risk || '?'}` +
-        (w.waveRationale ? `\n    Wave rationale: ${w.waveRationale}` : '')
-      ).join('\n')
-    }
+function buildInitialPrompt(ctx) {
+  return `You are a senior cloud solutions architect at Zones generating a detailed migration blueprint for a client engagement.
 
-    const rDist = scored.reduce((acc, w) => {
-      acc[w.recommendation] = (acc[w.recommendation] || 0) + 1
-      return acc
-    }, {})
-    const distStr = Object.entries(rDist).map(([r, n]) => `${r}: ${n}`).join(' | ')
+Client: ${ctx.clientName}
+Target cloud: ${ctx.targetCloud || 'Azure'}
+Timeline: ${ctx.timeline || '12 months'}
+Budget: ${ctx.budgetRange || 'not specified'}
+Network architecture: ${ctx.networkArch || 'Hub-Spoke'}
+High availability required: ${ctx.haRequirement}
+Disaster recovery required: ${ctx.drRequirement}
+Prefer managed services (PaaS): ${ctx.managedServices}
+Compliance: ${ctx.complianceReqs?.length ? ctx.complianceReqs.join(', ') : 'standard'}
+Constraints: ${ctx.constraints || 'none'}
+Additional requirements: ${ctx.additionalReqs || 'none'}
 
-    const eolWorkloads = scored.filter(w => w.endOfLifeRisk)
-    const consolidation = scored.filter(w => w.consolidationNote).map(w => `${w.name}: ${w.consolidationNote}`)
-    const repurchase    = scored.filter(w => w.repurchaseAlternative).map(w => `${w.name} → ${w.repurchaseAlternative}`)
-
-    const prompt = `You are a senior cloud solutions architect at Zones generating a detailed migration blueprint for a client engagement.
-
-Client: ${clientName}
-Target cloud: ${targetCloud}
-Timeline: ${timeline}
-Budget: ${budgetRange || 'not specified'}
-Network architecture: ${networkArch}
-High availability required: ${haRequirement}
-Disaster recovery required: ${drRequirement}
-Prefer managed services (PaaS): ${managedServices}
-Compliance: ${complianceReqs.length ? complianceReqs.join(', ') : 'standard'}
-Constraints: ${constraints || 'none'}
-Additional requirements: ${additionalReqs || 'none'}
-
-WORKLOAD SUMMARY: ${scored.length} workloads total
-Distribution: ${distStr || 'not scored'}
-End-of-life workloads: ${eolWorkloads.map(w => w.name).join(', ') || 'none'}
+WORKLOAD SUMMARY: ${ctx.scored.length} workloads total
+Distribution: ${ctx.distStr || 'not scored'}
+End-of-life workloads: ${ctx.eolWorkloads.map(w => w.name).join(', ') || 'none'}
 
 SCORED WORKLOADS BY WAVE — reference by EXACT NAME in all phases:
 
 Wave 1 (Quick wins — low risk, fast value):
-${buildWaveDetail(wave1)}
+${ctx.wave1Detail}
 
 Wave 2 (Core migration):
-${buildWaveDetail(wave2)}
+${ctx.wave2Detail}
 
 Wave 3 (Complex, critical, or modernization):
-${buildWaveDetail(wave3)}
+${ctx.wave3Detail}
 
 CONSOLIDATION OPPORTUNITIES (from scoring):
-${consolidation.join('\n') || 'None identified'}
+${ctx.consolidation.join('\n') || 'None identified'}
 
 REPURCHASE ALTERNATIVES (from scoring):
-${repurchase.join('\n') || 'None identified'}
+${ctx.repurchase.join('\n') || 'None identified'}
 
-${advisorAnswers ? `ADVISOR ANSWERS TO PREVIOUS QUESTIONS — incorporate these into the refined blueprint:
-${advisorAnswers}
-
-Update the migration plan, risk assessment, cost estimate, and architecture diagram to reflect these answers. If an answer clarifies a workload type, dependency, or constraint, update the relevant phase and workload details accordingly.
-
-` : ''}CRITICAL RULES — follow every one:
+CRITICAL RULES — follow every one:
 1. Reference workloads by EXACT names from the inventory — never generic names like "File Server 1" or "VM-001"
 2. For each task: include the specific workload name, the responsible role, the duration, and the output/deliverable
-3. End-of-life workloads (${eolWorkloads.map(w => w.name).join(', ') || 'none'}) must be called out explicitly as security risks with upgrade path
+3. End-of-life workloads (${ctx.eolWorkloads.map(w => w.name).join(', ') || 'none'}) must be called out explicitly as security risks with upgrade path
 4. Never say "Azure AD" — always say "Microsoft Entra ID"
 5. Never say "Azure Active Directory" — always say "Microsoft Entra ID"
 6. Cost estimates must break down into three categories: Azure consumption / Zones professional services / tooling and licenses
-7. Include RPO/RTO targets for any ${complianceReqs.length ? complianceReqs.join('/') : 'compliance-scoped'} workloads
+7. Include RPO/RTO targets for any ${ctx.complianceReqs?.length ? ctx.complianceReqs.join('/') : 'compliance-scoped'} workloads
 8. For each consolidation opportunity, show the cost delta vs individual migration
 9. The "Questions for the client" section must reference specific workload names and constraints
 10. The architecture diagram must reference actual Azure services chosen for the specific workloads — not generic boxes
+11. Generate 4-6 specific questions the advisor must answer before finalizing the SOW
 
 Return ONLY raw JSON:
 {
-  "summary": "3-4 sentence executive summary naming specific workloads and the primary modernization strategy for ${clientName}",
+  "summary": "3-4 sentence executive summary naming specific workloads and the primary modernization strategy for ${ctx.clientName}",
   "phases": [
     {
       "name": "Phase 1 — Discovery and Azure Landing Zone",
@@ -525,37 +545,26 @@ Return ONLY raw JSON:
       "workloads": [],
       "tasks": [
         "Deploy Azure Migrate appliance on VMware environment — Cloud Architect, 1 week — captures actual CPU/RAM/storage utilisation for right-sizing",
-        "Validate compliance scope: confirm which workloads are in ${complianceReqs.join('/')} scope and document control matrix — Compliance lead, 1 week",
-        "Configure Azure landing zone with ${networkArch} network topology and Microsoft Entra ID integration — Cloud Architect + Network lead, 2 weeks"
-      ]
-    },
-    {
-      "name": "Phase N — [descriptive name matching wave]",
-      "months": "X-Y",
-      "color": "#hex",
-      "workloads": ["EXACT workload names from wave"],
-      "tasks": [
-        "Specific task referencing the actual workload name — role, duration, output",
-        "e.g. Migrate PROD-SQL-01 (SQL Server 2019, 16 vCPU / 128 GB) to Azure SQL Managed Instance — DBA lead, 3 weeks — Output: production database running in Azure with Business Critical tier, <15 min RPO"
+        "Configure Azure landing zone with ${ctx.networkArch || 'Hub-Spoke'} network topology and Microsoft Entra ID integration — Cloud Architect + Network lead, 2 weeks"
       ]
     }
   ],
   "consolidationOpportunities": [
     {
       "workloads": ["exact workload names that could consolidate"],
-      "currentApproach": "Individual VM rehost — ${Math.ceil(wave1.length / 3)} separate VMs",
-      "recommendedApproach": "Azure Files Premium share or Azure NetApp Files for high-performance workloads",
-      "rationale": "Specific reason referencing actual workload names and expected performance requirements",
+      "currentApproach": "Individual VM rehost",
+      "recommendedApproach": "Azure Files Premium share or Azure NetApp Files",
+      "rationale": "Specific reason referencing actual workload names",
       "costImpact": "Estimated monthly saving vs individual VM rehost"
     }
   ],
   "repurchaseAlternatives": [
     {
       "workload": "exact workload name",
-      "currentPath": "current 6R recommendation e.g. Replatform to AKS",
-      "alternative": "SaaS alternative e.g. Atlassian Cloud",
-      "tradeoffs": "SaaS = faster delivery, lower ops burden, less customisation. Self-hosted = full control, higher maintenance cost.",
-      "recommendation": "Which Zones recommends and why, given this client context"
+      "currentPath": "current 6R recommendation",
+      "alternative": "SaaS alternative",
+      "tradeoffs": "SaaS vs self-hosted tradeoffs",
+      "recommendation": "Which Zones recommends and why"
     }
   ],
   "risks": [
@@ -566,7 +575,7 @@ Return ONLY raw JSON:
     }
   ],
   "drStrategy": {
-    "rpoTarget": "e.g. 15 minutes for ${complianceReqs.includes('HIPAA') ? 'HIPAA-scoped' : 'critical'} workloads",
+    "rpoTarget": "e.g. 15 minutes for critical workloads",
     "rtoTarget": "e.g. 4 hours for critical workloads, 24 hours for standard",
     "approach": "Specific DR approach referencing actual workload names and Azure services",
     "tooling": "Azure Site Recovery / Azure Backup / geo-redundant storage / availability zones"
@@ -583,85 +592,160 @@ Return ONLY raw JSON:
     },
     "toolingAndLicenses": {
       "total": "$X,XXX-$X,XXX",
-      "breakdown": "Azure Migrate: included | Azure Site Recovery: ~$25/VM/month | Compliance tooling: $X,XXX | Azure Monitor: $XXX"
+      "breakdown": "Azure Migrate: included | Azure Site Recovery: ~$25/VM/month | Azure Monitor: $XXX"
     }
   },
   "clientQuestions": [
-    "Specific question referencing a named workload — e.g. PROD-SQL-01 is running SQL Server 2019 Standard — do you have Software Assurance active? This determines whether Azure Hybrid Benefit applies and could reduce IaaS VM licensing cost by up to 40%.",
-    "Specific question about a constraint or dependency — e.g. Three of the file server workloads are listed without application dependency information. Which applications write to these shares, and are any of them connected to manufacturing floor equipment or OT systems that cannot tolerate network disruption?",
+    "Specific question referencing a named workload — e.g. PROD-SQL-01: do you have Software Assurance active? Azure Hybrid Benefit could reduce licensing cost by up to 40%.",
+    "Specific question about dependencies — e.g. which applications write to the file server workloads?",
     "Specific question about end-of-life risk — relevant if any workload has endOfLifeRisk=true",
-    "Specific question about compliance scope — e.g. Which of the ${scored.length} workloads are in PCI-DSS/HIPAA scope? This affects whether they can share compute with non-compliant workloads in Azure.",
-    "Specific question about timeline or budget — e.g. The ${timeline} timeline assumes Wave 1 begins within 60 days. Do you have an internal IT freeze window (e.g. Q4 for retail or fiscal year-end) that would block migration activity during that period?"
+    "Specific question about compliance scope — which workloads are in-scope?",
+    "Specific question about timeline or budget constraints"
   ],
   "architectureDiagram": {
     "type": "mermaid",
-    "title": "${clientName} — Target ${targetCloud} Architecture",
-    "chart": "graph TD\\nonprem[On-Prem VMware]\\nlz[Azure Landing Zone]\\nonprem --> lz\\nlz --> iaas[Azure IaaS VMs]\\nlz --> sql[Azure SQL Managed Instance]\\nlz --> app[Azure App Service]\\nlz --> files[Azure Files / ANF]\\nlz --> entra[Microsoft Entra ID]"
+    "title": "${ctx.clientName} — Target ${ctx.targetCloud || 'Azure'} Architecture",
+    "chart": "graph TD\\nonprem[On-Prem VMware]\\nlz[Azure Landing Zone]\\nonprem --> lz\\nlz --> iaas[Azure IaaS VMs]\\nlz --> sql[Azure SQL Managed Instance]\\nlz --> app[Azure App Service]\\nlz --> files[Azure Files]\\nlz --> entra[Microsoft Entra ID]"
   }
 }`
+}
 
+// ── POST /blueprint ───────────────────────────────────────────────────────────
+router.post('/blueprint', async (req, res) => {
+  try {
+    // Accept both old field names (from generateBlueprint) and new ones (from refine)
+    const {
+      // New-style fields (from refineBlueprintWithAnswers)
+      scoredWorkloads,
+      // Old-style fields (from generateBlueprint — scoringResult.workloads)
+      scoringResult,
+      workloads      = [],
+      calcResult,
+      targetCloud    = 'Azure',
+      timeline       = '12 months',
+      budgetRange    = '',
+      constraints    = '',
+      complianceReqs = [],
+      haRequirement  = false,
+      drRequirement  = false,
+      managedServices = true,
+      networkArch    = 'Hub-Spoke',
+      additionalReqs = '',
+      advisorAnswers = '',
+      clientId,
+    } = req.body
+
+    // Resolve scored workload array from either field
+    const scored = scoredWorkloads || scoringResult?.workloads || []
+
+    const isRefinement = !!(advisorAnswers && advisorAnswers.trim())
+    console.log('Blueprint mode:', isRefinement ? 'REFINEMENT' : 'INITIAL', '| workloads:', scored.length)
+    if (isRefinement) console.log('Advisor answers:', advisorAnswers.slice(0, 300))
+
+    // Get client name
+    let clientName = 'Client'
+    if (clientId) {
+      try {
+        const { resource } = await containers.clients.item(clientId, clientId).read()
+        if (resource?.name) clientName = resource.name
+      } catch (_) {}
+    }
+
+    // Wave grouping with fallback distribution
+    let wave1 = scored.filter(w => w.wave === 1).slice(0, 8)
+    let wave2  = scored.filter(w => w.wave === 2).slice(0, 8)
+    let wave3  = scored.filter(w => w.wave === 3).slice(0, 8)
+    if (!wave1.length && !wave2.length && !wave3.length && scored.length > 0) {
+      const chunk = Math.ceil(scored.length / 3)
+      wave1 = scored.slice(0, chunk)
+      wave2 = scored.slice(chunk, chunk * 2)
+      wave3 = scored.slice(chunk * 2)
+    }
+
+    const wave1Detail = buildWaveDetail(wave1)
+    const wave2Detail = buildWaveDetail(wave2)
+    const wave3Detail = buildWaveDetail(wave3)
+
+    const rDist = scored.reduce((acc, w) => {
+      acc[w.recommendation] = (acc[w.recommendation] || 0) + 1; return acc
+    }, {})
+    const distStr      = Object.entries(rDist).map(([r, n]) => `${r}: ${n}`).join(' | ')
+    const eolWorkloads = scored.filter(w => w.endOfLifeRisk)
+    const consolidation = scored.filter(w => w.consolidationNote).map(w => `${w.name}: ${w.consolidationNote}`)
+    const repurchase    = scored.filter(w => w.repurchaseAlternative).map(w => `${w.name} → ${w.repurchaseAlternative}`)
+
+    const ctx = {
+      clientName, targetCloud, timeline, budgetRange, constraints,
+      complianceReqs, haRequirement, drRequirement, managedServices,
+      networkArch, additionalReqs, advisorAnswers,
+      scored, distStr, eolWorkloads, consolidation, repurchase,
+      wave1, wave2, wave3, wave1Detail, wave2Detail, wave3Detail,
+    }
+
+    const prompt = isRefinement ? buildRefinementPrompt(ctx) : buildInitialPrompt(ctx)
+
+    const aiClient = await getAiClient()
     const completion = await aiClient.chat.completions.create({
       model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
       messages:    [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens:  3000,
+      temperature: isRefinement ? 0.2 : 0.3,
+      max_tokens:  4000,
     })
+    console.log('Blueprint finish_reason:', completion.choices[0].finish_reason)
 
     const raw = completion.choices[0].message.content
-    console.log('blueprint finish_reason:', completion.choices[0].finish_reason)
-
     let result
     try {
       result = parseJson(raw)
     } catch (parseErr) {
-      console.error('blueprint JSON parse failed:', parseErr.message)
-      return res.status(500).json({ error: 'AI returned invalid JSON', detail: parseErr.message })
+      // Recovery — walk character-by-character to find balanced JSON object
+      const clean = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+      const start = clean.indexOf('{')
+      if (start === -1) return res.status(500).json({ error: 'No JSON in AI response' })
+      let depth = 0, end = -1
+      for (let i = start; i < clean.length; i++) {
+        if (clean[i] === '{') depth++
+        if (clean[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+      }
+      if (end === -1) return res.status(500).json({ error: 'Unbalanced JSON from AI', raw: raw.slice(0, 500) })
+      try { result = JSON.parse(clean.slice(start, end + 1)) }
+      catch { return res.status(500).json({ error: 'JSON parse failed after recovery', raw: raw.slice(0, 500) }) }
     }
 
-    // Fix any Mermaid charts
-    if (result.visuals) {
-      result.visuals = result.visuals.map(v => {
-        if (v.type === 'mermaid' && v.chart) v.chart = fixMermaidChart(v.chart)
-        return v
-      })
+    // Fix Mermaid chart if present
+    if (result.architectureDiagram?.chart) {
+      result.architectureDiagram.chart = fixMermaidChart(result.architectureDiagram.chart)
     }
 
-    // Auto-save to Cosmos DB if clientId provided
+    // Auto-save to Cosmos DB
     if (clientId) {
       try {
-        const { resource: client } = await containers.clients.item(clientId, clientId).read()
-        if (client) {
-          if (!client.cloudModernization) client.cloudModernization = { sessions: [] }
+        const { resource: clientDoc } = await containers.clients.item(clientId, clientId).read()
+        if (clientDoc) {
+          if (!clientDoc.cloudModernization) clientDoc.cloudModernization = { sessions: [] }
           const session = {
-            id:            `cm-${Date.now()}`,
-            createdAt:     new Date().toISOString(),
-            workloads,
-            targetCloud,
-            timeline,
-            budgetRange,
-            constraints,
-            scoringResult,
-            calcResult,
-            blueprint:     result,
+            id: `cm-${Date.now()}`, createdAt: new Date().toISOString(),
+            workloads, targetCloud, timeline, budgetRange, constraints,
+            scoringResult: scoringResult || { workloads: scored },
+            calcResult, blueprint: result,
           }
-          client.cloudModernization.sessions.unshift(session)
-          if (client.cloudModernization.sessions.length > 10) {
-            client.cloudModernization.sessions = client.cloudModernization.sessions.slice(0, 10)
-          }
-          client.cloudModernization.updatedAt = new Date().toISOString()
-          client.updatedAt                    = new Date().toISOString()
-          await containers.clients.item(clientId, clientId).replace(client)
-          console.log('blueprint auto-saved for client', clientId)
+          clientDoc.cloudModernization.sessions.unshift(session)
+          if (clientDoc.cloudModernization.sessions.length > 10)
+            clientDoc.cloudModernization.sessions = clientDoc.cloudModernization.sessions.slice(0, 10)
+          clientDoc.cloudModernization.updatedAt = new Date().toISOString()
+          clientDoc.updatedAt = new Date().toISOString()
+          await containers.clients.item(clientId, clientId).replace(clientDoc)
+          console.log('Blueprint auto-saved for client', clientId)
         }
       } catch (saveErr) {
-        console.error('blueprint auto-save failed (non-fatal):', saveErr.message)
+        console.error('Blueprint auto-save failed (non-fatal):', saveErr.message)
       }
     }
 
-    console.log('blueprint success')
+    console.log('Blueprint success, answersApplied:', result.answersApplied?.length ?? 0)
     res.json(result)
   } catch (err) {
-    console.error('blueprint error:', err.message)
+    console.error('Blueprint error:', err.message, err.stack?.split('\n')[1])
     res.status(500).json({ error: err.message })
   }
 })
