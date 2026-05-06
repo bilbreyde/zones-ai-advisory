@@ -294,7 +294,7 @@ router.post('/score-workloads', async (req, res) => {
         `Data residency: ${w.dataResidency || 'Flexible'}, Notes: ${w.notes || 'none'}`
       ).join('\n')
 
-    const prompt = `You are a cloud modernization architect applying the 6R framework to score workloads for migration to ${targetCloud}.
+    const prompt = `You are a senior cloud modernization architect applying the 6R framework to score workloads for migration to ${targetCloud}.
 
 WORKLOADS:
 ${workloadLines}
@@ -307,39 +307,67 @@ REQUIREMENTS:
 
 6R DEFINITIONS:
 - Rehost: lift-and-shift to ${targetCloud} IaaS. Minimal changes. Fast.
-- Replatform: containerize (AKS/ECS) or move to managed OS — no code changes
-- Refactor: re-architect to PaaS (App Service, Functions, managed SQL, Cosmos DB)
-- Repurchase: replace with SaaS equivalent
-- Retire: decommission — not needed
+- Replatform: containerize (AKS) or move to managed OS — no code changes
+- Refactor: re-architect to PaaS (App Service, Functions, Azure SQL Managed Instance, Cosmos DB)
+- Repurchase: replace with SaaS equivalent (Atlassian Cloud, GitHub, Microsoft 365, etc.)
+- Retire: decommission — workload is not needed
 - Retain: keep on-premises (compliance-blocked, too risky, or not cloud-ready)
 
-RULES:
+SCORING RULES:
 - Critical + cannot be changed → Retain or Rehost
-- VMware workload → Rehost default, consider AVS as stepping stone
-- Web apps/APIs → strong Refactor candidate
-- Databases → Replatform to managed SQL or Refactor to PaaS
-- SAP/Oracle ERP → Rehost only
-- Sovereign data residency → Retain or on-prem only
+- VMware workload → Rehost default; consider Azure VMware Solution as a bridge
+- Web apps / APIs → strong Refactor candidate to Azure App Service
+- SQL Server databases → evaluate Azure SQL Managed Instance (Replatform) before IaaS Rehost
+- SAP / Oracle ERP → Rehost only (never Refactor — too complex)
+- Sovereign data residency → Retain or on-prem only — never cloud
+- Windows Server 2008/2012 → flag as end-of-life risk (extended support ended Jan 2020 / Oct 2023)
+- Dev/Test workloads → strong Retire or Repurchase candidate
+
+CONSOLIDATION RULES:
+- 3+ Windows file servers → recommend Azure Files or Azure NetApp Files consolidation instead of individual Rehost; flag in rationale
+- Multiple SQL Server VMs of same version → evaluate Azure SQL Elastic Pool or Managed Instance consolidation
+- Multiple web frontends on same tech stack → evaluate Azure App Service plan consolidation
+
+REPURCHASE EVALUATION:
+- Bitbucket → evaluate Atlassian Cloud as Repurchase (flag in rationale)
+- Jenkins → evaluate Azure DevOps Pipelines or GitHub Actions as Repurchase
+- Confluence / Jira → evaluate Atlassian Cloud as Repurchase
+- Grafana / Prometheus monitoring → evaluate Azure Monitor + Managed Grafana as Repurchase
+- Any on-prem email/calendar → evaluate Microsoft 365
+
+NAMING — strictly follow these:
+- Never say "Azure AD" — always say "Microsoft Entra ID"
+- Never say "Azure Active Directory" — always say "Microsoft Entra ID"
+- Use "Azure SQL Managed Instance" not "Azure SQL MI"
+
+Assign each workload a wave (1 = quick wins / low risk, 2 = core migration, 3 = complex / critical / last).
 
 Return ONLY raw JSON:
 {
   "workloads": [
     {
-      "name": "string",
+      "name": "exact name from inventory",
       "recommendation": "Rehost|Replatform|Refactor|Repurchase|Retire|Retain",
-      "rationale": "1-2 sentences specific to this workload",
+      "recommendedPath": "specific Azure target e.g. Azure SQL Managed Instance | Azure App Service | Azure IaaS D4s_v3 | Atlassian Cloud | Azure Files",
+      "rationale": "2 sentences specific to this workload — reference OS, app stack, or compliance impact",
       "effort": "Low|Medium|High",
-      "risk": "Low|Medium|High"
+      "risk": "Low|Medium|High",
+      "wave": 1,
+      "waveRationale": "Why this wave — dependency, risk level, quick win, etc.",
+      "endOfLifeRisk": false,
+      "endOfLifeDetail": "e.g. Windows Server 2012 R2 — extended support ended Oct 2023",
+      "consolidationNote": "if applicable, note consolidation opportunity",
+      "repurchaseAlternative": "if applicable, name the SaaS alternative"
     }
   ],
-  "summary": "2-3 sentences on the overall migration approach"
+  "summary": "3-4 sentences on the overall migration approach, naming the key workload groups"
 }`
 
     const completion = await aiClient.chat.completions.create({
       model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.2,
-      max_tokens:  3000,
+      max_tokens:  4000,
     })
 
     const raw = completion.choices[0].message.content
@@ -398,56 +426,172 @@ router.post('/blueprint', async (req, res) => {
 
     const aiClient = await getAiClient()
 
-    const scored = scoringResult?.workloads || []
-    const byR    = scored.reduce((acc, w) => {
-      const r = w.recommendation || 'Unknown'
-      acc[r] = (acc[r] || [])
-      acc[r].push(w.name)
+    const scored  = scoringResult?.workloads || []
+    const wave1   = scored.filter(w => w.wave === 1 || (!w.wave && w.effort === 'Low')).slice(0, 8)
+    const wave2   = scored.filter(w => w.wave === 2 || (!w.wave && w.effort === 'Medium')).slice(0, 8)
+    const wave3   = scored.filter(w => w.wave === 3 || (!w.wave && w.effort === 'High')).slice(0, 8)
+
+    // Fall back: distribute remaining workloads if wave fields weren't set
+    if (wave1.length === 0 && wave2.length === 0 && wave3.length === 0 && scored.length > 0) {
+      const chunk = Math.ceil(scored.length / 3)
+      wave1.push(...scored.slice(0, chunk))
+      wave2.push(...scored.slice(chunk, chunk * 2))
+      wave3.push(...scored.slice(chunk * 2))
+    }
+
+    function buildWaveDetail(wls) {
+      if (!wls.length) return 'None'
+      return wls.map(w =>
+        `  - ${w.name}: ${w.recommendation} → ${w.recommendedPath || w.recommendation}` +
+        (w.endOfLifeRisk ? ' ⚠ END-OF-LIFE' : '') +
+        (w.consolidationNote ? ` [${w.consolidationNote}]` : '') +
+        `\n    Rationale: ${w.rationale || 'no rationale'}` +
+        `\n    Effort: ${w.effort || '?'} · Risk: ${w.risk || '?'}` +
+        (w.waveRationale ? `\n    Wave rationale: ${w.waveRationale}` : '')
+      ).join('\n')
+    }
+
+    const rDist = scored.reduce((acc, w) => {
+      acc[w.recommendation] = (acc[w.recommendation] || 0) + 1
       return acc
     }, {})
+    const distStr = Object.entries(rDist).map(([r, n]) => `${r}: ${n}`).join(' | ')
 
-    const dist = Object.entries(byR).map(([r, names]) => `${r}: ${names.length}`).join(', ')
+    const eolWorkloads = scored.filter(w => w.endOfLifeRisk)
+    const consolidation = scored.filter(w => w.consolidationNote).map(w => `${w.name}: ${w.consolidationNote}`)
+    const repurchase    = scored.filter(w => w.repurchaseAlternative).map(w => `${w.name} → ${w.repurchaseAlternative}`)
 
-    const prompt = `You are a cloud modernization architect at Zones generating a migration blueprint.
+    const prompt = `You are a senior cloud solutions architect at Zones generating a detailed migration blueprint for a client engagement.
 
 Client: ${clientName}
 Target cloud: ${targetCloud}
 Timeline: ${timeline}
 Budget: ${budgetRange || 'not specified'}
 Network architecture: ${networkArch}
-High availability: ${haRequirement}
-Disaster recovery: ${drRequirement}
-Prefer managed services: ${managedServices}
+High availability required: ${haRequirement}
+Disaster recovery required: ${drRequirement}
+Prefer managed services (PaaS): ${managedServices}
 Compliance: ${complianceReqs.length ? complianceReqs.join(', ') : 'standard'}
 Constraints: ${constraints || 'none'}
 Additional requirements: ${additionalReqs || 'none'}
 
-6R DISTRIBUTION: ${dist || 'not yet scored'}
-WORKLOADS: ${workloads.filter(w => w.name).map(w => w.name).join(', ') || 'none'}
+WORKLOAD SUMMARY: ${scored.length} workloads total
+Distribution: ${distStr || 'not scored'}
+End-of-life workloads: ${eolWorkloads.map(w => w.name).join(', ') || 'none'}
 
-Generate a practical migration blueprint. Return ONLY raw JSON:
+SCORED WORKLOADS BY WAVE — reference by EXACT NAME in all phases:
+
+Wave 1 (Quick wins — low risk, fast value):
+${buildWaveDetail(wave1)}
+
+Wave 2 (Core migration):
+${buildWaveDetail(wave2)}
+
+Wave 3 (Complex, critical, or modernization):
+${buildWaveDetail(wave3)}
+
+CONSOLIDATION OPPORTUNITIES (from scoring):
+${consolidation.join('\n') || 'None identified'}
+
+REPURCHASE ALTERNATIVES (from scoring):
+${repurchase.join('\n') || 'None identified'}
+
+CRITICAL RULES — follow every one:
+1. Reference workloads by EXACT names from the inventory — never generic names like "File Server 1" or "VM-001"
+2. For each task: include the specific workload name, the responsible role, the duration, and the output/deliverable
+3. End-of-life workloads (${eolWorkloads.map(w => w.name).join(', ') || 'none'}) must be called out explicitly as security risks with upgrade path
+4. Never say "Azure AD" — always say "Microsoft Entra ID"
+5. Never say "Azure Active Directory" — always say "Microsoft Entra ID"
+6. Cost estimates must break down into three categories: Azure consumption / Zones professional services / tooling and licenses
+7. Include RPO/RTO targets for any ${complianceReqs.length ? complianceReqs.join('/') : 'compliance-scoped'} workloads
+8. For each consolidation opportunity, show the cost delta vs individual migration
+9. The "Questions for the client" section must reference specific workload names and constraints
+10. The architecture diagram must reference actual Azure services chosen for the specific workloads — not generic boxes
+
+Return ONLY raw JSON:
 {
-  "summary": "2-3 sentence executive summary of the migration strategy",
+  "summary": "3-4 sentence executive summary naming specific workloads and the primary modernization strategy for ${clientName}",
   "phases": [
     {
-      "name": "string",
-      "timeline": "e.g. Months 1-3",
-      "workloads": ["workload name 1", "workload name 2"],
-      "actions": ["action 1", "action 2", "action 3"]
+      "name": "Phase 1 — Discovery and Azure Landing Zone",
+      "months": "1-2",
+      "color": "#4A9FE0",
+      "workloads": [],
+      "tasks": [
+        "Deploy Azure Migrate appliance on VMware environment — Cloud Architect, 1 week — captures actual CPU/RAM/storage utilisation for right-sizing",
+        "Validate compliance scope: confirm which workloads are in ${complianceReqs.join('/')} scope and document control matrix — Compliance lead, 1 week",
+        "Configure Azure landing zone with ${networkArch} network topology and Microsoft Entra ID integration — Cloud Architect + Network lead, 2 weeks"
+      ]
+    },
+    {
+      "name": "Phase N — [descriptive name matching wave]",
+      "months": "X-Y",
+      "color": "#hex",
+      "workloads": ["EXACT workload names from wave"],
+      "tasks": [
+        "Specific task referencing the actual workload name — role, duration, output",
+        "e.g. Migrate PROD-SQL-01 (SQL Server 2019, 16 vCPU / 128 GB) to Azure SQL Managed Instance — DBA lead, 3 weeks — Output: production database running in Azure with Business Critical tier, <15 min RPO"
+      ]
+    }
+  ],
+  "consolidationOpportunities": [
+    {
+      "workloads": ["exact workload names that could consolidate"],
+      "currentApproach": "Individual VM rehost — ${Math.ceil(wave1.length / 3)} separate VMs",
+      "recommendedApproach": "Azure Files Premium share or Azure NetApp Files for high-performance workloads",
+      "rationale": "Specific reason referencing actual workload names and expected performance requirements",
+      "costImpact": "Estimated monthly saving vs individual VM rehost"
+    }
+  ],
+  "repurchaseAlternatives": [
+    {
+      "workload": "exact workload name",
+      "currentPath": "current 6R recommendation e.g. Replatform to AKS",
+      "alternative": "SaaS alternative e.g. Atlassian Cloud",
+      "tradeoffs": "SaaS = faster delivery, lower ops burden, less customisation. Self-hosted = full control, higher maintenance cost.",
+      "recommendation": "Which Zones recommends and why, given this client context"
     }
   ],
   "risks": [
-    { "risk": "risk title", "mitigation": "mitigation approach" }
-  ],
-  "architectureNotes": "2-3 sentences on key architectural decisions",
-  "estimatedCost": "cost range and breakdown narrative",
-  "visuals": [
     {
-      "type": "mermaid",
-      "title": "${clientName} — Target Architecture",
-      "chart": "graph TD\\nA[On-Prem VMware] --> B[Azure Landing Zone]\\nB --> C[Azure IaaS]\\nB --> D[Azure App Service]\\nB --> E[Azure SQL]"
+      "risk": "Specific risk referencing actual workload names",
+      "likelihood": "High|Medium|Low",
+      "mitigation": "Specific mitigation steps with named tools and owners"
     }
-  ]
+  ],
+  "drStrategy": {
+    "rpoTarget": "e.g. 15 minutes for ${complianceReqs.includes('HIPAA') ? 'HIPAA-scoped' : 'critical'} workloads",
+    "rtoTarget": "e.g. 4 hours for critical workloads, 24 hours for standard",
+    "approach": "Specific DR approach referencing actual workload names and Azure services",
+    "tooling": "Azure Site Recovery / Azure Backup / geo-redundant storage / availability zones"
+  },
+  "costEstimate": {
+    "azureConsumption": {
+      "monthly": "$X,XXX-$X,XXX/month",
+      "annual": "$XX,XXX-$XX,XXX/year",
+      "breakdown": "IaaS VMs: $X,XXX | PaaS services: $X,XXX | Storage: $XXX | Networking/egress: $XXX | Backup: $XXX"
+    },
+    "zonesServices": {
+      "total": "$XX,XXX-$XX,XXX",
+      "breakdown": "Discovery and assessment: $X,XXX | Migration execution: $XX,XXX | Testing and validation: $X,XXX | Hypercare support: $X,XXX"
+    },
+    "toolingAndLicenses": {
+      "total": "$X,XXX-$X,XXX",
+      "breakdown": "Azure Migrate: included | Azure Site Recovery: ~$25/VM/month | Compliance tooling: $X,XXX | Azure Monitor: $XXX"
+    }
+  },
+  "clientQuestions": [
+    "Specific question referencing a named workload — e.g. PROD-SQL-01 is running SQL Server 2019 Standard — do you have Software Assurance active? This determines whether Azure Hybrid Benefit applies and could reduce IaaS VM licensing cost by up to 40%.",
+    "Specific question about a constraint or dependency — e.g. Three of the file server workloads are listed without application dependency information. Which applications write to these shares, and are any of them connected to manufacturing floor equipment or OT systems that cannot tolerate network disruption?",
+    "Specific question about end-of-life risk — relevant if any workload has endOfLifeRisk=true",
+    "Specific question about compliance scope — e.g. Which of the ${scored.length} workloads are in PCI-DSS/HIPAA scope? This affects whether they can share compute with non-compliant workloads in Azure.",
+    "Specific question about timeline or budget — e.g. The ${timeline} timeline assumes Wave 1 begins within 60 days. Do you have an internal IT freeze window (e.g. Q4 for retail or fiscal year-end) that would block migration activity during that period?"
+  ],
+  "architectureDiagram": {
+    "type": "mermaid",
+    "title": "${clientName} — Target ${targetCloud} Architecture",
+    "chart": "graph TD\\nonprem[On-Prem VMware]\\nlz[Azure Landing Zone]\\nonprem --> lz\\nlz --> iaas[Azure IaaS VMs]\\nlz --> sql[Azure SQL Managed Instance]\\nlz --> app[Azure App Service]\\nlz --> files[Azure Files / ANF]\\nlz --> entra[Microsoft Entra ID]"
+  }
 }`
 
     const completion = await aiClient.chat.completions.create({

@@ -813,6 +813,8 @@ export default function CloudModernization() {
   }
 
   function renderBlueprint() {
+    const PHASE_COLORS = ['#4A9FE0', '#8B5CF6', '#3DBA7E', '#E8A838']
+
     return (
       <div>
         <div className="cm-bp-header">
@@ -840,75 +842,218 @@ export default function CloudModernization() {
 
         {blueprint && (
           <div>
+            {/* Summary */}
             {blueprint.summary && (
               <div className="cm-summary-card" style={{ marginBottom: 20 }}>{blueprint.summary}</div>
             )}
 
+            {/* Migration phases */}
             {blueprint.phases?.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
+              <div className="cm-bp-section">
                 <div className="cm-findings-title">Migration phases</div>
-                {blueprint.phases.map((phase, i) => (
-                  <div
-                    key={i}
-                    className="cm-wave-section"
-                    style={{ marginBottom: 12 }}
-                  >
-                    <div
-                      className="cm-wave-header"
-                      style={{ borderLeftColor: ['#4A9FE0', '#8B5CF6', '#3DBA7E', '#E8A838'][i % 4] }}
-                    >
-                      <div className="cm-wave-label" style={{ color: ['#4A9FE0', '#8B5CF6', '#3DBA7E', '#E8A838'][i % 4] }}>
-                        Phase {i + 1} — {phase.name}
+                {blueprint.phases.map((phase, i) => {
+                  const color = phase.color || PHASE_COLORS[i % PHASE_COLORS.length]
+                  return (
+                    <div key={i} className="cm-phase-card" style={{ borderLeftColor: color }}>
+                      <div className="cpc-header">
+                        <div className="cpc-name" style={{ color }}>{phase.name}</div>
+                        {phase.months && <div className="cpc-months">{phase.months}</div>}
                       </div>
-                      <div className="cm-wave-count">{phase.timeline}</div>
-                    </div>
-                    <div style={{ paddingLeft: 12 }}>
                       {phase.workloads?.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                        <div className="cpc-workloads">
                           {phase.workloads.map((w, j) => (
-                            <span key={j} style={{ fontSize: 11, background: 'var(--z-surface)', border: '.5px solid var(--z-border)', borderRadius: 4, padding: '2px 8px', color: 'var(--z-white)' }}>{w}</span>
+                            <span key={j} className="cpc-workload-tag">{w}</span>
                           ))}
                         </div>
                       )}
-                      {phase.actions?.length > 0 && (
-                        <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'var(--z-muted)', lineHeight: 1.8 }}>
+                      {phase.tasks?.length > 0 && (
+                        <ul className="cpc-tasks">
+                          {phase.tasks.map((t, j) => <li key={j}>{t}</li>)}
+                        </ul>
+                      )}
+                      {/* Legacy format compat */}
+                      {!phase.tasks && phase.actions?.length > 0 && (
+                        <ul className="cpc-tasks">
                           {phase.actions.map((a, j) => <li key={j}>{a}</li>)}
                         </ul>
                       )}
                     </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Consolidation opportunities */}
+            {blueprint.consolidationOpportunities?.length > 0 && (
+              <div className="cm-bp-section">
+                <div className="cm-findings-title">Consolidation opportunities</div>
+                {blueprint.consolidationOpportunities.map((opp, i) => (
+                  <div key={i} className="cm-opp-card">
+                    <div className="coc-workloads">
+                      {opp.workloads?.map((w, j) => (
+                        <span key={j} className="cpc-workload-tag">{w}</span>
+                      ))}
+                    </div>
+                    <div className="coc-paths">
+                      {opp.current && <div className="coc-current">Current: {opp.current}</div>}
+                      {opp.recommended && <div className="coc-recommended">→ {opp.recommended}</div>}
+                    </div>
+                    {opp.rationale && <div className="coc-rationale">{opp.rationale}</div>}
+                    {opp.impact && <div className="coc-impact">{opp.impact}</div>}
                   </div>
                 ))}
               </div>
             )}
 
+            {/* Repurchase alternatives */}
+            {blueprint.repurchaseAlternatives?.length > 0 && (
+              <div className="cm-bp-section">
+                <div className="cm-findings-title">Repurchase alternatives</div>
+                {blueprint.repurchaseAlternatives.map((alt, i) => (
+                  <div key={i} className="cm-alt-card">
+                    <div className="cac-workload">{alt.workload}</div>
+                    {alt.paths?.length > 0 && (
+                      <div className="cac-paths">
+                        {alt.paths.map((p, j) => (
+                          <div key={j} className="cac-path">
+                            <div className="cac-path-name">{p.name}</div>
+                            {p.cost && <div className="cac-path-cost">{p.cost}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {alt.tradeoffs && <div className="cac-tradeoffs">{alt.tradeoffs}</div>}
+                    {alt.recommendation && <div className="cac-rec">{alt.recommendation}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Risk mitigation */}
             {blueprint.risks?.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
+              <div className="cm-bp-section">
                 <div className="cm-findings-title">Risk mitigation</div>
                 {blueprint.risks.map((r, i) => (
-                  <div key={i} style={{ background: 'var(--z-surface)', border: '.5px solid var(--z-border)', borderLeft: '3px solid #E8A838', borderRadius: '0 6px 6px 0', padding: '10px 14px', marginBottom: 8, fontSize: 13 }}>
-                    <strong style={{ color: 'var(--z-white)' }}>{r.risk}</strong>
-                    <div style={{ color: 'var(--z-muted)', fontSize: 12, marginTop: 4 }}>{r.mitigation}</div>
+                  <div key={i} className="cm-risk-card">
+                    <div className="crc-header">
+                      <div className="crc-risk">{r.risk}</div>
+                      {r.likelihood && (
+                        <div className={`crc-likelihood likelihood-${r.likelihood?.toLowerCase()}`}>
+                          {r.likelihood}
+                        </div>
+                      )}
+                    </div>
+                    {r.mitigation && <div className="crc-mitigation">{r.mitigation}</div>}
                   </div>
                 ))}
               </div>
             )}
 
-            {blueprint.architectureNotes && (
-              <div style={{ marginBottom: 20 }}>
-                <div className="cm-findings-title">Architecture notes</div>
-                <div className="cm-summary-card">{blueprint.architectureNotes}</div>
+            {/* DR strategy */}
+            {blueprint.drStrategy && (
+              <div className="cm-bp-section">
+                <div className="cm-findings-title">DR &amp; resilience strategy</div>
+                <div className="cm-dr-card">
+                  {(blueprint.drStrategy.rpo || blueprint.drStrategy.rto) && (
+                    <div className="cdr-targets">
+                      {blueprint.drStrategy.rpo && (
+                        <div className="cdr-target">
+                          <div className="cdr-target-label">RPO</div>
+                          <div className="cdr-target-value">{blueprint.drStrategy.rpo}</div>
+                        </div>
+                      )}
+                      {blueprint.drStrategy.rto && (
+                        <div className="cdr-target">
+                          <div className="cdr-target-label">RTO</div>
+                          <div className="cdr-target-value">{blueprint.drStrategy.rto}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {blueprint.drStrategy.approach && (
+                    <div className="cdr-approach">{blueprint.drStrategy.approach}</div>
+                  )}
+                  {blueprint.drStrategy.tooling?.length > 0 && (
+                    <div className="cdr-tooling">
+                      {blueprint.drStrategy.tooling.map((t, i) => (
+                        <span key={i} className="cpc-workload-tag">{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            {blueprint.estimatedCost && (
-              <div style={{ marginBottom: 20 }}>
+            {/* Cost estimate */}
+            {blueprint.costEstimate && (
+              <div className="cm-bp-section">
+                <div className="cm-findings-title">Cost estimate</div>
+                <div className="cm-cost-grid">
+                  {['migration', 'azure', 'threeYear'].map(key => {
+                    const card = blueprint.costEstimate[key]
+                    if (!card) return null
+                    const labels = { migration: 'Migration investment', azure: 'Azure monthly run cost', threeYear: '3-year TCO' }
+                    return (
+                      <div key={key} className="cm-cost-card">
+                        <div className="ccc-title">{labels[key]}</div>
+                        <div className="ccc-total">{card.total || card}</div>
+                        {card.annual && <div className="ccc-annual">{card.annual}/yr</div>}
+                        {card.breakdown?.length > 0 && (
+                          <ul className="ccc-breakdown">
+                            {card.breakdown.map((b, j) => <li key={j}>{b}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Legacy string format compat */}
+                {typeof blueprint.costEstimate === 'string' && (
+                  <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{blueprint.costEstimate}</div>
+                )}
+                {typeof blueprint.estimatedCost === 'string' && (
+                  <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{blueprint.estimatedCost}</div>
+                )}
+              </div>
+            )}
+            {!blueprint.costEstimate && blueprint.estimatedCost && (
+              <div className="cm-bp-section">
                 <div className="cm-findings-title">Cost estimate</div>
                 <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{blueprint.estimatedCost}</div>
               </div>
             )}
 
+            {/* Architecture diagram */}
+            {blueprint.architectureDiagram && (
+              <div className="cm-bp-section">
+                <div className="cm-findings-title">Architecture overview</div>
+                <div className="cm-diagram-title">{blueprint.architectureDiagram}</div>
+              </div>
+            )}
+            {blueprint.architectureNotes && (
+              <div className="cm-bp-section">
+                <div className="cm-findings-title">Architecture notes</div>
+                <div className="cm-summary-card">{blueprint.architectureNotes}</div>
+              </div>
+            )}
+
+            {/* Client questions */}
+            {blueprint.clientQuestions?.length > 0 && (
+              <div className="cm-bp-section">
+                <div className="cm-findings-title">Questions for client</div>
+                <div className="cm-questions-note">Resolve these open items before finalizing the migration plan.</div>
+                {blueprint.clientQuestions.map((q, i) => (
+                  <div key={i} className="cm-question-card">
+                    <div className="cqc-num">{i + 1}</div>
+                    <div className="cqc-text">{q}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Legacy visuals */}
             {blueprint.visuals?.length > 0 && (
-              <div className="cm-visual-section">
+              <div className="cm-bp-section">
                 <div className="cm-findings-title">Architecture diagram</div>
                 {blueprint.visuals.map((v, i) => <ChatVisual key={i} visual={v} />)}
               </div>
