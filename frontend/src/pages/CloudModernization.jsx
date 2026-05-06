@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Component } from 'react'
 import { useClient } from '../ClientContext.jsx'
 import ChatVisual from '../components/ChatVisual.jsx'
 import {
@@ -6,6 +6,34 @@ import {
   Loader, AlertCircle, AlertTriangle, ArrowRight, Plus, X, FileText
 } from 'lucide-react'
 import './CloudModernization.css'
+
+// ── Error boundary — prevents blank page on render crash ─────────────────────
+class CloudModErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(err) { return { error: err } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 32, color: 'var(--z-muted)', fontSize: 13 }}>
+          <div style={{ display:'flex', alignItems:'center', gap: 8, color: '#E05A4E', marginBottom: 12 }}>
+            <AlertCircle size={16} />
+            <strong>Cloud Modernization encountered an error</strong>
+          </div>
+          <div style={{ fontFamily:'monospace', fontSize:12, background:'rgba(224,90,78,.06)', border:'.5px solid rgba(224,90,78,.3)', borderRadius:4, padding:'10px 14px', marginBottom:16 }}>
+            {this.state.error.message}
+          </div>
+          <button
+            style={{ fontSize:12, padding:'6px 12px', background:'var(--z-surface)', border:'.5px solid var(--z-border)', borderRadius:4, color:'var(--z-white)', cursor:'pointer' }}
+            onClick={() => this.setState({ error: null })}
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const API = import.meta.env.VITE_API_URL || ''
 
@@ -815,6 +843,21 @@ export default function CloudModernization() {
   function renderBlueprint() {
     const PHASE_COLORS = ['#4A9FE0', '#8B5CF6', '#3DBA7E', '#E8A838']
 
+    // Safely read blueprint fields — coerce unexpected types to safe defaults
+    const bp = blueprint && typeof blueprint === 'object' ? blueprint : null
+    const bpSummary   = bp ? (typeof bp.summary === 'string' ? bp.summary : null) : null
+    const bpPhases    = Array.isArray(bp?.phases) ? bp.phases : []
+    const bpConsolOpp = Array.isArray(bp?.consolidationOpportunities) ? bp.consolidationOpportunities : []
+    const bpRepurch   = Array.isArray(bp?.repurchaseAlternatives) ? bp.repurchaseAlternatives : []
+    const bpRisks     = Array.isArray(bp?.risks) ? bp.risks : []
+    const bpDr        = bp?.drStrategy && typeof bp.drStrategy === 'object' ? bp.drStrategy : null
+    const bpCost      = bp?.costEstimate && typeof bp.costEstimate === 'object' && !Array.isArray(bp.costEstimate) ? bp.costEstimate : null
+    const bpCostStr   = typeof bp?.costEstimate === 'string' ? bp.costEstimate : (typeof bp?.estimatedCost === 'string' ? bp.estimatedCost : null)
+    const bpDiagram   = typeof bp?.architectureDiagram === 'string' ? bp.architectureDiagram : null
+    const bpArchNotes = typeof bp?.architectureNotes === 'string' ? bp.architectureNotes : null
+    const bpQuestions = Array.isArray(bp?.clientQuestions) ? bp.clientQuestions : []
+    const bpVisuals   = Array.isArray(bp?.visuals) ? bp.visuals : []
+
     return (
       <div>
         <div className="cm-bp-header">
@@ -823,7 +866,7 @@ export default function CloudModernization() {
             <div className="cm-section-sub">Phased migration plan with architecture recommendations, risk mitigation guidance, and cost estimates.</div>
           </div>
           <div className="cm-bp-actions">
-            {blueprint && <span className="cm-saved-badge">✓ Saved</span>}
+            {bp && <span className="cm-saved-badge">✓ Saved</span>}
           </div>
         </div>
 
@@ -840,41 +883,40 @@ export default function CloudModernization() {
           </div>
         )}
 
-        {blueprint && (
+        {bp && (
           <div>
             {/* Summary */}
-            {blueprint.summary && (
-              <div className="cm-summary-card" style={{ marginBottom: 20 }}>{blueprint.summary}</div>
+            {bpSummary && (
+              <div className="cm-summary-card" style={{ marginBottom: 20 }}>{bpSummary}</div>
             )}
 
             {/* Migration phases */}
-            {blueprint.phases?.length > 0 && (
+            {bpPhases.length > 0 && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Migration phases</div>
-                {blueprint.phases.map((phase, i) => {
-                  const color = phase.color || PHASE_COLORS[i % PHASE_COLORS.length]
+                {bpPhases.map((phase, i) => {
+                  if (!phase || typeof phase !== 'object') return null
+                  const color = (typeof phase.color === 'string' ? phase.color : null) || PHASE_COLORS[i % PHASE_COLORS.length]
+                  const phaseName = typeof phase.name === 'string' ? phase.name : `Phase ${i + 1}`
+                  const phaseMonths = typeof phase.months === 'string' ? phase.months : (typeof phase.timeline === 'string' ? phase.timeline : null)
+                  const phaseTasks = Array.isArray(phase.tasks) ? phase.tasks : (Array.isArray(phase.actions) ? phase.actions : [])
+                  const phaseWls = Array.isArray(phase.workloads) ? phase.workloads : []
                   return (
                     <div key={i} className="cm-phase-card" style={{ borderLeftColor: color }}>
                       <div className="cpc-header">
-                        <div className="cpc-name" style={{ color }}>{phase.name}</div>
-                        {phase.months && <div className="cpc-months">{phase.months}</div>}
+                        <div className="cpc-name" style={{ color }}>{phaseName}</div>
+                        {phaseMonths && <div className="cpc-months">{phaseMonths}</div>}
                       </div>
-                      {phase.workloads?.length > 0 && (
+                      {phaseWls.length > 0 && (
                         <div className="cpc-workloads">
-                          {phase.workloads.map((w, j) => (
-                            <span key={j} className="cpc-workload-tag">{w}</span>
+                          {phaseWls.map((w, j) => (
+                            <span key={j} className="cpc-workload-tag">{typeof w === 'string' ? w : String(w)}</span>
                           ))}
                         </div>
                       )}
-                      {phase.tasks?.length > 0 && (
+                      {phaseTasks.length > 0 && (
                         <ul className="cpc-tasks">
-                          {phase.tasks.map((t, j) => <li key={j}>{t}</li>)}
-                        </ul>
-                      )}
-                      {/* Legacy format compat */}
-                      {!phase.tasks && phase.actions?.length > 0 && (
-                        <ul className="cpc-tasks">
-                          {phase.actions.map((a, j) => <li key={j}>{a}</li>)}
+                          {phaseTasks.map((t, j) => <li key={j}>{typeof t === 'string' ? t : String(t)}</li>)}
                         </ul>
                       )}
                     </div>
@@ -884,99 +926,110 @@ export default function CloudModernization() {
             )}
 
             {/* Consolidation opportunities */}
-            {blueprint.consolidationOpportunities?.length > 0 && (
+            {bpConsolOpp.length > 0 && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Consolidation opportunities</div>
-                {blueprint.consolidationOpportunities.map((opp, i) => (
-                  <div key={i} className="cm-opp-card">
-                    <div className="coc-workloads">
-                      {opp.workloads?.map((w, j) => (
-                        <span key={j} className="cpc-workload-tag">{w}</span>
-                      ))}
+                {bpConsolOpp.map((opp, i) => {
+                  if (!opp || typeof opp !== 'object') return null
+                  return (
+                    <div key={i} className="cm-opp-card">
+                      <div className="coc-workloads">
+                        {Array.isArray(opp.workloads) && opp.workloads.map((w, j) => (
+                          <span key={j} className="cpc-workload-tag">{typeof w === 'string' ? w : String(w)}</span>
+                        ))}
+                      </div>
+                      <div className="coc-paths">
+                        {opp.current    && <div className="coc-current">Current: {String(opp.current)}</div>}
+                        {opp.recommended && <div className="coc-recommended">→ {String(opp.recommended)}</div>}
+                      </div>
+                      {opp.rationale && <div className="coc-rationale">{String(opp.rationale)}</div>}
+                      {opp.impact    && <div className="coc-impact">{String(opp.impact)}</div>}
                     </div>
-                    <div className="coc-paths">
-                      {opp.current && <div className="coc-current">Current: {opp.current}</div>}
-                      {opp.recommended && <div className="coc-recommended">→ {opp.recommended}</div>}
-                    </div>
-                    {opp.rationale && <div className="coc-rationale">{opp.rationale}</div>}
-                    {opp.impact && <div className="coc-impact">{opp.impact}</div>}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
             {/* Repurchase alternatives */}
-            {blueprint.repurchaseAlternatives?.length > 0 && (
+            {bpRepurch.length > 0 && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Repurchase alternatives</div>
-                {blueprint.repurchaseAlternatives.map((alt, i) => (
-                  <div key={i} className="cm-alt-card">
-                    <div className="cac-workload">{alt.workload}</div>
-                    {alt.paths?.length > 0 && (
-                      <div className="cac-paths">
-                        {alt.paths.map((p, j) => (
-                          <div key={j} className="cac-path">
-                            <div className="cac-path-name">{p.name}</div>
-                            {p.cost && <div className="cac-path-cost">{p.cost}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {alt.tradeoffs && <div className="cac-tradeoffs">{alt.tradeoffs}</div>}
-                    {alt.recommendation && <div className="cac-rec">{alt.recommendation}</div>}
-                  </div>
-                ))}
+                {bpRepurch.map((alt, i) => {
+                  if (!alt || typeof alt !== 'object') return null
+                  return (
+                    <div key={i} className="cm-alt-card">
+                      <div className="cac-workload">{typeof alt.workload === 'string' ? alt.workload : String(alt.workload ?? '')}</div>
+                      {Array.isArray(alt.paths) && alt.paths.length > 0 && (
+                        <div className="cac-paths">
+                          {alt.paths.map((p, j) => {
+                            if (!p || typeof p !== 'object') return null
+                            return (
+                              <div key={j} className="cac-path">
+                                <div className="cac-path-name">{typeof p.name === 'string' ? p.name : String(p.name ?? '')}</div>
+                                {p.cost && <div className="cac-path-cost">{String(p.cost)}</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {alt.tradeoffs    && <div className="cac-tradeoffs">{String(alt.tradeoffs)}</div>}
+                      {alt.recommendation && <div className="cac-rec">{String(alt.recommendation)}</div>}
+                    </div>
+                  )
+                })}
               </div>
             )}
 
             {/* Risk mitigation */}
-            {blueprint.risks?.length > 0 && (
+            {bpRisks.length > 0 && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Risk mitigation</div>
-                {blueprint.risks.map((r, i) => (
-                  <div key={i} className="cm-risk-card">
-                    <div className="crc-header">
-                      <div className="crc-risk">{r.risk}</div>
-                      {r.likelihood && (
-                        <div className={`crc-likelihood likelihood-${r.likelihood?.toLowerCase()}`}>
-                          {r.likelihood}
-                        </div>
-                      )}
+                {bpRisks.map((r, i) => {
+                  if (!r || typeof r !== 'object') return null
+                  const likelihood = typeof r.likelihood === 'string' ? r.likelihood : null
+                  return (
+                    <div key={i} className="cm-risk-card">
+                      <div className="crc-header">
+                        <div className="crc-risk">{typeof r.risk === 'string' ? r.risk : String(r.risk ?? '')}</div>
+                        {likelihood && (
+                          <div className={`crc-likelihood likelihood-${likelihood.toLowerCase()}`}>
+                            {likelihood}
+                          </div>
+                        )}
+                      </div>
+                      {r.mitigation && <div className="crc-mitigation">{String(r.mitigation)}</div>}
                     </div>
-                    {r.mitigation && <div className="crc-mitigation">{r.mitigation}</div>}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
             {/* DR strategy */}
-            {blueprint.drStrategy && (
+            {bpDr && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">DR &amp; resilience strategy</div>
                 <div className="cm-dr-card">
-                  {(blueprint.drStrategy.rpo || blueprint.drStrategy.rto) && (
+                  {(bpDr.rpo || bpDr.rto) && (
                     <div className="cdr-targets">
-                      {blueprint.drStrategy.rpo && (
+                      {bpDr.rpo && (
                         <div className="cdr-target">
                           <div className="cdr-target-label">RPO</div>
-                          <div className="cdr-target-value">{blueprint.drStrategy.rpo}</div>
+                          <div className="cdr-target-value">{String(bpDr.rpo)}</div>
                         </div>
                       )}
-                      {blueprint.drStrategy.rto && (
+                      {bpDr.rto && (
                         <div className="cdr-target">
                           <div className="cdr-target-label">RTO</div>
-                          <div className="cdr-target-value">{blueprint.drStrategy.rto}</div>
+                          <div className="cdr-target-value">{String(bpDr.rto)}</div>
                         </div>
                       )}
                     </div>
                   )}
-                  {blueprint.drStrategy.approach && (
-                    <div className="cdr-approach">{blueprint.drStrategy.approach}</div>
-                  )}
-                  {blueprint.drStrategy.tooling?.length > 0 && (
+                  {bpDr.approach && <div className="cdr-approach">{String(bpDr.approach)}</div>}
+                  {Array.isArray(bpDr.tooling) && bpDr.tooling.length > 0 && (
                     <div className="cdr-tooling">
-                      {blueprint.drStrategy.tooling.map((t, i) => (
-                        <span key={i} className="cpc-workload-tag">{t}</span>
+                      {bpDr.tooling.map((t, i) => (
+                        <span key={i} className="cpc-workload-tag">{typeof t === 'string' ? t : String(t)}</span>
                       ))}
                     </div>
                   )}
@@ -984,78 +1037,76 @@ export default function CloudModernization() {
               </div>
             )}
 
-            {/* Cost estimate */}
-            {blueprint.costEstimate && (
+            {/* Cost estimate — structured object format */}
+            {bpCost && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Cost estimate</div>
                 <div className="cm-cost-grid">
                   {['migration', 'azure', 'threeYear'].map(key => {
-                    const card = blueprint.costEstimate[key]
+                    const card = bpCost[key]
                     if (!card) return null
                     const labels = { migration: 'Migration investment', azure: 'Azure monthly run cost', threeYear: '3-year TCO' }
+                    const total = card && typeof card === 'object' ? card.total : card
+                    const annual = card && typeof card === 'object' ? card.annual : null
+                    const breakdown = card && typeof card === 'object' && Array.isArray(card.breakdown) ? card.breakdown : []
                     return (
                       <div key={key} className="cm-cost-card">
                         <div className="ccc-title">{labels[key]}</div>
-                        <div className="ccc-total">{card.total || card}</div>
-                        {card.annual && <div className="ccc-annual">{card.annual}/yr</div>}
-                        {card.breakdown?.length > 0 && (
+                        <div className="ccc-total">{total != null ? String(total) : '—'}</div>
+                        {annual && <div className="ccc-annual">{String(annual)}/yr</div>}
+                        {breakdown.length > 0 && (
                           <ul className="ccc-breakdown">
-                            {card.breakdown.map((b, j) => <li key={j}>{b}</li>)}
+                            {breakdown.map((b, j) => <li key={j}>{typeof b === 'string' ? b : String(b)}</li>)}
                           </ul>
                         )}
                       </div>
                     )
                   })}
                 </div>
-                {/* Legacy string format compat */}
-                {typeof blueprint.costEstimate === 'string' && (
-                  <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{blueprint.costEstimate}</div>
-                )}
-                {typeof blueprint.estimatedCost === 'string' && (
-                  <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{blueprint.estimatedCost}</div>
-                )}
               </div>
             )}
-            {!blueprint.costEstimate && blueprint.estimatedCost && (
+
+            {/* Cost estimate — string / legacy format */}
+            {!bpCost && bpCostStr && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Cost estimate</div>
-                <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{blueprint.estimatedCost}</div>
+                <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{bpCostStr}</div>
               </div>
             )}
 
             {/* Architecture diagram */}
-            {blueprint.architectureDiagram && (
+            {bpDiagram && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Architecture overview</div>
-                <div className="cm-diagram-title">{blueprint.architectureDiagram}</div>
+                <div className="cm-diagram-title">{bpDiagram}</div>
               </div>
             )}
-            {blueprint.architectureNotes && (
+            {bpArchNotes && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Architecture notes</div>
-                <div className="cm-summary-card">{blueprint.architectureNotes}</div>
+                <div className="cm-summary-card">{bpArchNotes}</div>
               </div>
             )}
 
             {/* Client questions */}
-            {blueprint.clientQuestions?.length > 0 && (
+            {bpQuestions.length > 0 && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Questions for client</div>
                 <div className="cm-questions-note">Resolve these open items before finalizing the migration plan.</div>
-                {blueprint.clientQuestions.map((q, i) => (
+                {bpQuestions.map((q, i) => (
                   <div key={i} className="cm-question-card">
                     <div className="cqc-num">{i + 1}</div>
-                    <div className="cqc-text">{q}</div>
+                    <div className="cqc-text">{typeof q === 'string' ? q : String(q)}</div>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Legacy visuals */}
-            {blueprint.visuals?.length > 0 && (
+            {bpVisuals.length > 0 && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Architecture diagram</div>
-                {blueprint.visuals.map((v, i) => <ChatVisual key={i} visual={v} />)}
+                {bpVisuals.map((v, i) => <ChatVisual key={i} visual={v} />)}
               </div>
             )}
           </div>
@@ -1063,7 +1114,7 @@ export default function CloudModernization() {
 
         <div className="cm-stage-footer">
           <button className="cm-btn-ghost" onClick={() => setStage(4)}>← Back to scoring</button>
-          {!bpLoading && !blueprint && (
+          {!bpLoading && !bp && (
             <button className="cm-btn-primary" onClick={generateBlueprint}>Retry blueprint generation</button>
           )}
         </div>
@@ -1147,7 +1198,9 @@ export default function CloudModernization() {
 
       {/* Stage content */}
       <div className="cm-content">
-        {renderStage()}
+        <CloudModErrorBoundary>
+          {renderStage()}
+        </CloudModErrorBoundary>
       </div>
     </div>
   )
