@@ -175,6 +175,8 @@
   border: 0.5px solid var(--z-border); border-radius: 4px;
   color: var(--z-white); font-size: 11px; font-family: inherit; box-sizing: border-box;
 }
+.dsc-select { appearance: none; -webkit-appearance: none; color-scheme: dark; }
+.dsc-select option { background-color: #0F2040; color: #F4F6FA; }
 .dsc-input.large { font-size: 13px; padding: 7px 10px; margin-bottom: 6px; }
 .dsc-actions { display: flex; gap: 8px; margin-top: 8px; }
 

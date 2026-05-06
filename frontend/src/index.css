@@ -55,6 +55,16 @@ input, textarea, select {
   outline: none;
   transition: border-color 0.15s;
 }
+
+/* Dark color-scheme tells the browser to render native select dropdowns in dark mode */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #0F2040;
+  color: #F4F6FA;
+}
 input:focus, textarea:focus { border-color: var(--z-blue-bright); }
 input::placeholder, textarea::placeholder { color: var(--z-muted); }
 

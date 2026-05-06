@@ -93,7 +93,8 @@
 .cwc-platform-tag.vmware { color:#E8A838; background:rgba(232,168,56,.12); border:.5px solid rgba(232,168,56,.3); }
 .cwc-review-tag { font-size:10px; color:#E8A838; background:rgba(232,168,56,.1); padding:1px 6px; border-radius:3px; }
 .cwc-fields { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
-.cwc-select,.cwc-input { padding:5px 8px; background:var(--z-surface-2,var(--z-navy-mid)); border:.5px solid var(--z-border); border-radius:4px; color:var(--z-white); font-size:11px; font-family:inherit; width:100%; box-sizing:border-box; }
+.cwc-select,.cwc-input { padding:5px 8px; background:var(--z-surface-2,var(--z-navy-mid)); border:.5px solid var(--z-border); border-radius:4px; color:var(--z-white); font-size:11px; font-family:inherit; width:100%; box-sizing:border-box; appearance:none; -webkit-appearance:none; color-scheme:dark; }
+.cwc-select option { background-color:#0F2040; color:#F4F6FA; }
 .cwc-input.large { font-size:13px; padding:7px 10px; grid-column:1/-1; margin-bottom:4px; }
 .cwc-size-row { display:flex; gap:5px; grid-column:1/-1; }
 .cwc-size-input { flex:1; padding:5px 8px; background:var(--z-surface-2,var(--z-navy-mid)); border:.5px solid var(--z-border); border-radius:4px; color:var(--z-white); font-size:11px; font-family:inherit; min-width:0; }
