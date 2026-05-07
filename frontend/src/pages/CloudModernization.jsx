@@ -333,143 +333,357 @@ export default function CloudModernization() {
 
   // ── Export blueprint as PDF ───────────────────────────────────────────────────
   async function exportBlueprintPDF() {
+    if (!blueprint) return
     setExporting(true)
     try {
-      const { default: html2canvas } = await import('html2canvas')
-      const { default: jsPDF }       = await import('jspdf')
-
+      const { jsPDF } = await import('jspdf')
+      const bp         = blueprint
       const clientName = client?.name || 'Client'
-      const pdf        = new jsPDF('p', 'mm', 'a4')
-      const pageW = 210, pageH = 297, margin = 14
-      const contentW = pageW - margin * 2
+      const pdf        = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
-      function addPageHeader(isFirst = false) {
-        if (!isFirst) pdf.addPage()
-        pdf.setFillColor(10, 22, 40)
-        pdf.rect(0, 0, pageW, 28, 'F')
-        pdf.setFontSize(7); pdf.setTextColor(100, 130, 180)
-        pdf.text('ZONES COMPASS · CLOUD MODERNIZATION', margin, 9)
-        pdf.setFontSize(11); pdf.setTextColor(244, 246, 250)
-        pdf.text(`${clientName} — Cloud Modernization Blueprint`, margin, 18)
-        pdf.setFontSize(7); pdf.setTextColor(100, 130, 180)
-        const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-        pdf.text(`${dateStr}  ·  Confidential`, margin, 24)
-        pdf.setDrawColor(74, 159, 224); pdf.setLineWidth(0.4)
-        pdf.line(margin, 27, pageW - margin, 27)
-        return 36
+      const pageW = 210, pageH = 297, mg = 16, cW = pageW - mg * 2
+      let y = 0, pageNum = 1
+
+      // ── Color palette ────────────────────────────────────────────────────────
+      const C = {
+        navy:    [13,  27,  62],
+        blue:    [41,  98,  200],
+        white:   [255, 255, 255],
+        black:   [20,  20,  30],
+        muted:   [100, 110, 130],
+        success: [34,  160, 100],
+        warn:    [200, 80,  60],
+        amber:   [200, 140, 20],
+        lgray:   [245, 246, 250],
+        bgray:   [210, 215, 225],
+        lgreen:  [235, 250, 242],
+        lbg:     [230, 235, 248],
+      }
+      const sc = c => pdf.setTextColor(c[0], c[1], c[2])
+      const sf = c => pdf.setFillColor(c[0], c[1], c[2])
+      const sd = c => pdf.setDrawColor(c[0], c[1], c[2])
+
+      // ── Page header ──────────────────────────────────────────────────────────
+      function hdr() {
+        sf(C.navy); pdf.rect(0, 0, pageW, 18, 'F')
+        sf(C.blue);  pdf.rect(0, 18, pageW, 0.8, 'F')
+        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'bold'); sc(C.white)
+        pdf.text('ZONES COMPASS · CLOUD MODERNIZATION', mg, 6.5)
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); sc(C.white)
+        pdf.text(`${clientName} — Cloud Modernization Blueprint`, mg, 13)
+        const d = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        pdf.text(`${d} · Confidential`, pageW - mg, 13, { align: 'right' })
+        return 26
       }
 
-      let y = addPageHeader(true)
+      // ── Page footer ──────────────────────────────────────────────────────────
+      function ftr(total) {
+        sf(C.navy); pdf.rect(0, pageH - 9, pageW, 9, 'F')
+        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); sc([160, 180, 220])
+        pdf.text('Confidential — Zones Compass · Cloud Modernization', mg, pageH - 3)
+        pdf.text(`${pageNum} / ${total}`, pageW - mg, pageH - 3, { align: 'right' })
+      }
 
-      // ── Executive summary ────────────────────────────────────────────────────
-      const summaryText = typeof blueprint?.summary === 'string' ? blueprint.summary : ''
-      if (summaryText) {
-        pdf.setFontSize(10); pdf.setTextColor(220, 230, 245)
-        const lines = pdf.splitTextToSize(summaryText, contentW)
-        for (const line of lines) {
-          if (y > pageH - margin - 8) y = addPageHeader()
-          pdf.text(line, margin, y); y += 5
+      // ── New page ─────────────────────────────────────────────────────────────
+      function np() {
+        pageNum++
+        pdf.addPage()
+        y = hdr()
+      }
+
+      // ── Check Y, add page if needed ──────────────────────────────────────────
+      function cy(need = 14) { if (y + need > pageH - 14) np() }
+
+      // ── Section header bar ───────────────────────────────────────────────────
+      function secHdr(title) {
+        cy(12)
+        sf(C.navy); pdf.rect(mg, y, cW, 8, 'F')
+        pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); sc(C.white)
+        pdf.text(title, mg + 4, y + 5.5)
+        y += 11
+      }
+
+      // ── Wrapped text, returns height used ────────────────────────────────────
+      function txt(t, x, yy, w, size = 9, color = C.black, style = 'normal') {
+        pdf.setFontSize(size); pdf.setFont('helvetica', style); sc(color)
+        const lines = pdf.splitTextToSize(String(t || ''), w)
+        pdf.text(lines, x, yy)
+        return lines.length * (size * 0.45)
+      }
+
+      // ── Key-value row ────────────────────────────────────────────────────────
+      function kv(label, value, lx, vx, yy, vW) {
+        txt(label, lx, yy, vx - lx - 2, 7.5, C.muted, 'bold')
+        return txt(value, vx, yy, vW, 8.5, C.black)
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // PAGE 1 — Cover + Executive Summary
+      // ════════════════════════════════════════════════════════════════════════
+      y = hdr()
+
+      pdf.setFontSize(18); pdf.setFont('helvetica', 'bold'); sc(C.navy)
+      pdf.text(clientName, mg, y + 8); y += 12
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); sc(C.blue)
+      pdf.text('Cloud Modernization Blueprint', mg, y); y += 6
+      sd(C.blue); pdf.setLineWidth(0.4); pdf.line(mg, y, pageW - mg, y); y += 10
+
+      secHdr('EXECUTIVE SUMMARY')
+      const sh = txt(bp.summary || '—', mg + 4, y, cW - 8); y += sh + 10
+
+      // Answers applied banner
+      if (Array.isArray(bp.answersApplied) && bp.answersApplied.length > 0) {
+        cy(14)
+        const banH = 9 + bp.answersApplied.length * 5.5
+        sf(C.lgreen); sd([34, 160, 100]); pdf.setLineWidth(0.3)
+        pdf.roundedRect(mg, y, cW, banH, 2, 2, 'FD')
+        pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); sc(C.success)
+        pdf.text('✓ Blueprint updated based on advisor answers', mg + 4, y + 5.5)
+        y += 9
+        bp.answersApplied.forEach(note => {
+          cy(6); txt(`• ${note}`, mg + 6, y, cW - 12, 7.5, [40, 120, 80]); y += 5.5
+        })
+        y += 5
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // PAGE 2 — Migration Phases
+      // ════════════════════════════════════════════════════════════════════════
+      np(); secHdr('MIGRATION PHASES')
+
+      ;(bp.phases || []).forEach(phase => {
+        const tasks = Array.isArray(phase.tasks) ? phase.tasks : []
+        const wls   = Array.isArray(phase.workloads) ? phase.workloads : []
+        const est   = 14 + (wls.length > 0 ? 10 : 0) + tasks.length * 11
+        cy(est)
+
+        // Parse phase color
+        let pc = [41, 98, 180]
+        if (phase.color && /^#[0-9a-f]{6}/i.test(phase.color)) {
+          pc = [
+            parseInt(phase.color.slice(1, 3), 16),
+            parseInt(phase.color.slice(3, 5), 16),
+            parseInt(phase.color.slice(5, 7), 16),
+          ]
         }
+
+        sf(pc); pdf.rect(mg, y, cW, 8, 'F')
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.white)
+        pdf.text(phase.name || 'Phase', mg + 4, y + 5.5)
+        if (phase.months) pdf.text(`Months ${phase.months}`, pageW - mg - 4, y + 5.5, { align: 'right' })
         y += 10
-      }
 
-      // ── Capture non-cost sections as images ──────────────────────────────────
-      const blueprintEl = document.querySelector('.cm-structured-bp') ||
-                          document.querySelector('.cm-content')
-      if (blueprintEl) {
-        const sections = blueprintEl.querySelectorAll('.cm-bp-section')
-        for (const section of sections) {
-          // Skip cost estimate section — we render it natively below for reliability
-          if (section.querySelector('.cm-cost-grid') || section.querySelector('.ccc-title')) continue
-
-          section.scrollIntoView({ block: 'nearest' })
-          await new Promise(r => setTimeout(r, 150))
-          const canvas = await html2canvas(section, {
-            scale: 1.5, useCORS: true, backgroundColor: '#0F2040',
-            logging: false, windowWidth: 900,
+        // Workload chips
+        if (wls.length) {
+          let px = mg + 2
+          wls.forEach(w => {
+            const tw = pdf.getStringUnitWidth(String(w)) * 8.5 / pdf.internal.scaleFactor + 8
+            if (px + tw > pageW - mg - 2) { px = mg + 2; y += 7 }
+            sf(C.lgray); sd(C.bgray); pdf.setLineWidth(0.2)
+            pdf.roundedRect(px, y - 3.5, tw, 5.5, 1, 1, 'FD')
+            pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); sc(C.navy)
+            pdf.text(String(w), px + 4, y + 0.5)
+            px += tw + 3
           })
-          const imgData = canvas.toDataURL('image/jpeg', 0.85)
-          const imgH    = (canvas.height / canvas.width) * contentW
-          const maxH    = pageH - margin - 10
-          const finalH  = imgH > maxH ? maxH : imgH
-          const finalW  = imgH > maxH ? contentW * (maxH / imgH) : contentW
-          if (y + finalH > pageH - margin) y = addPageHeader()
-          pdf.addImage(imgData, 'JPEG', margin + (contentW - finalW) / 2, y, finalW, finalH)
-          y += finalH + 8
+          y += 8
         }
+
+        // Tasks
+        tasks.forEach(task => {
+          cy(9)
+          sc(C.blue); pdf.setFontSize(9); pdf.text('•', mg + 2, y)
+          const h = txt(task, mg + 7, y, cW - 11); y += Math.max(h, 5) + 2.5
+        })
+        y += 7
+      })
+
+      // ════════════════════════════════════════════════════════════════════════
+      // PAGE 3 — Risks + DR Strategy
+      // ════════════════════════════════════════════════════════════════════════
+      np(); secHdr('RISK MITIGATION')
+
+      ;(bp.risks || []).forEach(r => {
+        const riskText = typeof r.risk === 'string' ? r.risk : ''
+        const mitiText = typeof r.mitigation === 'string' ? r.mitigation : ''
+        const rLines   = pdf.splitTextToSize(riskText, cW - 46)
+        const mLines   = pdf.splitTextToSize(mitiText, cW - 12)
+        const cardH    = 8 + rLines.length * 4.5 + mLines.length * 4.5 + 6
+        cy(cardH + 4)
+
+        const lc = r.likelihood === 'High' ? C.warn : r.likelihood === 'Medium' ? C.amber : C.success
+        sf(C.lgray); sd(C.bgray); pdf.setLineWidth(0.2)
+        pdf.roundedRect(mg, y, cW, cardH, 2, 2, 'FD')
+        sf(lc); pdf.rect(mg, y, 2.5, cardH, 'F')
+
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.black)
+        pdf.text(rLines, mg + 6, y + 5.5)
+
+        // Likelihood pill
+        const pilW = 22
+        sf(lc); pdf.roundedRect(pageW - mg - pilW, y + 2, pilW, 5.5, 1, 1, 'F')
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); sc(C.white)
+        pdf.text((r.likelihood || '').toUpperCase(), pageW - mg - pilW / 2, y + 5.8, { align: 'center' })
+
+        const rH = rLines.length * 4.5 + 4
+        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); sc(C.muted)
+        pdf.text(mLines, mg + 6, y + rH + 4)
+        y += cardH + 5
+      })
+
+      // DR Strategy
+      if (bp.drStrategy && typeof bp.drStrategy === 'object') {
+        y += 4; secHdr('DR & RESILIENCE STRATEGY')
+        const dr = bp.drStrategy
+        ;[
+          ['RPO Target',  dr.rpoTarget || dr.rpo],
+          ['RTO Target',  dr.rtoTarget || dr.rto],
+          ['Approach',    dr.approach],
+          ['Tooling',     typeof dr.tooling === 'string' ? dr.tooling : (Array.isArray(dr.tooling) ? dr.tooling.join(', ') : '')],
+        ].forEach(([lbl, val]) => {
+          if (!val) return
+          cy(9)
+          const h = kv(lbl, String(val), mg + 4, mg + 38, y, cW - 42)
+          y += Math.max(h, 5) + 4
+        })
       }
 
-      // ── Cost estimate — rendered natively so nested fields don't go blank ────
-      const ce = blueprint?.costEstimate
+      // ════════════════════════════════════════════════════════════════════════
+      // PAGE 4 — Cost Estimate
+      // ════════════════════════════════════════════════════════════════════════
+      np(); secHdr('COST ESTIMATE')
+
+      const ce = bp.costEstimate
       if (ce && typeof ce === 'object' && !Array.isArray(ce)) {
-        if (y > pageH - margin - 60) y = addPageHeader()
+        const hasStructured = ce.azureConsumption || ce.zonesServices || ce.toolingAndLicenses
 
-        // Section heading
-        pdf.setFillColor(20, 40, 70)
-        pdf.rect(margin, y - 4, contentW, 10, 'F')
-        pdf.setFontSize(9); pdf.setFont(undefined, 'bold')
-        pdf.setTextColor(74, 159, 224)
-        pdf.text('COST ESTIMATE', margin + 2, y + 3)
-        pdf.setFont(undefined, 'normal')
-        y += 14
-
-        const costSections = [
-          {
-            label: 'Azure Consumption',
-            rows: [
-              `Monthly: ${ce.azureConsumption?.monthly || 'TBD'}`,
-              `Annual: ${ce.azureConsumption?.annual || 'TBD'}`,
-              `Breakdown: ${ce.azureConsumption?.breakdown || '—'}`,
-            ],
-          },
-          {
-            label: 'Zones Professional Services',
-            rows: [
-              `Total: ${ce.zonesServices?.total || 'TBD'}`,
-              `Breakdown: ${ce.zonesServices?.breakdown || '—'}`,
-            ],
-          },
-          {
-            label: 'Tooling & Licenses',
-            rows: [
-              `Total: ${ce.toolingAndLicenses?.total || 'TBD'}`,
-              `Breakdown: ${ce.toolingAndLicenses?.breakdown || '—'}`,
-            ],
-          },
-        ]
-
-        for (const cs of costSections) {
-          if (y > pageH - margin - 20) y = addPageHeader()
-          pdf.setFontSize(8); pdf.setFont(undefined, 'bold')
-          pdf.setTextColor(160, 190, 230)
-          pdf.text(cs.label, margin + 2, y); y += 5
-          pdf.setFont(undefined, 'normal')
-          for (const row of cs.rows) {
-            if (y > pageH - margin - 8) y = addPageHeader()
-            pdf.setFontSize(8); pdf.setTextColor(210, 220, 240)
-            const wrapped = pdf.splitTextToSize(row, contentW - 4)
-            for (const line of wrapped) {
-              pdf.text(line, margin + 6, y); y += 5
-            }
-          }
-          y += 4
+        if (hasStructured) {
+          const costBlocks = [
+            {
+              title: 'Azure Consumption',
+              rows: [
+                ['Monthly',    ce.azureConsumption?.monthly],
+                ['Annual',     ce.azureConsumption?.annual],
+                ['Breakdown',  ce.azureConsumption?.breakdown],
+              ],
+            },
+            {
+              title: 'Zones Professional Services',
+              rows: [
+                ['Total',      ce.zonesServices?.total],
+                ['Breakdown',  ce.zonesServices?.breakdown],
+              ],
+            },
+            {
+              title: 'Tooling & Licenses',
+              rows: [
+                ['Total',      ce.toolingAndLicenses?.total],
+                ['Breakdown',  ce.toolingAndLicenses?.breakdown],
+              ],
+            },
+          ]
+          costBlocks.forEach(block => {
+            cy(28)
+            sf(C.lbg); pdf.rect(mg, y, cW, 7, 'F')
+            pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.navy)
+            pdf.text(block.title, mg + 4, y + 5); y += 10
+            block.rows.forEach(([lbl, val]) => {
+              if (!val) return
+              cy(9)
+              const h = kv(lbl, String(val), mg + 4, mg + 38, y, cW - 42)
+              y += Math.max(h, 5) + 4
+            })
+            y += 5
+          })
+        } else {
+          // Fallback: render whatever keys exist
+          Object.entries(ce).forEach(([k, v]) => {
+            cy(9)
+            const display = typeof v === 'object' ? JSON.stringify(v) : String(v || '')
+            const h = kv(k, display, mg + 4, mg + 45, y, cW - 49)
+            y += Math.max(h, 5) + 4
+          })
         }
-        y += 4
+      } else if (typeof ce === 'string' && ce) {
+        txt(ce, mg + 4, y, cW - 8); y += 10
+      } else {
+        txt('Cost estimate not available.', mg + 4, y, cW - 8, 9, C.muted); y += 10
       }
 
-      // ── Page footers ─────────────────────────────────────────────────────────
+      // ════════════════════════════════════════════════════════════════════════
+      // PAGE 5 — Architecture Diagram
+      // ════════════════════════════════════════════════════════════════════════
+      if (bp.architectureDiagram) {
+        np(); secHdr('ARCHITECTURE DIAGRAM')
+
+        const ad     = bp.architectureDiagram
+        const adTitle = typeof ad.title === 'string' ? ad.title : `${clientName} — Target Architecture`
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.navy)
+        pdf.text(adTitle, mg + 4, y); y += 8
+
+        const chart = typeof ad.chart === 'string' ? ad.chart : ''
+
+        // Parse mermaid: extract node labels and edges
+        const nodeMap = {}
+        const edges   = []
+        chart.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
+          // Node with label: id["Label"] or id[Label]
+          const nm = line.match(/^(\w+)\[["']?([^"'\]]+)["']?\]/)
+          if (nm) nodeMap[nm[1]] = nm[2]
+
+          // Edge with label: a -->|lbl| b
+          const em1 = line.match(/(\w+)\s*-->\s*\|([^|]*)\|\s*(\w+)/)
+          if (em1) { edges.push({ from: em1[1], label: em1[2].trim(), to: em1[3] }); return }
+
+          // Plain edge: a --> b
+          const em2 = line.match(/^(\w+)\s*-->\s*(\w+)/)
+          if (em2) edges.push({ from: em2[1], label: '', to: em2[2] })
+        })
+
+        // Draw nodes as a 2-column grid
+        if (Object.keys(nodeMap).length > 0) {
+          const nodes  = Object.entries(nodeMap)
+          const colW   = (cW - 6) / 2
+          const rowH   = 16
+          nodes.forEach(([, label], i) => {
+            const col = i % 2
+            const row = Math.floor(i / 2)
+            const nx  = mg + col * (colW + 6)
+            const ny  = y + row * rowH
+            cy(rowH)
+            sf(C.lgray); sd(C.bgray); pdf.setLineWidth(0.3)
+            pdf.roundedRect(nx, ny, colW, 12, 2, 2, 'FD')
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); sc(C.navy)
+            const ls = pdf.splitTextToSize(String(label), colW - 8)
+            pdf.text(ls, nx + colW / 2, ny + 6.5, { align: 'center' })
+          })
+          y += Math.ceil(nodes.length / 2) * rowH + 8
+        }
+
+        // Draw connections
+        if (edges.length > 0) {
+          cy(10); secHdr('COMPONENT CONNECTIONS')
+          edges.forEach(e => {
+            cy(7)
+            const fromLabel = nodeMap[e.from] || e.from
+            const toLabel   = nodeMap[e.to]   || e.to
+            const arrow     = e.label ? ` →[${e.label}]→ ` : ' → '
+            txt(`${fromLabel}${arrow}${toLabel}`, mg + 4, y, cW - 8, 8, C.black); y += 6
+          })
+        }
+      }
+
+      // ── Add footers to all pages ─────────────────────────────────────────────
       const total = pdf.getNumberOfPages()
       for (let i = 1; i <= total; i++) {
-        pdf.setPage(i)
-        pdf.setFontSize(7); pdf.setTextColor(80, 110, 160)
-        pdf.text(`${i} / ${total}`, pageW / 2, pageH - 7, { align: 'center' })
-        pdf.text('Confidential — Zones Compass · Cloud Modernization', margin, pageH - 7)
+        pdf.setPage(i); pageNum = i; ftr(total)
       }
 
-      const filename = `${clientName.replace(/\s+/g, '-')}-Cloud-Modernization-Blueprint-${new Date().toISOString().split('T')[0]}.pdf`
-      pdf.save(filename)
+      const fname = `${clientName.replace(/\s+/g, '_')}-Cloud-Modernization-Blueprint-${new Date().toISOString().split('T')[0]}.pdf`
+      pdf.save(fname)
+
     } catch (err) {
       console.error('PDF export error:', err)
+      alert('PDF export failed: ' + err.message)
     } finally {
       setExporting(false)
     }
