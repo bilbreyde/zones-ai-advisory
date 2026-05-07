@@ -403,10 +403,25 @@ export default function CloudModernization() {
         y += 11
       }
 
+      // ── Sanitize — strip non-ASCII that helvetica can't render ──────────────
+      function sanitize(str) {
+        if (!str) return ''
+        return String(str)
+          .replace(/→/g, '->')
+          .replace(/←/g, '<-')
+          .replace(/['']/g, "'")
+          .replace(/[""]/g, '"')
+          .replace(/–/g, '-')
+          .replace(/—/g, '--')
+          .replace(/…/g, '...')
+          .replace(/[^\x00-\x7F]/g, '')
+      }
+
       // ── Wrapped text, returns height used ────────────────────────────────────
       function txt(t, x, yy, w, size = 9, color = C.black, style = 'normal') {
+        const clean = sanitize(t)
         pdf.setFontSize(size); pdf.setFont('helvetica', style); sc(color)
-        const lines = pdf.splitTextToSize(String(t || ''), w)
+        const lines = pdf.splitTextToSize(clean, w)
         pdf.text(lines, x, yy)
         return lines.length * (size * 0.45)
       }
@@ -469,35 +484,36 @@ export default function CloudModernization() {
 
         sf(pc); pdf.rect(mg, y, cW, 8, 'F')
         pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.white)
-        pdf.text(phase.name || 'Phase', mg + 4, y + 5.5)
-        if (phase.months) pdf.text(`Months ${phase.months}`, pageW - mg - 4, y + 5.5, { align: 'right' })
+        pdf.text(sanitize(phase.name || 'Phase'), mg + 4, y + 5.5)
+        if (phase.months) pdf.text(`Months ${sanitize(phase.months)}`, pageW - mg - 4, y + 5.5, { align: 'right' })
         y += 10
 
         // Workload chips
         if (wls.length) {
           let px = mg + 2
           wls.forEach(w => {
-            const tw = pdf.getStringUnitWidth(String(w)) * 8.5 / pdf.internal.scaleFactor + 8
+            const wStr = sanitize(String(w))
+            const tw = pdf.getStringUnitWidth(wStr) * 8.5 / pdf.internal.scaleFactor + 8
             if (px + tw > pageW - mg - 2) { px = mg + 2; y += 7 }
             sf(C.lgray); sd(C.bgray); pdf.setLineWidth(0.2)
             pdf.roundedRect(px, y - 3.5, tw, 5.5, 1, 1, 'FD')
             pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); sc(C.navy)
-            pdf.text(String(w), px + 4, y + 0.5)
+            pdf.text(wStr, px + 4, y + 0.5)
             px += tw + 3
           })
           y += 8
         }
 
-        // Tasks
+        // Tasks — use ASCII arrows to avoid encoding issues in helvetica
         tasks.forEach(task => {
           cy(9)
           const taskText = typeof task === 'string'
             ? task
             : task?.task
-              ? `${task.task}${task.owner ? ` — ${task.owner}` : ''}${task.output ? ` → ${task.output}` : ''}`
+              ? `${task.task}${task.owner ? ' -- ' + task.owner : ''}${task.output ? ' -> ' + task.output : ''}`
               : JSON.stringify(task)
-          sc(C.blue); pdf.setFontSize(9); pdf.text('•', mg + 2, y)
-          const h = txt(taskText, mg + 7, y, cW - 11); y += Math.max(h, 5) + 2.5
+          sc(C.blue); pdf.setFontSize(8); pdf.text('-', mg + 2, y)
+          const h = txt(taskText, mg + 6, y, cW - 9, 8); y += Math.max(h, 5) + 2
         })
         y += 7
       })
@@ -620,86 +636,92 @@ export default function CloudModernization() {
       if (bp.architectureDiagram) {
         np(); secHdr('ARCHITECTURE DIAGRAM')
 
-        const ad     = bp.architectureDiagram
-        const adTitle = typeof ad.title === 'string' ? ad.title : `${clientName} — Target Architecture`
+        const ad      = bp.architectureDiagram
+        const adTitle = typeof ad.title === 'string' ? ad.title : `${clientName} -- Target Architecture`
         pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.navy)
-        pdf.text(adTitle, mg + 4, y); y += 8
+        pdf.text(sanitize(adTitle), mg + 4, y); y += 10
 
         const chart = typeof ad.chart === 'string' ? ad.chart
           : typeof ad === 'string' ? ad : ''
 
-        // Parse nodes globally — handles id["Label"], id[Label], id("Label"), id(Label)
-        // Uses exec loop so it catches nodes embedded inside edge lines too
+        // Hyphen-aware ID pattern — matches word chars AND hyphens (e.g. hub-spoke, microsoft-entra-id)
+        const ID = '([\\w][\\w-]*)'
+
+        // Node parsing — id["Label"], id[Label], id("Label"), id(Label)
+        const nodeRegex = new RegExp(`${ID}\\s*[\\[\\(]["']?([^"'\\]\\)\\n]+)["']?[\\]\\)]`, 'g')
         const nodeMap = {}
-        const nodeRegex = /(\w[\w\d]*)\s*[\[\(]["']?([^"'\]\)]+)["']?[\]\)]/g
+        const SKIP = new Set(['graph', 'TD', 'LR', 'TB', 'RL', 'BT', 'subgraph', 'end', 'style', 'classDef', 'class'])
         let nm
         while ((nm = nodeRegex.exec(chart)) !== null) {
           const id = nm[1]
-          if (id !== 'graph' && id !== 'subgraph' && id !== 'end' && id !== 'TD' && id !== 'LR' && id !== 'TB') {
-            nodeMap[id] = nm[2].trim()
+          if (!SKIP.has(id)) nodeMap[id] = nm[2].trim()
+        }
+
+        // Edge parsing — A --> B, A -->|label| B, A -.-> B, A === B
+        const edgeRegex = new RegExp(`${ID}\\s*[-=.]+[>]?\\|?([^|\\n]*)\\|?\\s*[-=.]*[>]?\\s*${ID}`, 'g')
+        const edgeList = []
+        let em
+        while ((em = edgeRegex.exec(chart)) !== null) {
+          const from = em[1], label = (em[2] || '').trim(), to = em[3]
+          if (from && to && from !== to && !SKIP.has(from) && !SKIP.has(to)) {
+            edgeList.push({ from, label, to })
           }
         }
 
-        // Parse edges — handle: A --> B, A -->|label| B, A --- B
-        const edges = []
-        const edgeRegex = /(\w[\w\d]*)\s*-[-]+[>]?\|?([^|\n]*?)\|?\s*([\w][\w\d]*)/g
-        let em
-        while ((em = edgeRegex.exec(chart)) !== null) {
-          if (em[1] !== em[3]) {
-            edges.push({ from: em[1], label: em[2].trim(), to: em[3] })
+        // Promote bare edge IDs into nodeMap with title-cased labels
+        const toLabel = id => id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+        edgeList.forEach(e => {
+          if (!nodeMap[e.from]) nodeMap[e.from] = toLabel(e.from)
+          if (!nodeMap[e.to])   nodeMap[e.to]   = toLabel(e.to)
+        })
+
+        // Last-resort: extract bare A --> B pairs if nodeMap is still empty
+        if (Object.keys(nodeMap).length === 0 && chart) {
+          const bareEdge = new RegExp('([\\w][\\w-]*)\\s*-->+\\s*([\\w][\\w-]*)', 'g')
+          let be
+          while ((be = bareEdge.exec(chart)) !== null) {
+            if (!nodeMap[be[1]]) nodeMap[be[1]] = toLabel(be[1])
+            if (!nodeMap[be[2]]) nodeMap[be[2]] = toLabel(be[2])
+            edgeList.push({ from: be[1], label: '', to: be[2] })
           }
         }
 
         console.log('Architecture nodes found:', Object.keys(nodeMap).length, nodeMap)
-        console.log('Architecture edges found:', edges.length)
+        console.log('Architecture edges found:', edgeList.length)
 
-        if (Object.keys(nodeMap).length === 0) {
-          // No nodes parsed — render raw chart as monospace text
-          pdf.setFontSize(7); pdf.setFont('courier', 'normal'); sc(C.muted)
-          const rawLines = pdf.splitTextToSize(chart.replace(/\t/g, '  '), cW - 8)
-          rawLines.slice(0, 40).forEach(line => {
-            cy(4.5); pdf.text(line, mg + 4, y); y += 4.5
-          })
-        } else {
-          // Draw nodes as cards in a 2-column grid, advancing y sequentially
-          const nodeEntries = Object.entries(nodeMap)
+        // Draw nodes as 2-column card grid
+        const nodeEntries = Object.entries(nodeMap)
+        if (nodeEntries.length > 0) {
           const colW = (cW - 8) / 2
-          for (let i = 0; i < nodeEntries.length; i += 2) {
-            cy(16)
-            const rowY = y
-            // Left card
-            const [, lblL] = nodeEntries[i]
+          let col = 0
+          nodeEntries.forEach(([, lbl]) => {
+            if (col === 0) cy(18)
+            const nx = mg + col * (colW + 8)
             sf([235, 238, 250]); sd(C.bgray); pdf.setLineWidth(0.25)
-            pdf.roundedRect(mg, rowY, colW, 13, 2, 2, 'FD')
+            pdf.roundedRect(nx, y, colW, 14, 2, 2, 'FD')
             pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); sc(C.navy)
-            const lblLLines = pdf.splitTextToSize(String(lblL), colW - 6)
-            pdf.text(lblLLines[0], mg + colW / 2, rowY + 8, { align: 'center' })
-            // Right card (if exists)
-            if (i + 1 < nodeEntries.length) {
-              const [, lblR] = nodeEntries[i + 1]
-              const rx = mg + colW + 8
-              sf([235, 238, 250]); sd(C.bgray)
-              pdf.roundedRect(rx, rowY, colW, 13, 2, 2, 'FD')
-              const lblRLines = pdf.splitTextToSize(String(lblR), colW - 6)
-              pdf.text(lblRLines[0], rx + colW / 2, rowY + 8, { align: 'center' })
-            }
-            y += 17
-          }
-          y += 6
+            const lblLines = pdf.splitTextToSize(sanitize(lbl), colW - 8)
+            pdf.text(lblLines[0], nx + colW / 2, y + 8.5, { align: 'center' })
+            col++
+            if (col >= 2) { col = 0; y += 17 }
+          })
+          if (col !== 0) y += 17  // finish last partial row
+          y += 8
+        }
 
-          // Draw connections as a list
-          if (edges.length > 0) {
-            cy(12); secHdr('COMPONENT CONNECTIONS')
-            edges.forEach(e => {
-              cy(7)
-              const fromLabel = nodeMap[e.from] || e.from
-              const toLabel   = nodeMap[e.to]   || e.to
-              const conn = e.label ? `${fromLabel}  →[${e.label}]→  ${toLabel}` : `${fromLabel}  →  ${toLabel}`
-              sf(C.lgray); pdf.rect(mg, y - 3, cW, 6.5, 'F')
-              txt(conn, mg + 4, y + 1, cW - 8, 7.5, C.black)
-              y += 8
-            })
-          }
+        // Draw connections table
+        if (edgeList.length > 0) {
+          cy(14); secHdr('COMPONENT CONNECTIONS')
+          edgeList.forEach(e => {
+            cy(7)
+            const fromLbl = sanitize(nodeMap[e.from] || e.from)
+            const toLbl   = sanitize(nodeMap[e.to]   || e.to)
+            const conn    = e.label ? `${fromLbl}  -[${sanitize(e.label)}]->  ${toLbl}` : `${fromLbl}  ->  ${toLbl}`
+            sf(C.lgray); sd(C.bgray); pdf.setLineWidth(0.15)
+            pdf.rect(mg, y - 3.5, cW, 7, 'FD')
+            txt(conn, mg + 5, y + 0.5, cW - 10, 7.5, C.black)
+            y += 8
+          })
         }
       }
 
