@@ -491,8 +491,13 @@ export default function CloudModernization() {
         // Tasks
         tasks.forEach(task => {
           cy(9)
+          const taskText = typeof task === 'string'
+            ? task
+            : task?.task
+              ? `${task.task}${task.owner ? ` — ${task.owner}` : ''}${task.output ? ` → ${task.output}` : ''}`
+              : JSON.stringify(task)
           sc(C.blue); pdf.setFontSize(9); pdf.text('•', mg + 2, y)
-          const h = txt(task, mg + 7, y, cW - 11); y += Math.max(h, 5) + 2.5
+          const h = txt(taskText, mg + 7, y, cW - 11); y += Math.max(h, 5) + 2.5
         })
         y += 7
       })
@@ -1364,7 +1369,14 @@ export default function CloudModernization() {
                       )}
                       {phaseTasks.length > 0 && (
                         <ul className="cpc-tasks">
-                          {phaseTasks.map((t, j) => <li key={j}>{typeof t === 'string' ? t : String(t)}</li>)}
+                          {phaseTasks.map((t, j) => {
+                            const taskText = typeof t === 'string'
+                              ? t
+                              : t?.task
+                                ? `${t.task}${t.owner ? ` — ${t.owner}` : ''}${t.output ? ` → ${t.output}` : ''}`
+                                : JSON.stringify(t)
+                            return <li key={j} className="cm-phase-task">{taskText}</li>
+                          })}
                         </ul>
                       )}
                     </div>
@@ -1485,79 +1497,66 @@ export default function CloudModernization() {
               </div>
             )}
 
-            {/* Cost estimate */}
-            {(bpCost || bpCostStr) && (
-              <div className="cm-bp-section">
-                <div className="cm-findings-title">Cost estimate</div>
+            {/* Cost estimate — normalized to handle any key casing or structure */}
+            {(() => {
+              const ce = (bpCost && typeof bpCost === 'object') ? bpCost : null
+              if (!ce && !bpCostStr) return null
 
-                {bpCost && (bpCost.azureConsumption || bpCost.zonesServices || bpCost.toolingAndLicenses) ? (
+              if (!ce) {
+                return (
+                  <div className="cm-bp-section">
+                    <div className="cm-findings-title">Cost estimate</div>
+                    <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{bpCostStr}</div>
+                  </div>
+                )
+              }
+
+              // Normalize — handle camelCase variants from different generation runs
+              const azure   = ce.azureConsumption   || ce.azure   || ce.AzureConsumption   || null
+              const zones   = ce.zonesServices       || ce.zones   || ce.ZonesServices       || ce.professional || null
+              const tooling = ce.toolingAndLicenses  || ce.tooling || ce.ToolingAndLicenses  || null
+              const hasStructured = azure || zones || tooling
+
+              return (
+                <div className="cm-bp-section">
+                  <div className="cm-findings-title">Cost estimate</div>
                   <div className="cm-cost-grid">
-                    {bpCost.azureConsumption && (
+                    {azure && (
                       <div className="cm-cost-block">
                         <div className="cm-cost-block-title">Azure Consumption</div>
-                        {bpCost.azureConsumption.monthly && (
-                          <div className="cm-cost-row">
-                            <span className="cm-cost-label">Monthly</span>
-                            <span className="cm-cost-value">{String(bpCost.azureConsumption.monthly)}</span>
-                          </div>
-                        )}
-                        {bpCost.azureConsumption.annual && (
-                          <div className="cm-cost-row">
-                            <span className="cm-cost-label">Annual</span>
-                            <span className="cm-cost-value">{String(bpCost.azureConsumption.annual)}</span>
-                          </div>
-                        )}
-                        {bpCost.azureConsumption.breakdown && (
-                          <div className="cm-cost-breakdown">{String(bpCost.azureConsumption.breakdown)}</div>
-                        )}
+                        {azure.monthly  && <div className="cm-cost-row"><span className="cm-cost-label">Monthly</span><span className="cm-cost-value">{String(azure.monthly)}</span></div>}
+                        {azure.annual   && <div className="cm-cost-row"><span className="cm-cost-label">Annual</span><span className="cm-cost-value">{String(azure.annual)}</span></div>}
+                        {azure.breakdown && <div className="cm-cost-breakdown">{String(azure.breakdown)}</div>}
                       </div>
                     )}
-
-                    {bpCost.zonesServices && (
+                    {zones && (
                       <div className="cm-cost-block">
                         <div className="cm-cost-block-title">Zones Professional Services</div>
-                        {bpCost.zonesServices.total && (
-                          <div className="cm-cost-row">
-                            <span className="cm-cost-label">Total</span>
-                            <span className="cm-cost-value">{String(bpCost.zonesServices.total)}</span>
-                          </div>
-                        )}
-                        {bpCost.zonesServices.breakdown && (
-                          <div className="cm-cost-breakdown">{String(bpCost.zonesServices.breakdown)}</div>
-                        )}
+                        {zones.total     && <div className="cm-cost-row"><span className="cm-cost-label">Total</span><span className="cm-cost-value">{String(zones.total)}</span></div>}
+                        {zones.breakdown && <div className="cm-cost-breakdown">{String(zones.breakdown)}</div>}
                       </div>
                     )}
-
-                    {bpCost.toolingAndLicenses && (
+                    {tooling && (
                       <div className="cm-cost-block">
                         <div className="cm-cost-block-title">Tooling &amp; Licenses</div>
-                        {bpCost.toolingAndLicenses.total && (
-                          <div className="cm-cost-row">
-                            <span className="cm-cost-label">Total</span>
-                            <span className="cm-cost-value">{String(bpCost.toolingAndLicenses.total)}</span>
+                        {tooling.total     && <div className="cm-cost-row"><span className="cm-cost-label">Total</span><span className="cm-cost-value">{String(tooling.total)}</span></div>}
+                        {tooling.breakdown && <div className="cm-cost-breakdown">{String(tooling.breakdown)}</div>}
+                      </div>
+                    )}
+                    {!hasStructured && Object.keys(ce).length > 0 && (
+                      <div className="cm-cost-block">
+                        {Object.entries(ce).map(([k, v]) => (
+                          <div className="cm-cost-row" key={k}>
+                            <span className="cm-cost-label">{k}</span>
+                            <span className="cm-cost-value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
                           </div>
-                        )}
-                        {bpCost.toolingAndLicenses.breakdown && (
-                          <div className="cm-cost-breakdown">{String(bpCost.toolingAndLicenses.breakdown)}</div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
-                ) : bpCost ? (
-                  // Fallback: render whatever keys exist in the cost object
-                  <div className="cm-cost-block">
-                    {Object.entries(bpCost).map(([k, v]) => (
-                      <div className="cm-cost-row" key={k}>
-                        <span className="cm-cost-label">{k}</span>
-                        <span className="cm-cost-value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{bpCostStr}</div>
-                )}
-              </div>
-            )}
+                </div>
+              )
+            })()}
 
             {/* Architecture diagram */}
             {bpDiagram && (
@@ -1637,6 +1636,45 @@ export default function CloudModernization() {
                 {bpVisuals.map((v, i) => <ChatVisual key={i} visual={v} />)}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Rebuild blueprint bar — shown when a blueprint exists */}
+        {bp && (
+          <div className="cm-rebuild-bar">
+            <div className="cm-rebuild-info">
+              <span className="cm-rebuild-label">Want to regenerate this blueprint?</span>
+              <span className="cm-rebuild-sub">Re-runs the AI with your current workload scoring and requirements</span>
+            </div>
+            <button
+              className="cm-btn-rebuild"
+              disabled={bpLoading || refining}
+              onClick={async () => {
+                if (!window.confirm('Regenerate the blueprint from scratch? This will replace the current blueprint.')) return
+                setBpLoading(true); setBpError('')
+                try {
+                  const res = await fetch(`${API}/api/cloud-modernization/blueprint`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      clientId: client?.id,
+                      workloads, scoringResult, calcResult,
+                      targetCloud, timeline, budgetRange, constraints,
+                      complianceReqs, haRequirement, drRequirement, managedServices, networkArch, additionalReqs,
+                    }),
+                  })
+                  if (!res.ok) throw new Error('Blueprint rebuild failed')
+                  setBlueprint(await res.json())
+                  setQuestionAnswers({})
+                  setExpandedQuestion(null)
+                } catch (e) { setBpError(e.message) }
+                finally { setBpLoading(false) }
+              }}
+            >
+              {bpLoading
+                ? <><RefreshCw size={13} style={{ animation: 'cm-spin 1s linear infinite' }} /> Rebuilding…</>
+                : <>↺ Rebuild Blueprint</>}
+            </button>
           </div>
         )}
 

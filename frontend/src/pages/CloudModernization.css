@@ -264,6 +264,15 @@
 .cqc-answer-input::placeholder { color:var(--z-muted); }
 .cqc-answer-saved { font-size:10px; color:#3DBA7E; margin-top:5px; }
 
+/* Rebuild blueprint bar */
+.cm-rebuild-bar { display:flex; align-items:center; justify-content:space-between; margin-top:32px; padding:16px 20px; background:rgba(255,255,255,0.03); border:.5px solid rgba(255,255,255,0.08); border-radius:var(--radius-md); gap:16px; }
+.cm-rebuild-info { display:flex; flex-direction:column; gap:3px; }
+.cm-rebuild-label { font-size:12px; font-weight:500; color:var(--z-white); }
+.cm-rebuild-sub { font-size:11px; color:var(--z-muted); }
+.cm-btn-rebuild { display:flex; align-items:center; gap:6px; padding:8px 16px; background:rgba(74,159,224,0.12); border:.5px solid rgba(74,159,224,0.35); border-radius:var(--radius-sm); color:var(--z-blue-bright); font-size:12px; font-weight:500; cursor:pointer; white-space:nowrap; transition:background .15s; }
+.cm-btn-rebuild:hover:not(:disabled) { background:rgba(74,159,224,0.22); }
+.cm-btn-rebuild:disabled { opacity:0.5; cursor:not-allowed; }
+
 /* Responsive VMware calc grid */
 @media (max-width:900px) {
   .cm-calc-grid { grid-template-columns:1fr; }
