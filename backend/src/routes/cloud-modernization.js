@@ -409,6 +409,11 @@ function buildWaveDetail(wls) {
 }
 
 function buildRefinementPrompt(ctx) {
+  const prevPhasesJson = ctx.previousBlueprint?.phases
+    ? JSON.stringify(ctx.previousBlueprint.phases, null, 2)
+    : 'Not provided'
+  const prevSummary = ctx.previousBlueprint?.summary || 'Not provided'
+
   return `You are a senior cloud solutions architect at Zones. An advisor has answered clarifying questions about a client migration. Update the blueprint based on these answers.
 
 Client: ${ctx.clientName}
@@ -419,7 +424,13 @@ Timeline: ${ctx.timeline || 'not specified'}
 ADVISOR ANSWERS TO CLARIFYING QUESTIONS:
 ${ctx.advisorAnswers}
 
-ORIGINAL WORKLOAD SCORING:
+CURRENT BLUEPRINT PHASES (what you are updating — these are the assignments you must override when advisor answers contradict them):
+${prevPhasesJson}
+
+CURRENT BLUEPRINT SUMMARY:
+${prevSummary}
+
+ORIGINAL WORKLOAD SCORING (reference only — the advisor answers take precedence over this):
 Wave 1 (quick wins):
 ${ctx.wave1Detail}
 
@@ -430,16 +441,18 @@ Wave 3 (complex/critical):
 ${ctx.wave3Detail}
 
 INSTRUCTIONS — this is a REFINEMENT, not a fresh blueprint:
-1. Read each advisor answer carefully
-2. Update ONLY the parts of the blueprint that the answers change
-3. If an answer clarifies a workload type (e.g. "BMS is a Building Management System with OT dependencies") — update that workload's recommendation, phase, and risks accordingly
-4. If an answer reveals a constraint (e.g. "we have a change freeze in Q4") — update the timeline
-5. If an answer reveals a dependency (e.g. "File Servers 1-5 all feed the ERP") — update wave sequencing
-6. If an answer reveals licensing info (e.g. "we have Software Assurance") — update cost estimates
-7. Generate NEW questions ONLY if the answers revealed new unknowns — otherwise set clientQuestions to [] or at most 1-2 targeted follow-ups
-8. The phases must reference workloads by EXACT names
-9. Never say "Azure AD" — always say "Microsoft Entra ID"
-10. Cost estimates must break down into: Azure consumption / Zones services / tooling
+1. Read each advisor answer carefully — they take precedence over the original workload scoring
+2. The CURRENT BLUEPRINT PHASES above are your starting point, not the raw workload scoring
+3. If an advisor answer contradicts a current phase assignment (e.g. a workload is listed as "Replatform to Azure SQL" but the advisor says it has OT serial port dependencies and cannot move to cloud) — you MUST move that workload to Retain and remove it from ALL migration phases
+4. If an advisor answer clarifies a workload type (e.g. "BMS is a Building Management System, not a database") — correct its strategy, recommended path, and phase assignment accordingly
+5. If an answer reveals a constraint (e.g. "we have a change freeze in Q4") — update the timeline
+6. If an answer reveals a dependency (e.g. "File Servers 1-5 all feed the ERP") — update wave sequencing
+7. If an answer reveals licensing info (e.g. "we have Software Assurance") — update cost estimates
+8. Generate NEW questions ONLY if the answers revealed new unknowns — otherwise set clientQuestions to [] or at most 1-2 targeted follow-ups
+9. The phases must reference workloads by EXACT names
+10. Never say "Azure AD" — always say "Microsoft Entra ID"
+11. Cost estimates must break down into: Azure consumption / Zones services / tooling
+12. The answersApplied array must contain one entry per advisor answer formatted as: "[Workload name]: [what changed] — e.g. BMS: moved from Wave 2 Replatform to Retain — OT serial port dependencies prevent cloud migration". If nothing changed for a particular answer, explain why.
 
 Return ONLY raw JSON:
 {
@@ -480,7 +493,7 @@ Return ONLY raw JSON:
     "chart": "graph TD with max 10 nodes, lowercase IDs, no spaces in node IDs"
   },
   "answersApplied": [
-    "Brief one-sentence note on what each answer changed — e.g. BMS moved from Wave 1 Rehost to Retain due to OT serial-port dependencies"
+    "[Workload name]: [what changed and why] — e.g. BMS: moved from Wave 2 Replatform to Retain — OT serial port dependencies prevent cloud migration"
   ]
 }`
 }
@@ -632,6 +645,7 @@ router.post('/blueprint', async (req, res) => {
       networkArch    = 'Hub-Spoke',
       additionalReqs = '',
       advisorAnswers = '',
+      previousBlueprint,
       clientId,
     } = req.body
 
@@ -640,7 +654,10 @@ router.post('/blueprint', async (req, res) => {
 
     const isRefinement = !!(advisorAnswers && advisorAnswers.trim())
     console.log('Blueprint mode:', isRefinement ? 'REFINEMENT' : 'INITIAL', '| workloads:', scored.length)
-    if (isRefinement) console.log('Advisor answers:', advisorAnswers.slice(0, 300))
+    if (isRefinement) {
+      console.log('Advisor answers:', advisorAnswers.slice(0, 300))
+      console.log('previousBlueprint received:', !!(previousBlueprint?.phases?.length))
+    }
 
     // Get client name
     let clientName = 'Client'
@@ -677,7 +694,7 @@ router.post('/blueprint', async (req, res) => {
     const ctx = {
       clientName, targetCloud, timeline, budgetRange, constraints,
       complianceReqs, haRequirement, drRequirement, managedServices,
-      networkArch, additionalReqs, advisorAnswers,
+      networkArch, additionalReqs, advisorAnswers, previousBlueprint,
       scored, distStr, eolWorkloads, consolidation, repurchase,
       wave1, wave2, wave3, wave1Detail, wave2Detail, wave3Detail,
     }

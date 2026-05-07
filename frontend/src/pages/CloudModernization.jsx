@@ -311,11 +311,11 @@ export default function CloudModernization() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: client?.id,
-          // Pass both old-style fields (for initial context) and explicit advisor answers
           workloads, scoringResult, calcResult,
           targetCloud, timeline, budgetRange, constraints,
           complianceReqs, haRequirement, drRequirement, managedServices, networkArch, additionalReqs,
           advisorAnswers: answeredQs,
+          previousBlueprint: blueprint,
         }),
       })
       if (!res.ok) {
@@ -361,24 +361,27 @@ export default function CloudModernization() {
 
       let y = addPageHeader(true)
 
-      // Executive summary text block
+      // ── Executive summary ────────────────────────────────────────────────────
       const summaryText = typeof blueprint?.summary === 'string' ? blueprint.summary : ''
       if (summaryText) {
-        pdf.setFontSize(10); pdf.setTextColor(30, 41, 59)
+        pdf.setFontSize(10); pdf.setTextColor(220, 230, 245)
         const lines = pdf.splitTextToSize(summaryText, contentW)
         for (const line of lines) {
           if (y > pageH - margin - 8) y = addPageHeader()
           pdf.text(line, margin, y); y += 5
         }
-        y += 8
+        y += 10
       }
 
-      // Capture each blueprint section as image
+      // ── Capture non-cost sections as images ──────────────────────────────────
       const blueprintEl = document.querySelector('.cm-structured-bp') ||
                           document.querySelector('.cm-content')
       if (blueprintEl) {
         const sections = blueprintEl.querySelectorAll('.cm-bp-section')
         for (const section of sections) {
+          // Skip cost estimate section — we render it natively below for reliability
+          if (section.querySelector('.cm-cost-grid') || section.querySelector('.ccc-title')) continue
+
           section.scrollIntoView({ block: 'nearest' })
           await new Promise(r => setTimeout(r, 150))
           const canvas = await html2canvas(section, {
@@ -396,7 +399,65 @@ export default function CloudModernization() {
         }
       }
 
-      // Page footers
+      // ── Cost estimate — rendered natively so nested fields don't go blank ────
+      const ce = blueprint?.costEstimate
+      if (ce && typeof ce === 'object' && !Array.isArray(ce)) {
+        if (y > pageH - margin - 60) y = addPageHeader()
+
+        // Section heading
+        pdf.setFillColor(20, 40, 70)
+        pdf.rect(margin, y - 4, contentW, 10, 'F')
+        pdf.setFontSize(9); pdf.setFont(undefined, 'bold')
+        pdf.setTextColor(74, 159, 224)
+        pdf.text('COST ESTIMATE', margin + 2, y + 3)
+        pdf.setFont(undefined, 'normal')
+        y += 14
+
+        const costSections = [
+          {
+            label: 'Azure Consumption',
+            rows: [
+              `Monthly: ${ce.azureConsumption?.monthly || 'TBD'}`,
+              `Annual: ${ce.azureConsumption?.annual || 'TBD'}`,
+              `Breakdown: ${ce.azureConsumption?.breakdown || '—'}`,
+            ],
+          },
+          {
+            label: 'Zones Professional Services',
+            rows: [
+              `Total: ${ce.zonesServices?.total || 'TBD'}`,
+              `Breakdown: ${ce.zonesServices?.breakdown || '—'}`,
+            ],
+          },
+          {
+            label: 'Tooling & Licenses',
+            rows: [
+              `Total: ${ce.toolingAndLicenses?.total || 'TBD'}`,
+              `Breakdown: ${ce.toolingAndLicenses?.breakdown || '—'}`,
+            ],
+          },
+        ]
+
+        for (const cs of costSections) {
+          if (y > pageH - margin - 20) y = addPageHeader()
+          pdf.setFontSize(8); pdf.setFont(undefined, 'bold')
+          pdf.setTextColor(160, 190, 230)
+          pdf.text(cs.label, margin + 2, y); y += 5
+          pdf.setFont(undefined, 'normal')
+          for (const row of cs.rows) {
+            if (y > pageH - margin - 8) y = addPageHeader()
+            pdf.setFontSize(8); pdf.setTextColor(210, 220, 240)
+            const wrapped = pdf.splitTextToSize(row, contentW - 4)
+            for (const line of wrapped) {
+              pdf.text(line, margin + 6, y); y += 5
+            }
+          }
+          y += 4
+        }
+        y += 4
+      }
+
+      // ── Page footers ─────────────────────────────────────────────────────────
       const total = pdf.getNumberOfPages()
       for (let i = 1; i <= total; i++) {
         pdf.setPage(i)
