@@ -620,55 +620,81 @@ export default function CloudModernization() {
         pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.navy)
         pdf.text(adTitle, mg + 4, y); y += 8
 
-        const chart = typeof ad.chart === 'string' ? ad.chart : ''
+        const chart = typeof ad.chart === 'string' ? ad.chart
+          : typeof ad === 'string' ? ad : ''
 
-        // Parse mermaid: extract node labels and edges
+        // Parse nodes globally — handles id["Label"], id[Label], id("Label"), id(Label)
+        // Uses exec loop so it catches nodes embedded inside edge lines too
         const nodeMap = {}
-        const edges   = []
-        chart.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
-          // Node with label: id["Label"] or id[Label]
-          const nm = line.match(/^(\w+)\[["']?([^"'\]]+)["']?\]/)
-          if (nm) nodeMap[nm[1]] = nm[2]
-
-          // Edge with label: a -->|lbl| b
-          const em1 = line.match(/(\w+)\s*-->\s*\|([^|]*)\|\s*(\w+)/)
-          if (em1) { edges.push({ from: em1[1], label: em1[2].trim(), to: em1[3] }); return }
-
-          // Plain edge: a --> b
-          const em2 = line.match(/^(\w+)\s*-->\s*(\w+)/)
-          if (em2) edges.push({ from: em2[1], label: '', to: em2[2] })
-        })
-
-        // Draw nodes as a 2-column grid
-        if (Object.keys(nodeMap).length > 0) {
-          const nodes  = Object.entries(nodeMap)
-          const colW   = (cW - 6) / 2
-          const rowH   = 16
-          nodes.forEach(([, label], i) => {
-            const col = i % 2
-            const row = Math.floor(i / 2)
-            const nx  = mg + col * (colW + 6)
-            const ny  = y + row * rowH
-            cy(rowH)
-            sf(C.lgray); sd(C.bgray); pdf.setLineWidth(0.3)
-            pdf.roundedRect(nx, ny, colW, 12, 2, 2, 'FD')
-            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); sc(C.navy)
-            const ls = pdf.splitTextToSize(String(label), colW - 8)
-            pdf.text(ls, nx + colW / 2, ny + 6.5, { align: 'center' })
-          })
-          y += Math.ceil(nodes.length / 2) * rowH + 8
+        const nodeRegex = /(\w[\w\d]*)\s*[\[\(]["']?([^"'\]\)]+)["']?[\]\)]/g
+        let nm
+        while ((nm = nodeRegex.exec(chart)) !== null) {
+          const id = nm[1]
+          if (id !== 'graph' && id !== 'subgraph' && id !== 'end' && id !== 'TD' && id !== 'LR' && id !== 'TB') {
+            nodeMap[id] = nm[2].trim()
+          }
         }
 
-        // Draw connections
-        if (edges.length > 0) {
-          cy(10); secHdr('COMPONENT CONNECTIONS')
-          edges.forEach(e => {
-            cy(7)
-            const fromLabel = nodeMap[e.from] || e.from
-            const toLabel   = nodeMap[e.to]   || e.to
-            const arrow     = e.label ? ` →[${e.label}]→ ` : ' → '
-            txt(`${fromLabel}${arrow}${toLabel}`, mg + 4, y, cW - 8, 8, C.black); y += 6
+        // Parse edges — handle: A --> B, A -->|label| B, A --- B
+        const edges = []
+        const edgeRegex = /(\w[\w\d]*)\s*-[-]+[>]?\|?([^|\n]*?)\|?\s*([\w][\w\d]*)/g
+        let em
+        while ((em = edgeRegex.exec(chart)) !== null) {
+          if (em[1] !== em[3]) {
+            edges.push({ from: em[1], label: em[2].trim(), to: em[3] })
+          }
+        }
+
+        console.log('Architecture nodes found:', Object.keys(nodeMap).length, nodeMap)
+        console.log('Architecture edges found:', edges.length)
+
+        if (Object.keys(nodeMap).length === 0) {
+          // No nodes parsed — render raw chart as monospace text
+          pdf.setFontSize(7); pdf.setFont('courier', 'normal'); sc(C.muted)
+          const rawLines = pdf.splitTextToSize(chart.replace(/\t/g, '  '), cW - 8)
+          rawLines.slice(0, 40).forEach(line => {
+            cy(4.5); pdf.text(line, mg + 4, y); y += 4.5
           })
+        } else {
+          // Draw nodes as cards in a 2-column grid, advancing y sequentially
+          const nodeEntries = Object.entries(nodeMap)
+          const colW = (cW - 8) / 2
+          for (let i = 0; i < nodeEntries.length; i += 2) {
+            cy(16)
+            const rowY = y
+            // Left card
+            const [, lblL] = nodeEntries[i]
+            sf([235, 238, 250]); sd(C.bgray); pdf.setLineWidth(0.25)
+            pdf.roundedRect(mg, rowY, colW, 13, 2, 2, 'FD')
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); sc(C.navy)
+            const lblLLines = pdf.splitTextToSize(String(lblL), colW - 6)
+            pdf.text(lblLLines[0], mg + colW / 2, rowY + 8, { align: 'center' })
+            // Right card (if exists)
+            if (i + 1 < nodeEntries.length) {
+              const [, lblR] = nodeEntries[i + 1]
+              const rx = mg + colW + 8
+              sf([235, 238, 250]); sd(C.bgray)
+              pdf.roundedRect(rx, rowY, colW, 13, 2, 2, 'FD')
+              const lblRLines = pdf.splitTextToSize(String(lblR), colW - 6)
+              pdf.text(lblRLines[0], rx + colW / 2, rowY + 8, { align: 'center' })
+            }
+            y += 17
+          }
+          y += 6
+
+          // Draw connections as a list
+          if (edges.length > 0) {
+            cy(12); secHdr('COMPONENT CONNECTIONS')
+            edges.forEach(e => {
+              cy(7)
+              const fromLabel = nodeMap[e.from] || e.from
+              const toLabel   = nodeMap[e.to]   || e.to
+              const conn = e.label ? `${fromLabel}  →[${e.label}]→  ${toLabel}` : `${fromLabel}  →  ${toLabel}`
+              sf(C.lgray); pdf.rect(mg, y - 3, cW, 6.5, 'F')
+              txt(conn, mg + 4, y + 1, cW - 8, 7.5, C.black)
+              y += 8
+            })
+          }
         }
       }
 
@@ -1459,40 +1485,77 @@ export default function CloudModernization() {
               </div>
             )}
 
-            {/* Cost estimate — structured object format */}
-            {bpCost && (
+            {/* Cost estimate */}
+            {(bpCost || bpCostStr) && (
               <div className="cm-bp-section">
                 <div className="cm-findings-title">Cost estimate</div>
-                <div className="cm-cost-grid">
-                  {['migration', 'azure', 'threeYear'].map(key => {
-                    const card = bpCost[key]
-                    if (!card) return null
-                    const labels = { migration: 'Migration investment', azure: 'Azure monthly run cost', threeYear: '3-year TCO' }
-                    const total = card && typeof card === 'object' ? card.total : card
-                    const annual = card && typeof card === 'object' ? card.annual : null
-                    const breakdown = card && typeof card === 'object' && Array.isArray(card.breakdown) ? card.breakdown : []
-                    return (
-                      <div key={key} className="cm-cost-card">
-                        <div className="ccc-title">{labels[key]}</div>
-                        <div className="ccc-total">{total != null ? String(total) : '—'}</div>
-                        {annual && <div className="ccc-annual">{String(annual)}/yr</div>}
-                        {breakdown.length > 0 && (
-                          <ul className="ccc-breakdown">
-                            {breakdown.map((b, j) => <li key={j}>{typeof b === 'string' ? b : String(b)}</li>)}
-                          </ul>
+
+                {bpCost && (bpCost.azureConsumption || bpCost.zonesServices || bpCost.toolingAndLicenses) ? (
+                  <div className="cm-cost-grid">
+                    {bpCost.azureConsumption && (
+                      <div className="cm-cost-block">
+                        <div className="cm-cost-block-title">Azure Consumption</div>
+                        {bpCost.azureConsumption.monthly && (
+                          <div className="cm-cost-row">
+                            <span className="cm-cost-label">Monthly</span>
+                            <span className="cm-cost-value">{String(bpCost.azureConsumption.monthly)}</span>
+                          </div>
+                        )}
+                        {bpCost.azureConsumption.annual && (
+                          <div className="cm-cost-row">
+                            <span className="cm-cost-label">Annual</span>
+                            <span className="cm-cost-value">{String(bpCost.azureConsumption.annual)}</span>
+                          </div>
+                        )}
+                        {bpCost.azureConsumption.breakdown && (
+                          <div className="cm-cost-breakdown">{String(bpCost.azureConsumption.breakdown)}</div>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+                    )}
 
-            {/* Cost estimate — string / legacy format */}
-            {!bpCost && bpCostStr && (
-              <div className="cm-bp-section">
-                <div className="cm-findings-title">Cost estimate</div>
-                <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{bpCostStr}</div>
+                    {bpCost.zonesServices && (
+                      <div className="cm-cost-block">
+                        <div className="cm-cost-block-title">Zones Professional Services</div>
+                        {bpCost.zonesServices.total && (
+                          <div className="cm-cost-row">
+                            <span className="cm-cost-label">Total</span>
+                            <span className="cm-cost-value">{String(bpCost.zonesServices.total)}</span>
+                          </div>
+                        )}
+                        {bpCost.zonesServices.breakdown && (
+                          <div className="cm-cost-breakdown">{String(bpCost.zonesServices.breakdown)}</div>
+                        )}
+                      </div>
+                    )}
+
+                    {bpCost.toolingAndLicenses && (
+                      <div className="cm-cost-block">
+                        <div className="cm-cost-block-title">Tooling &amp; Licenses</div>
+                        {bpCost.toolingAndLicenses.total && (
+                          <div className="cm-cost-row">
+                            <span className="cm-cost-label">Total</span>
+                            <span className="cm-cost-value">{String(bpCost.toolingAndLicenses.total)}</span>
+                          </div>
+                        )}
+                        {bpCost.toolingAndLicenses.breakdown && (
+                          <div className="cm-cost-breakdown">{String(bpCost.toolingAndLicenses.breakdown)}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : bpCost ? (
+                  // Fallback: render whatever keys exist in the cost object
+                  <div className="cm-cost-block">
+                    {Object.entries(bpCost).map(([k, v]) => (
+                      <div className="cm-cost-row" key={k}>
+                        <span className="cm-cost-label">{k}</span>
+                        <span className="cm-cost-value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="cm-summary-card" style={{ borderLeftColor: '#3DBA7E' }}>{bpCostStr}</div>
+                )}
               </div>
             )}
 
