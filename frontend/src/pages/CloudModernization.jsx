@@ -152,6 +152,7 @@ export default function CloudModernization() {
   const [expandedQuestion,  setExpandedQuestion]  = useState(null)
   const [refining,          setRefining]          = useState(false)
   const [exporting,         setExporting]         = useState(false)
+  const [generatingSoW,     setGeneratingSoW]     = useState(false)
 
   // ── Restore stored results ───────────────────────────────────────────────────
   useEffect(() => {
@@ -742,6 +743,47 @@ export default function CloudModernization() {
     }
   }
 
+  // ── Generate Statement of Work .docx ─────────────────────────────────────────
+  async function generateSoW() {
+    if (!blueprint) return
+    setGeneratingSoW(true)
+    try {
+      const res = await fetch(`${API}/api/cloud-modernization/sow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName:   client?.name || 'Client',
+          vertical:     '',
+          compliance:   complianceReqs,
+          requirements: { targetCloud, timeline, budgetRange, constraints, networkArch, haRequirement, drRequirement },
+          blueprint,
+          scoredWorkloads: scoringResult?.workloads || [],
+          advisorName:  '',
+          advisorTitle: '',
+          advisorEmail: '',
+          advisorPhone: '',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert('SoW generation failed: ' + (err.error || res.statusText))
+        return
+      }
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${(client?.name || 'Client').replace(/\s+/g, '-')}-Cloud-Modernization-SOW-${new Date().toISOString().split('T')[0]}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('SoW error:', err)
+      alert('SoW generation failed: ' + err.message)
+    } finally {
+      setGeneratingSoW(false)
+    }
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function toggleCompliance(opt) {
     setComplianceReqs(prev => prev.includes(opt) ? prev.filter(x => x !== opt) : [...prev, opt])
@@ -1323,6 +1365,13 @@ export default function CloudModernization() {
           </div>
           <div className="cm-bp-actions">
             {bp && <span className="cm-saved-badge">✓ Saved</span>}
+            {bp && (
+              <button className="cm-btn-sow" onClick={generateSoW} disabled={generatingSoW}>
+                {generatingSoW
+                  ? <><RefreshCw size={13} style={{ animation: 'cm-spin 1s linear infinite' }} /> Generating…</>
+                  : <><FileText size={13} /> Generate SoW</>}
+              </button>
+            )}
             {bp && (
               <button className="cm-btn-secondary" onClick={exportBlueprintPDF} disabled={exporting}>
                 {exporting

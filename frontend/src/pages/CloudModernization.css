@@ -264,6 +264,11 @@
 .cqc-answer-input::placeholder { color:var(--z-muted); }
 .cqc-answer-saved { font-size:10px; color:#3DBA7E; margin-top:5px; }
 
+/* Generate SoW button */
+.cm-btn-sow { display:flex; align-items:center; gap:6px; padding:7px 14px; background:rgba(34,160,100,0.12); border:.5px solid rgba(34,160,100,0.35); border-radius:var(--radius-sm); color:#3DBA7E; font-size:12px; font-weight:500; cursor:pointer; transition:background .15s; white-space:nowrap; }
+.cm-btn-sow:hover:not(:disabled) { background:rgba(34,160,100,0.22); }
+.cm-btn-sow:disabled { opacity:0.5; cursor:not-allowed; }
+
 /* Rebuild blueprint bar */
 .cm-rebuild-bar { display:flex; align-items:center; justify-content:space-between; margin-top:32px; padding:16px 20px; background:rgba(255,255,255,0.03); border:.5px solid rgba(255,255,255,0.08); border-radius:var(--radius-md); gap:16px; }
 .cm-rebuild-info { display:flex; flex-direction:column; gap:3px; }

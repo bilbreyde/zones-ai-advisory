@@ -1,6 +1,11 @@
 import { Router } from 'express'
 import { containers } from '../db.js'
 import { fixMermaidChart } from '../utils/mermaid.js'
+import {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  Header, Footer, AlignmentType, HeadingLevel, BorderStyle, WidthType,
+  ShadingType, PageNumber, PageBreak, LevelFormat,
+} from 'docx'
 
 const router = Router()
 
@@ -763,6 +768,455 @@ router.post('/blueprint', async (req, res) => {
     res.json(result)
   } catch (err) {
     console.error('Blueprint error:', err.message, err.stack?.split('\n')[1])
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── POST /sow — Generate Statement of Work .docx ────────────────────────────
+router.post('/sow', async (req, res) => {
+  try {
+    const {
+      clientName = 'Client',
+      vertical = '',
+      compliance = [],
+      requirements = {},
+      blueprint = {},
+      advisorName = '',
+      advisorTitle = '',
+      advisorEmail = '',
+      advisorPhone = '',
+    } = req.body
+
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    const targetCloud = requirements.targetCloud || blueprint.targetCloud || 'Azure'
+    const timeline    = requirements.timeline    || blueprint.timeline    || '12 months'
+    const budget      = requirements.budget      || 'TBD'
+
+    const ce      = blueprint.costEstimate || {}
+    const azure   = ce.azureConsumption  || ce.azure   || {}
+    const zones   = ce.zonesServices     || ce.zones   || {}
+    const tooling = ce.toolingAndLicenses|| ce.tooling || {}
+    const phases  = blueprint.phases || []
+    const risks   = blueprint.risks  || []
+
+    const NAVY    = '0D1B3E'
+    const BLUE    = '2962FF'
+    const GRAY    = 'F5F6FA'
+    const BDR     = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' }
+    const borders = { top: BDR, bottom: BDR, left: BDR, right: BDR }
+    const cm      = { top: 100, bottom: 100, left: 150, right: 150 }
+
+    function h1(text) {
+      return new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        children: [new TextRun({ text, bold: true, size: 28, color: NAVY, font: 'Arial' })],
+        spacing: { before: 320, after: 160 },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: BLUE, space: 1 } },
+      })
+    }
+    function h2(text) {
+      return new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text, bold: true, size: 24, color: NAVY, font: 'Arial' })],
+        spacing: { before: 240, after: 120 },
+      })
+    }
+    function body(text, options = {}) {
+      return new Paragraph({
+        children: [new TextRun({ text: text || '', size: 22, font: 'Arial', ...options })],
+        spacing: { before: 80, after: 80 },
+      })
+    }
+    function bullet(text) {
+      return new Paragraph({
+        numbering: { reference: 'bullets', level: 0 },
+        children: [new TextRun({ text: text || '', size: 22, font: 'Arial' })],
+        spacing: { before: 60, after: 60 },
+      })
+    }
+    function spacer() {
+      return new Paragraph({ children: [new TextRun('')], spacing: { before: 80, after: 80 } })
+    }
+    function twoColTable(rows) {
+      return new Table({
+        width: { size: 9360, type: WidthType.DXA },
+        columnWidths: [3000, 6360],
+        rows: rows.map(([label, value]) => new TableRow({
+          children: [
+            new TableCell({
+              borders, width: { size: 3000, type: WidthType.DXA }, margins: cm,
+              shading: { fill: 'EEF1FA', type: ShadingType.CLEAR },
+              children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 21, font: 'Arial', color: NAVY })] })],
+            }),
+            new TableCell({
+              borders, width: { size: 6360, type: WidthType.DXA }, margins: cm,
+              children: [new Paragraph({ children: [new TextRun({ text: value || 'TBD', size: 21, font: 'Arial' })] })],
+            }),
+          ],
+        })),
+      })
+    }
+    function hdrCell(text, w) {
+      return new TableCell({
+        borders, width: { size: w, type: WidthType.DXA }, margins: cm,
+        shading: { fill: NAVY, type: ShadingType.CLEAR },
+        children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 21, font: 'Arial', color: 'FFFFFF' })] })],
+      })
+    }
+    function dataCell(text, w, shade) {
+      return new TableCell({
+        borders, width: { size: w, type: WidthType.DXA }, margins: cm,
+        shading: { fill: shade, type: ShadingType.CLEAR },
+        children: [new Paragraph({ children: [new TextRun({ text: text || '', size: 21, font: 'Arial' })] })],
+      })
+    }
+
+    const phaseTable = new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [3500, 1800, 4060],
+      rows: [
+        new TableRow({ children: [hdrCell('Phase', 3500), hdrCell('Timeline', 1800), hdrCell('Workloads', 4060)] }),
+        ...phases.map((p, i) => {
+          const shade = i % 2 === 0 ? GRAY : 'FFFFFF'
+          return new TableRow({ children: [
+            dataCell(p.name || '', 3500, shade),
+            dataCell(`Months ${p.months || ''}`, 1800, shade),
+            dataCell((p.workloads || []).join(', '), 4060, shade),
+          ]})
+        }),
+      ],
+    })
+
+    const scheduleTable = new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [3500, 1800, 4060],
+      rows: [
+        new TableRow({ children: [hdrCell('Milestone', 3500), hdrCell('Timeline', 1800), hdrCell('Owner', 4060)] }),
+        ...phases.map((p, i) => {
+          const shade = i % 2 === 0 ? GRAY : 'FFFFFF'
+          return new TableRow({ children: [
+            dataCell(p.name || '', 3500, shade),
+            dataCell(`Months ${p.months || ''}`, 1800, shade),
+            dataCell('Zones Migration Team', 4060, shade),
+          ]})
+        }),
+        new TableRow({ children: [
+          dataCell('Project Completion & Sign-off', 3500, 'EEF1FA'),
+          dataCell(timeline, 1800, 'EEF1FA'),
+          dataCell('Zones PM + Client Lead', 4060, 'EEF1FA'),
+        ]}),
+      ],
+    })
+
+    const riskTable = new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [4680, 1560, 3120],
+      rows: [
+        new TableRow({ children: [hdrCell('Risk', 4680), hdrCell('Likelihood', 1560), hdrCell('Mitigation', 3120)] }),
+        ...risks.map((r, i) => {
+          const shade = i % 2 === 0 ? GRAY : 'FFFFFF'
+          const lhColor = r.likelihood === 'High' ? 'C8503C' : r.likelihood === 'Medium' ? 'C88C14' : '22A064'
+          return new TableRow({ children: [
+            dataCell(r.risk || '', 4680, shade),
+            new TableCell({
+              borders, width: { size: 1560, type: WidthType.DXA }, margins: cm,
+              shading: { fill: shade, type: ShadingType.CLEAR },
+              children: [new Paragraph({ children: [new TextRun({ text: r.likelihood || '', size: 21, font: 'Arial', bold: true, color: lhColor })] })],
+            }),
+            dataCell(r.mitigation || '', 3120, shade),
+          ]})
+        }),
+      ],
+    })
+
+    const phaseTaskSections = phases.flatMap(phase => {
+      const tasks = (phase.tasks || []).map(t =>
+        typeof t === 'string' ? t
+          : t?.task ? `${t.task}${t.owner ? ` (${t.owner})` : ''}${t.output ? ` \u2014 ${t.output}` : ''}`
+          : JSON.stringify(t)
+      )
+      return [
+        h2(phase.name || ''),
+        body(`Timeline: Months ${phase.months || 'TBD'}`, { color: '666666' }),
+        ...tasks.map(t => bullet(t)),
+        spacer(),
+      ]
+    })
+
+    const doc = new Document({
+      numbering: {
+        config: [{
+          reference: 'bullets',
+          levels: [{
+            level: 0, format: LevelFormat.BULLET, text: '\u2022',
+            alignment: AlignmentType.LEFT,
+            style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+          }],
+        }],
+      },
+      styles: {
+        default: { document: { run: { font: 'Arial', size: 22 } } },
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1260, bottom: 1440, left: 1260 },
+          },
+        },
+        headers: {
+          default: new Header({
+            children: [new Paragraph({
+              children: [new TextRun({ text: 'ZONES, LLC  |  STATEMENT OF WORK  |  CONFIDENTIAL', size: 16, font: 'Arial', color: '888888' })],
+              border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: BLUE, space: 1 } },
+              alignment: AlignmentType.RIGHT,
+            })],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [new Paragraph({
+              children: [
+                new TextRun({ text: `${clientName} Cloud Modernization SOW  |  `, size: 16, font: 'Arial', color: '888888' }),
+                new TextRun({ children: [PageNumber.CURRENT], size: 16, font: 'Arial', color: '888888' }),
+                new TextRun({ text: ' of ', size: 16, font: 'Arial', color: '888888' }),
+                new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, font: 'Arial', color: '888888' }),
+              ],
+              border: { top: { style: BorderStyle.SINGLE, size: 4, color: BLUE, space: 1 } },
+            })],
+          }),
+        },
+        children: [
+          // ── COVER ──────────────────────────────────────────────────────────────
+          spacer(), spacer(),
+          new Paragraph({
+            children: [new TextRun({ text: 'STATEMENT OF WORK', size: 52, bold: true, font: 'Arial', color: NAVY })],
+            alignment: AlignmentType.CENTER, spacing: { before: 480, after: 120 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: 'Cloud Modernization Services', size: 36, font: 'Arial', color: BLUE })],
+            alignment: AlignmentType.CENTER, spacing: { before: 0, after: 80 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: `Prepared for: ${clientName}`, size: 26, font: 'Arial', color: '444444' })],
+            alignment: AlignmentType.CENTER, spacing: { before: 80, after: 40 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: `Target Platform: ${targetCloud}`, size: 22, font: 'Arial', color: '666666' })],
+            alignment: AlignmentType.CENTER, spacing: { before: 40, after: 40 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: today, size: 22, font: 'Arial', color: '666666' })],
+            alignment: AlignmentType.CENTER, spacing: { before: 40, after: 480 },
+          }),
+          spacer(), spacer(),
+          twoColTable([
+            ['Submitted to:', clientName],
+            ['Industry / Vertical:', vertical || 'Technology'],
+            ['Compliance Requirements:', compliance.length ? compliance.join(', ') : 'Standard'],
+            ['Target Cloud:', targetCloud],
+            ['Estimated Timeline:', timeline],
+            ['Estimated Budget:', budget],
+            ['Total Services Fee:', zones.total || 'TBD'],
+            ['Submitted by:', 'Zones, LLC'],
+            ['Account Executive:', advisorName || '[ATE Name]'],
+            ['AE Title:', advisorTitle || '[ATE Title]'],
+            ['AE Email:', advisorEmail || '[ATE Email]'],
+            ['AE Phone:', advisorPhone || '[ATE Phone]'],
+            ['Date:', today],
+          ]),
+          spacer(),
+          new Paragraph({
+            children: [new TextRun({
+              text: 'Copyright \u00A9 2024 by Zones, LLC. This Statement of Work contains proprietary and confidential information of Zones, LLC and is disclosed solely to the authorized recipient for evaluation purposes.',
+              size: 16, font: 'Arial', color: '888888', italics: true,
+            })],
+            spacing: { before: 160, after: 80 },
+          }),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 1. EXECUTIVE SUMMARY ────────────────────────────────────────────────
+          h1('1. Executive Summary'),
+          h2('1.1. Technology Challenge'),
+          body(`${clientName} is undertaking a cloud modernization initiative to migrate workloads to ${targetCloud}${compliance.length ? `, while maintaining compliance with ${compliance.join(', ')}` : ''}. The current on-premises infrastructure presents challenges including scalability limitations, rising operational costs, and aging hardware requiring modernization to support future business growth.`),
+          spacer(),
+          h2(`1.2. The Solution for ${clientName}`),
+          body(blueprint.summary || `Zones will deliver a structured cloud migration engagement, migrating workloads to ${targetCloud} using a phased approach over ${timeline}.`),
+          spacer(),
+          ...(blueprint.answersApplied?.length ? [
+            h2('1.3. Advisor Clarifications Applied'),
+            ...blueprint.answersApplied.map(note => bullet(String(note))),
+            spacer(),
+          ] : []),
+          h2('1.3. Next Steps'),
+          bullet('Review and execute this Statement of Work'),
+          bullet('Zones schedules kick-off meeting with client stakeholders'),
+          bullet('Project team established and project plan delivered within 5 business days of SOW execution'),
+          spacer(),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 2. SOLUTION PRICING SUMMARY ─────────────────────────────────────────
+          h1('2. Solution Pricing Summary'),
+          spacer(),
+          twoColTable([
+            ['Azure Consumption (Monthly)', azure.monthly || 'TBD'],
+            ['Azure Consumption (Annual)',  azure.annual  || 'TBD'],
+            ['Azure Cost Breakdown',        azure.breakdown || 'TBD'],
+            ['Zones Professional Services', zones.total || 'TBD'],
+            ['Services Breakdown',          zones.breakdown || 'TBD'],
+            ['Tooling & Licenses',          tooling.total || 'TBD'],
+            ['Tooling Breakdown',           tooling.breakdown || 'TBD'],
+          ]),
+          spacer(),
+          ...(blueprint.drStrategy ? [
+            h2('2.1. DR & Resilience'),
+            twoColTable([
+              ['RPO Target', blueprint.drStrategy.rpoTarget || blueprint.drStrategy.rpo || 'TBD'],
+              ['RTO Target', blueprint.drStrategy.rtoTarget || blueprint.drStrategy.rto || 'TBD'],
+              ['Approach',   blueprint.drStrategy.approach  || 'TBD'],
+              ['Tooling',    typeof blueprint.drStrategy.tooling === 'string' ? blueprint.drStrategy.tooling : (Array.isArray(blueprint.drStrategy.tooling) ? blueprint.drStrategy.tooling.join(', ') : 'TBD')],
+            ]),
+            spacer(),
+          ] : []),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 3. SERVICES PROPOSAL ────────────────────────────────────────────────
+          h1('3. Services Proposal'),
+          h2('3.1. Overview'),
+          body(`Zones will perform a structured cloud migration for ${clientName} targeting ${targetCloud}. The engagement encompasses discovery, landing zone deployment, phased workload migration, testing, and hypercare support.`),
+          spacer(),
+          h2('3.2. Scope'),
+          h2('3.2.1. Project Management'),
+          bullet('Serve as primary Zones contact and liaison to client personnel'),
+          bullet('Review SOW, project goals, and contractual responsibilities with client'),
+          bullet('Maintain project communications and facilitate scheduling'),
+          bullet('Prepare project implementation plan defining tasks, milestones, and schedule'),
+          bullet('Provide status reporting and regular executive project status overviews'),
+          bullet('Perform change and issue management throughout engagement'),
+          bullet('Obtain client written acceptance of all deliverables'),
+          spacer(),
+          h2('3.2.2. Migration Phases'),
+          phaseTable,
+          spacer(),
+          ...phaseTaskSections,
+          h2('3.3. Out of Scope'),
+          bullet('Physical hardware procurement or decommissioning unless explicitly listed'),
+          bullet('Application code changes or refactoring beyond agreed replatforming tasks'),
+          bullet('End-user training unless included as a line item'),
+          bullet('Third-party vendor coordination beyond workloads listed in scope'),
+          bullet('Ongoing managed services post-hypercare (available separately)'),
+          spacer(),
+          h2('3.4. Customer Responsibilities'),
+          bullet(`${clientName} to provide access to all source systems, credentials, and network connectivity required for migration`),
+          bullet('Designate a primary contact with decision-making authority'),
+          bullet('Provide timely review and approval of deliverables (5 business days unless otherwise agreed)'),
+          bullet('Ensure availability of key stakeholders for kick-off, checkpoint, and sign-off meetings'),
+          bullet('Perform user acceptance testing within agreed timeframes'),
+          spacer(),
+          h2('3.5. Project Assumptions'),
+          bullet(`Target cloud platform is ${targetCloud}`),
+          bullet(`Total engagement timeline is approximately ${timeline}`),
+          bullet('Client will procure required Azure subscriptions and licensing'),
+          bullet('All source workloads are accessible and network-reachable during migration windows'),
+          bullet('Client change management and approval processes will not extend migration windows beyond agreed schedule'),
+          ...(compliance.length ? [bullet(`${compliance.join(', ')} compliance controls will be validated by client compliance team`)] : []),
+          spacer(),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 4. RISK REGISTER ────────────────────────────────────────────────────
+          h1('4. Risk Register'),
+          spacer(),
+          riskTable,
+          spacer(),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 5. PROJECT SCHEDULE ─────────────────────────────────────────────────
+          h1('5. Project Schedule'),
+          body(`The project is estimated at ${timeline}. The schedule below reflects the phased migration approach. Final dates will be confirmed at project kick-off.`),
+          spacer(),
+          scheduleTable,
+          spacer(),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 6. CONTACTS ─────────────────────────────────────────────────────────
+          h1('6. Contacts'),
+          spacer(),
+          twoColTable([
+            ['Zones Account Executive', advisorName || '[ATE Name]'],
+            ['Title',   advisorTitle || '[ATE Title]'],
+            ['Email',   advisorEmail || '[ATE Email]'],
+            ['Phone',   advisorPhone || '[ATE Phone]'],
+            ['Address', '1102 15th Street SW, Suite 102, Auburn, WA 98001-6509'],
+          ]),
+          spacer(),
+          twoColTable([
+            ['Client Primary Contact', '[Contact Name]'],
+            ['Title',   '[Contact Title]'],
+            ['Email',   '[Contact Email]'],
+            ['Phone',   '[Contact Phone]'],
+            ['Company', clientName],
+          ]),
+          spacer(),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 7. COMPLETION CRITERIA ──────────────────────────────────────────────
+          h1('7. Completion Criteria'),
+          body('This engagement will be considered complete when the following criteria are met:'),
+          bullet('All in-scope workloads have been migrated, validated, and are operational in the target cloud environment'),
+          bullet('Client has performed and signed off on user acceptance testing for all migrated workloads'),
+          bullet('DR strategy has been implemented and tested per agreed RPO/RTO targets'),
+          ...(compliance.length ? [bullet(`All ${compliance.join(', ')} compliance controls have been validated and documented`)] : []),
+          bullet('All project documentation and runbooks have been delivered to client'),
+          bullet('Hypercare period has concluded with no critical open issues'),
+          bullet('Client has signed the project completion acknowledgement'),
+          spacer(),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 8. ZONES OVERVIEW ───────────────────────────────────────────────────
+          h1('8. Zones Overview'),
+          h2('8.1. Our Value Proposition'),
+          body('Zones is an IT solutions provider with deep expertise in cloud migration, infrastructure modernization, and managed services. With over 30 years of experience, Zones serves enterprise clients across healthcare, financial services, manufacturing, and technology sectors.'),
+          spacer(),
+          h2('8.2. Why Zones for Cloud Modernization'),
+          bullet('Certified Microsoft Azure Partner with proven migration methodology'),
+          bullet('Dedicated cloud practice with specialized architects and migration engineers'),
+          bullet('Track record of successful enterprise migrations with minimal business disruption'),
+          bullet('End-to-end capability from assessment through ongoing managed services'),
+          bullet('Zones Compass AI-powered advisory platform for data-driven migration planning'),
+          spacer(),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── SIGNATURE PAGE ──────────────────────────────────────────────────────
+          h1('Signature Page'),
+          body('By signing below, the parties agree to the terms and conditions set forth in this Statement of Work.'),
+          spacer(), spacer(),
+          twoColTable([
+            ['Client Company',       clientName],
+            ['Authorized Signature', ''],
+            ['Printed Name',         ''],
+            ['Title',                ''],
+            ['Date',                 ''],
+          ]),
+          spacer(), spacer(),
+          twoColTable([
+            ['Zones, LLC',           ''],
+            ['Authorized Signature', ''],
+            ['Printed Name',         advisorName || ''],
+            ['Title',                advisorTitle || ''],
+            ['Date',                 today],
+          ]),
+        ],
+      }],
+    })
+
+    const buffer = await Packer.toBuffer(doc)
+    const filename = `${clientName.replace(/\s+/g, '-')}-Cloud-Modernization-SOW-${new Date().toISOString().split('T')[0]}.docx`
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(buffer)
+
+  } catch (err) {
+    console.error('SOW generation error:', err.message, err.stack)
     res.status(500).json({ error: err.message })
   }
 })
