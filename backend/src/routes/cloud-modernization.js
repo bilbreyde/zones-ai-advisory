@@ -495,7 +495,7 @@ Return ONLY raw JSON:
   "architectureDiagram": {
     "type": "mermaid",
     "title": "${ctx.clientName} — Target Cloud Architecture",
-    "chart": "graph TD with max 10 nodes, lowercase IDs, no spaces in node IDs"
+    "chart": "graph TD\\n  onPrem[\\"On-Premises\\"] --> hubSpoke[\\"Hub-Spoke Network\\"]\\n  hubSpoke --> azureIaas[\\"Azure IaaS\\"]\\n  hubSpoke --> azureSql[\\"Azure SQL MI\\"]"
   },
   "answersApplied": [
     "[Workload name]: [what changed and why] — e.g. BMS: moved from Wave 2 Replatform to Retain — OT serial port dependencies prevent cloud migration"
@@ -623,9 +623,16 @@ Return ONLY raw JSON:
   "architectureDiagram": {
     "type": "mermaid",
     "title": "${ctx.clientName} — Target ${ctx.targetCloud || 'Azure'} Architecture",
-    "chart": "graph TD\\nonprem[On-Prem VMware]\\nlz[Azure Landing Zone]\\nonprem --> lz\\nlz --> iaas[Azure IaaS VMs]\\nlz --> sql[Azure SQL Managed Instance]\\nlz --> app[Azure App Service]\\nlz --> files[Azure Files]\\nlz --> entra[Microsoft Entra ID]"
+    "chart": "graph TD\\n  onPrem[\\"On-Premises VMware\\"] --> landingZone[\\"Azure Landing Zone\\"]\\n  landingZone --> azureIaas[\\"Azure IaaS VMs\\"]\\n  landingZone --> azureSql[\\"Azure SQL MI\\"]\\n  landingZone --> azureFiles[\\"Azure Files\\"]\\n  landingZone --> entraId[\\"Microsoft Entra ID\\"]"
   }
-}`
+}
+
+CRITICAL RULES FOR architectureDiagram.chart — MUST FOLLOW:
+- Node IDs MUST be camelCase with NO hyphens. WRONG: hub-spoke, microsoft-entra-id. CORRECT: hubSpoke, microsoftEntraId
+- DO NOT use subgraph blocks. They break the renderer. Use only flat node definitions and --> edges.
+- Max 10 nodes. Every node MUST have a quoted label: nodeId["Human Readable Label"]
+- Only use --> for edges. No other arrow styles.
+- Valid example: graph TD\\n  onPrem["On-Premises"] --> hubSpoke["Hub-Spoke Network"]\\n  hubSpoke --> azureIaas["Azure IaaS"]\\n  hubSpoke --> azureSql["Azure SQL MI"]`
 }
 
 // ── POST /blueprint ───────────────────────────────────────────────────────────

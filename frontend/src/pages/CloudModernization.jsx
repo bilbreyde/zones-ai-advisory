@@ -634,65 +634,88 @@ export default function CloudModernization() {
       // ════════════════════════════════════════════════════════════════════════
       // PAGE 5 — Architecture Diagram
       // ════════════════════════════════════════════════════════════════════════
-      if (bp.architectureDiagram) {
-        np(); secHdr('ARCHITECTURE DIAGRAM')
+      if (bp.architectureDiagram?.chart) {
+        np()
+        secHdr('ARCHITECTURE DIAGRAM')
 
-        const ad      = bp.architectureDiagram
-        const adTitle = typeof ad.title === 'string' ? ad.title : `${clientName} -- Target Architecture`
+        const ad = bp.architectureDiagram
         pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); sc(C.navy)
-        pdf.text(sanitize(adTitle), mg + 4, y); y += 10
+        pdf.text(sanitize(ad.title || `${clientName} -- Target Architecture`), mg + 4, y)
+        y += 10
 
-        const chart = typeof ad.chart === 'string' ? ad.chart
-          : typeof ad === 'string' ? ad : ''
+        const chart = ad.chart || ''
+        console.log('RAW MERMAID CHART:', chart)
 
-        // Hyphen-aware ID pattern — matches word chars AND hyphens (e.g. hub-spoke, microsoft-entra-id)
-        const ID = '([\\w][\\w-]*)'
+        // Split into lines, strip comments
+        const lines = chart.split('\n')
+          .map(l => l.trim())
+          .filter(l => l && !l.startsWith('%%'))
 
-        // Node parsing — id["Label"], id[Label], id("Label"), id(Label)
-        const nodeRegex = new RegExp(`${ID}\\s*[\\[\\(]["']?([^"'\\]\\)\\n]+)["']?[\\]\\)]`, 'g')
+        const SKIP = new Set(['graph', 'flowchart', 'TD', 'LR', 'TB', 'RL', 'BT', 'end', 'style', 'classDef', 'class'])
+        const NID = '[\\w][\\w-]*'
         const nodeMap = {}
-        const SKIP = new Set(['graph', 'TD', 'LR', 'TB', 'RL', 'BT', 'subgraph', 'end', 'style', 'classDef', 'class'])
-        let nm
-        while ((nm = nodeRegex.exec(chart)) !== null) {
-          const id = nm[1]
-          if (!SKIP.has(id)) nodeMap[id] = nm[2].trim()
-        }
-
-        // Edge parsing — A --> B, A -->|label| B, A -.-> B, A === B
-        const edgeRegex = new RegExp(`${ID}\\s*[-=.]+[>]?\\|?([^|\\n]*)\\|?\\s*[-=.]*[>]?\\s*${ID}`, 'g')
         const edgeList = []
-        let em
-        while ((em = edgeRegex.exec(chart)) !== null) {
-          const from = em[1], label = (em[2] || '').trim(), to = em[3]
-          if (from && to && from !== to && !SKIP.has(from) && !SKIP.has(to)) {
+
+        lines.forEach(line => {
+          // Skip graph/flowchart declaration lines
+          if (/^(graph|flowchart)\s+(TD|LR|TB|RL|BT)/i.test(line)) return
+
+          // Handle subgraph — extract its label as a named node, don't parse internals as one big label
+          const subMatch = line.match(/^subgraph\s+(.+)$/i)
+          if (subMatch) {
+            const sgLabel = subMatch[1].replace(/["']/g, '').trim()
+            const sgId = 'sg_' + sgLabel.replace(/\s+/g, '_').replace(/[^\w]/g, '').toLowerCase()
+            nodeMap[sgId] = sgLabel
+            return
+          }
+
+          // Node definitions: id["label"], id[label], id("label"), id(label), id{label}
+          const nodeRe = new RegExp(`(${NID})\\s*[\\[\\(\\{]["']?([^"'\\]\\)\\}\\n]+)["']?[\\]\\)\\}]`, 'g')
+          let nm
+          while ((nm = nodeRe.exec(line)) !== null) {
+            const id = nm[1]
+            if (!SKIP.has(id)) nodeMap[id] = nm[2].trim()
+          }
+
+          // Edges: A-->B, A-->|label|B, A---B, A-.->B (with optional spaces)
+          const edgeRe = new RegExp(
+            `(${NID})\\s*` +
+            `[-=.]+[>]?` +
+            `(?:\\|([^|\\n]*)\\|)?` +
+            `\\s*[-=.]*[>]?\\s*` +
+            `(${NID})`,
+            'g'
+          )
+          let em
+          while ((em = edgeRe.exec(line)) !== null) {
+            const from = em[1], label = (em[2] || '').trim(), to = em[3]
+            if (SKIP.has(from) || SKIP.has(to) || from === to) continue
             edgeList.push({ from, label, to })
           }
-        }
-
-        // Promote bare edge IDs into nodeMap with title-cased labels
-        const toLabel = id => id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-        edgeList.forEach(e => {
-          if (!nodeMap[e.from]) nodeMap[e.from] = toLabel(e.from)
-          if (!nodeMap[e.to])   nodeMap[e.to]   = toLabel(e.to)
         })
 
-        // Last-resort: extract bare A --> B pairs if nodeMap is still empty
-        if (Object.keys(nodeMap).length === 0 && chart) {
-          const bareEdge = new RegExp('([\\w][\\w-]*)\\s*-->+\\s*([\\w][\\w-]*)', 'g')
-          let be
-          while ((be = bareEdge.exec(chart)) !== null) {
-            if (!nodeMap[be[1]]) nodeMap[be[1]] = toLabel(be[1])
-            if (!nodeMap[be[2]]) nodeMap[be[2]] = toLabel(be[2])
-            edgeList.push({ from: be[1], label: '', to: be[2] })
-          }
-        }
+        console.log('Parsed nodes:', nodeMap)
+        console.log('Parsed edges:', edgeList)
 
-        console.log('Architecture nodes found:', Object.keys(nodeMap).length, nodeMap)
-        console.log('Architecture edges found:', edgeList.length)
+        // Promote any bare edge endpoint IDs not already in nodeMap
+        const toTitleCase = id => id.replace(/-/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, c => c.toUpperCase())
+        edgeList.forEach(e => {
+          if (!nodeMap[e.from]) nodeMap[e.from] = toTitleCase(e.from)
+          if (!nodeMap[e.to])   nodeMap[e.to]   = toTitleCase(e.to)
+        })
 
-        // Draw nodes as 2-column card grid
         const nodeEntries = Object.entries(nodeMap)
-        if (nodeEntries.length > 0) {
+
+        if (nodeEntries.length === 0) {
+          // Total fallback — print clean chart lines as monospace
+          pdf.setFontSize(7.5); pdf.setFont('courier', 'normal'); sc(C.muted)
+          lines.slice(0, 35).forEach(line => {
+            cy(4.5)
+            pdf.text(sanitize(line), mg + 4, y)
+            y += 4
+          })
+        } else {
+          // Draw nodes as 2-column card grid
           const colW = (cW - 8) / 2
           let col = 0
           nodeEntries.forEach(([, lbl]) => {
@@ -701,28 +724,33 @@ export default function CloudModernization() {
             sf([235, 238, 250]); sd(C.bgray); pdf.setLineWidth(0.25)
             pdf.roundedRect(nx, y, colW, 14, 2, 2, 'FD')
             pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); sc(C.navy)
-            const lblLines = pdf.splitTextToSize(sanitize(lbl), colW - 8)
-            pdf.text(lblLines[0], nx + colW / 2, y + 8.5, { align: 'center' })
+            const lbClean = sanitize(lbl)
+            const lblLines = pdf.splitTextToSize(lbClean, colW - 8)
+            pdf.text(lblLines[0], nx + colW / 2, y + 9, { align: 'center' })
             col++
             if (col >= 2) { col = 0; y += 17 }
           })
           if (col !== 0) y += 17  // finish last partial row
           y += 8
-        }
 
-        // Draw connections table
-        if (edgeList.length > 0) {
-          cy(14); secHdr('COMPONENT CONNECTIONS')
-          edgeList.forEach(e => {
-            cy(7)
-            const fromLbl = sanitize(nodeMap[e.from] || e.from)
-            const toLbl   = sanitize(nodeMap[e.to]   || e.to)
-            const conn    = e.label ? `${fromLbl}  -[${sanitize(e.label)}]->  ${toLbl}` : `${fromLbl}  ->  ${toLbl}`
-            sf(C.lgray); sd(C.bgray); pdf.setLineWidth(0.15)
-            pdf.rect(mg, y - 3.5, cW, 7, 'FD')
-            txt(conn, mg + 5, y + 0.5, cW - 10, 7.5, C.black)
-            y += 8
-          })
+          // Draw connections table
+          if (edgeList.length > 0) {
+            cy(14)
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); sc(C.muted)
+            pdf.text('COMPONENT CONNECTIONS', mg, y); y += 6
+
+            edgeList.forEach(e => {
+              cy(7)
+              const fromLbl = sanitize(nodeMap[e.from] || e.from)
+              const toLbl   = sanitize(nodeMap[e.to]   || e.to)
+              const edgeLbl = e.label ? ` [${sanitize(e.label)}] ` : '  ->  '
+              const conn    = `${fromLbl}${edgeLbl}${toLbl}`
+              sf([245, 246, 250]); sd([220, 222, 228]); pdf.setLineWidth(0.1)
+              pdf.rect(mg, y - 3.5, cW, 7, 'FD')
+              txt(conn, mg + 5, y + 0.5, cW - 10, 7.5, C.black)
+              y += 8
+            })
+          }
         }
       }
 
