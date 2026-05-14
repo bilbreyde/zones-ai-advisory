@@ -771,6 +771,33 @@ export default function CloudModernization() {
     }
   }
 
+  // ── Export workloads as CSV ───────────────────────────────────────────────────
+  function exportWorkloadsCSV() {
+    const filled = workloads.filter(w => w.name?.trim())
+    if (!filled.length) { alert('No workloads to export — add at least one workload name.'); return }
+
+    const headers = ['Name', 'Type', 'Platform', 'vCPU', 'RAM (GB)', 'Storage (TB)', 'Criticality', 'Change Sensitivity', 'Data Residency', 'Notes']
+    const escape  = v => {
+      const s = String(v ?? '')
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const rows = [
+      headers.join(','),
+      ...filled.map(w => [
+        w.name, w.type, w.platform, w.vcpu, w.ramGb, w.storageTb,
+        w.criticality, w.changeSensitivity, w.dataResidency, w.notes,
+      ].map(escape).join(',')),
+    ]
+
+    const blob = new Blob([rows.join('\r\n')], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${(client?.name || 'Client').replace(/\s+/g, '-')}-Workloads-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── Generate Statement of Work .docx ─────────────────────────────────────────
   async function generateSoW() {
     if (!blueprint) return
@@ -949,6 +976,11 @@ export default function CloudModernization() {
             style={{ display: 'none' }}
             onChange={e => e.target.files[0] && parseCsv(e.target.files[0])}
           />
+          {workloads.some(w => w.name?.trim()) && (
+            <button className="cm-btn-secondary" onClick={exportWorkloadsCSV}>
+              <Download size={13} /> Export Workloads
+            </button>
+          )}
           {csvParsing && (
             <span style={{ fontSize: 12, color: 'var(--z-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="spin" style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--z-border)', borderTopColor: 'var(--z-blue-bright)', borderRadius: '50%' }} /> Parsing…
