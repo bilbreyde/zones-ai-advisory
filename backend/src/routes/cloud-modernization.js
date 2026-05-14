@@ -175,21 +175,25 @@ Return this exact JSON:
 })
 
 // ── POST /api/cloud-modernization/vmware-calculator ──────────────────────────
-// Accepts frontend fields: { vmCount, vcpu, ramGb, storageTb, currentCost }
+// License-for-license TCO: what the customer pays for SOFTWARE LICENSING only.
+// Data center, hardware, and labor costs are excluded from this comparison.
 
 router.post('/vmware-calculator', async (req, res) => {
   try {
     const {
-      vmCount          = 0,
-      // frontend field names
-      vcpu             = 0,
-      ramGb            = 0,
-      storageTb        = 0,
-      currentCost      = 0,
-      // legacy field names (backwards compat)
-      avgVcpu,
-      avgRamGb,
-      avgStorageGb,
+      vmCount               = 0,
+      vcpu                  = 0,
+      ramGb                 = 0,
+      storageTb             = 0,
+      // License cost inputs (new model)
+      vmwareLicenseCost     = 0,   // $/mo: vSphere, vCenter, vSAN, NSX
+      windowsLicenseCost    = 0,   // $/mo: Windows Server VMs
+      sqlLicenseCost        = 0,   // $/mo: SQL Server (optional)
+      hasWindowsSA          = false, // Software Assurance → Azure Hybrid Benefit for Windows
+      hasSqlSA              = false, // Software Assurance → Azure Hybrid Benefit for SQL
+      // Legacy fallback
+      currentCost           = 0,
+      avgVcpu, avgRamGb, avgStorageGb,
       currentAnnualLicenseCost,
       contractRenewalMonths = 24,
     } = req.body
@@ -197,59 +201,90 @@ router.post('/vmware-calculator', async (req, res) => {
     const totalVcpu      = vcpu      || (vmCount * (avgVcpu    || 4))
     const totalRamGb     = ramGb     || (vmCount * (avgRamGb   || 16))
     const totalStorageTb = storageTb || ((vmCount * (avgStorageGb || 500)) / 1024)
-    // currentCost is monthly; convert to annual if provided
-    const currentMonthly = currentCost || (currentAnnualLicenseCost ? Math.round(currentAnnualLicenseCost / 12) : 0)
+
+    // Current on-prem licensing spend
+    const curVmware  = parseFloat(vmwareLicenseCost)  || 0
+    const curWindows = parseFloat(windowsLicenseCost) || 0
+    const curSql     = parseFloat(sqlLicenseCost)     || 0
+    // Legacy fallback if none of the new fields provided
+    const currentMonthly = (curVmware + curWindows + curSql) ||
+                           parseFloat(currentCost) ||
+                           (currentAnnualLicenseCost ? Math.round(currentAnnualLicenseCost / 12) : 0)
     const currentAnnual  = currentMonthly * 12
 
-    // AVS sizing — AV36P node: 36 vCPU, 576 GB RAM, 15.2 TB storage, ~$7,200/month
-    const AVS_NODE_PRICE  = 7200
-    const AVS_NODE_VCPU   = 36
-    const AVS_NODE_RAM    = 576
-    const AVS_NODE_STOR   = 15.2
-
-    const nodesByVcpu    = Math.ceil(totalVcpu    / AVS_NODE_VCPU)
-    const nodesByRam     = Math.ceil(totalRamGb   / AVS_NODE_RAM)
-    const nodesByStorage = Math.ceil(totalStorageTb / AVS_NODE_STOR)
+    // ── AVS sizing ─────────────────────────────────────────────────────────────
+    // AV36P node: 36 vCPU, 576 GB RAM, 15.2 TB storage, ~$7,200/mo (VMware license bundled)
+    const AVS_NODE_PRICE = 7200
+    const nodesByVcpu    = Math.ceil(totalVcpu      / 36)
+    const nodesByRam     = Math.ceil(totalRamGb     / 576)
+    const nodesByStorage = Math.ceil(totalStorageTb / 15.2)
     const avsNodes       = Math.max(nodesByVcpu, nodesByRam, nodesByStorage, 3)
+    const avsNodeCost    = avsNodes * AVS_NODE_PRICE
 
-    const avsMonthly  = avsNodes * AVS_NODE_PRICE
-    const avsAnnual   = avsMonthly * 12
+    // AVS software licensing:
+    // - VMware: bundled in node cost → separate VMware spend eliminated
+    // - Windows: AHB (SA) → $0 (BYOL); without SA → same cost as on-prem
+    // - SQL: AHB → ~80% discount (BYOL); without SA → same as on-prem
+    const avsWindowsCost = hasWindowsSA ? 0 : curWindows
+    const avsSqlCost     = hasSqlSA    ? Math.round(curSql * 0.2) : curSql
+    const avsMonthly     = avsNodeCost + avsWindowsCost + avsSqlCost
+    const avsAnnual      = avsMonthly * 12
 
-    // Azure IaaS — benchmark $280/VM/month
-    const iaasMonthly = Math.max(vmCount, 1) * 280
-    const iaasAnnual  = iaasMonthly * 12
+    // ── Azure IaaS ──────────────────────────────────────────────────────────────
+    // VMware fully eliminated ($0). AHB applies to Windows + SQL same as AVS.
+    // Note: compute/infrastructure costs are NOT included — licensing only.
+    const iaasWindowsCost = hasWindowsSA ? 0 : curWindows
+    const iaasSqlCost     = hasSqlSA    ? Math.round(curSql * 0.2) : curSql
+    const iaasMonthly     = iaasWindowsCost + iaasSqlCost
+    const iaasAnnual      = iaasMonthly * 12
 
-    // Nutanix on-prem — ~1 node per 20 VMs at ~$2,000/node/month
-    const nutanixNodes   = Math.max(Math.ceil(Math.max(vmCount, 1) / 20), 3)
-    const nutanixMonthly = nutanixNodes * 2000
-    const nutanixAnnual  = nutanixMonthly * 12
+    // ── Nutanix on-prem ─────────────────────────────────────────────────────────
+    // AHV hypervisor included → VMware license eliminated. Windows/SQL carry over (no AHB).
+    const nutanixNodes    = Math.max(Math.ceil(Math.max(vmCount, 1) / 20), 3)
+    const nutanixNodeCost = nutanixNodes * 2000
+    const nutanixMonthly  = nutanixNodeCost + curWindows + curSql
+    const nutanixAnnual   = nutanixMonthly * 12
 
-    // Recommendation
-    const cheapest = Math.min(avsMonthly, iaasMonthly, nutanixMonthly)
+    // ── Recommendation ──────────────────────────────────────────────────────────
+    const ahbNote = [
+      hasWindowsSA && 'Windows AHB eliminates Windows Server licensing',
+      hasSqlSA     && 'SQL AHB reduces SQL licensing by ~80%',
+    ].filter(Boolean).join('; ')
+
     let recommendation = ''
-    if (cheapest === iaasMonthly) {
-      recommendation = `Azure IaaS offers the best cost profile at ${formatCurrency(iaasMonthly)}/month${currentMonthly ? `, saving ${formatCurrency(currentMonthly - iaasMonthly)}/month vs current VMware` : ''}. Requires 3–6 months for re-IP and app validation.`
-    } else if (cheapest === avsMonthly) {
-      recommendation = `Azure VMware Solution (${avsNodes} AV36P nodes) is the fastest path at ${formatCurrency(avsMonthly)}/month — migrate in days with zero app changes. Rehost phase-1, then modernize over 12–18 months.`
+    if (iaasMonthly <= avsMonthly && iaasMonthly <= nutanixMonthly) {
+      recommendation = `Azure IaaS delivers the lowest software licensing spend at ${formatCurrency(iaasMonthly)}/mo — your VMware license is fully eliminated${ahbNote ? ` and ${ahbNote}` : ''}. Compute and infrastructure costs are separate. Requires 3–6 months for re-IP and app validation.`
+    } else if (avsMonthly <= nutanixMonthly) {
+      recommendation = `Azure VMware Solution (${avsNodes} AV36P nodes at ${formatCurrency(avsNodeCost)}/mo) bundles your VMware license — your separate VMware spend of ${formatCurrency(curVmware)}/mo is eliminated${ahbNote ? ` and ${ahbNote}` : ''}. Fastest migration path with zero app changes.`
     } else {
-      recommendation = `Nutanix (${nutanixNodes} nodes) is the lowest cost at ${formatCurrency(nutanixMonthly)}/month while staying on-prem. Good if cloud migration is blocked by compliance or bandwidth constraints.`
+      recommendation = `Nutanix (${nutanixNodes} nodes at ${formatCurrency(nutanixNodeCost)}/mo) eliminates your VMware license via its included AHV hypervisor. Best if cloud migration is blocked by compliance or bandwidth constraints.`
     }
+    recommendation += ' This comparison covers software licensing only — data center, hardware, and labor costs are not included.'
 
     res.json({
       currentMonthly,
       currentAnnual,
+      currentBreakdown: { vmware: curVmware, windows: curWindows, sql: curSql },
       avsMonthly,
       avsAnnual,
       avsNodes,
+      avsNodeCost,
+      avsWindowsCost,
+      avsSqlCost,
       iaasMonthly,
       iaasAnnual,
+      iaasWindowsCost,
+      iaasSqlCost,
       nutanixMonthly,
       nutanixAnnual,
       nutanixNodes,
+      nutanixNodeCost,
+      hasWindowsSA: !!hasWindowsSA,
+      hasSqlSA:     !!hasSqlSA,
       recommendation,
-      sizing: { totalVcpu, totalRamGb, totalStorageTb: +totalStorageTb.toFixed(1) },
+      sizing: { totalVcpu, totalRamGb, totalStorageTb: +totalStorageTb.toFixed(2) },
       urgency: contractRenewalMonths <= 6 ? 'critical' : contractRenewalMonths <= 12 ? 'high' : 'standard',
-      disclaimer: 'Estimates for planning purposes only. AVS: AV36P ~$7,200/node/month, min 3 nodes. Azure IaaS: benchmark $280/VM/month. Nutanix: benchmark $2,000/node/month. Request formal quotes before committing.',
+      disclaimer: 'Software licensing comparison only — data center, hardware, and labor not included. AVS AV36P nodes (~$7,200/node/mo) bundle VMware license. Azure Hybrid Benefit requires active Software Assurance. Nutanix AHV hypervisor eliminates VMware license. Request formal quotes before committing.',
     })
   } catch (err) {
     console.error('vmware-calculator error:', err.message)

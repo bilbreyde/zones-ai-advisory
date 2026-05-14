@@ -126,7 +126,11 @@ export default function CloudModernization() {
   const [vmwareVcpu,      setVmwareVcpu]      = useState('')
   const [vmwareRamGb,     setVmwareRamGb]     = useState('')
   const [vmwareStorageTb, setVmwareStorageTb] = useState('')
-  const [vmwareCostMonth, setVmwareCostMonth] = useState('')
+  const [vmwareLicenseCost,  setVmwareLicenseCost]  = useState('')
+  const [windowsLicenseCost, setWindowsLicenseCost] = useState('')
+  const [sqlLicenseCost,     setSqlLicenseCost]     = useState('')
+  const [hasWindowsSA,       setHasWindowsSA]       = useState(false)
+  const [hasSqlSA,           setHasSqlSA]           = useState(false)
   const [calcLoading,     setCalcLoading]     = useState(false)
   const [calcResult,      setCalcResult]      = useState(null)
   const [calcError,       setCalcError]       = useState('')
@@ -188,7 +192,7 @@ export default function CloudModernization() {
       const totalStorage = vmWks.reduce((s, w) => s + (parseFloat(w.storageTb) || 0), 0)
       if (totalVcpu    > 0) setVmwareVcpu(String(totalVcpu))
       if (totalRam     > 0) setVmwareRamGb(String(totalRam))
-      if (totalStorage > 0) setVmwareStorageTb(String(totalStorage))
+      if (totalStorage > 0) setVmwareStorageTb(String(parseFloat(totalStorage.toFixed(2))))
     }
   }, [workloads])
 
@@ -241,11 +245,15 @@ export default function CloudModernization() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          vmCount:     parseInt(vmwareCount)     || 0,
-          vcpu:        parseFloat(vmwareVcpu)    || 0,
-          ramGb:       parseFloat(vmwareRamGb)   || 0,
-          storageTb:   parseFloat(vmwareStorageTb) || 0,
-          currentCost: parseFloat(vmwareCostMonth) || 0,
+          vmCount:            parseInt(vmwareCount)       || 0,
+          vcpu:               parseFloat(vmwareVcpu)      || 0,
+          ramGb:              parseFloat(vmwareRamGb)     || 0,
+          storageTb:          parseFloat(vmwareStorageTb) || 0,
+          vmwareLicenseCost:  parseFloat(vmwareLicenseCost)  || 0,
+          windowsLicenseCost: parseFloat(windowsLicenseCost) || 0,
+          sqlLicenseCost:     parseFloat(sqlLicenseCost)     || 0,
+          hasWindowsSA,
+          hasSqlSA,
         }),
       })
       if (!res.ok) throw new Error('Calculator failed')
@@ -1094,20 +1102,20 @@ export default function CloudModernization() {
   }
 
   function renderVmware() {
-    const COMPARISON_ITEMS = [
-      { key: 'current', label: 'Current VMware',      value: calcResult?.currentMonthly,  accent: '#E05A4E' },
-      { key: 'avs',     label: 'Azure VMware (AVS)',  value: calcResult?.avsMonthly,       accent: '#4A9FE0' },
-      { key: 'iaas',    label: 'Azure IaaS',          value: calcResult?.iaasMonthly,      accent: '#3DBA7E', recommended: true },
-      { key: 'nutanix', label: 'Nutanix',             value: calcResult?.nutanixMonthly,   accent: '#8B5CF6' },
-    ]
+    const cr = calcResult
+    const bd = cr?.currentBreakdown || {}
+
+    // Determine which option is cheapest (for "recommended" badge)
+    const cheapestMonthly = cr ? Math.min(cr.avsMonthly, cr.iaasMonthly, cr.nutanixMonthly) : null
 
     return (
       <div>
-        <div className="cm-section-title">VMware &amp; cost comparison</div>
-        <div className="cm-section-sub">Compare your current VMware environment against Azure VMware Solution (AVS), native Azure IaaS, and Nutanix. Auto-populated from VMware workloads in your inventory.</div>
+        <div className="cm-section-title">Software licensing cost comparison</div>
+        <div className="cm-section-sub">License-for-license TCO — what you pay for software to run the same workloads. Data center, hardware, and labor costs are not included. Auto-populated from VMware workloads in your inventory.</div>
 
         <div className="cm-calc-grid">
           <div className="cm-calc-inputs">
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--z-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>Infrastructure sizing</div>
             <div className="cm-calc-input-group">
               <label className="cm-label">VM count</label>
               <input className="cm-input" type="number" placeholder="0" value={vmwareCount} onChange={e => setVmwareCount(e.target.value)} />
@@ -1122,13 +1130,34 @@ export default function CloudModernization() {
             </div>
             <div className="cm-calc-input-group">
               <label className="cm-label">Total storage (TB)</label>
-              <input className="cm-input" type="number" placeholder="0" step="0.1" value={vmwareStorageTb} onChange={e => setVmwareStorageTb(e.target.value)} />
+              <input className="cm-input" type="number" placeholder="0" step="0.01" value={vmwareStorageTb} onChange={e => setVmwareStorageTb(e.target.value)} />
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--z-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 16, marginBottom: 8 }}>Current licensing spend ($/mo)</div>
+            <div className="cm-calc-input-group">
+              <label className="cm-label">VMware license cost — vSphere, vCenter, vSAN, NSX</label>
+              <input className="cm-input" type="number" placeholder="0" value={vmwareLicenseCost} onChange={e => setVmwareLicenseCost(e.target.value)} />
             </div>
             <div className="cm-calc-input-group">
-              <label className="cm-label">Current monthly cost ($)</label>
-              <input className="cm-input" type="number" placeholder="0" value={vmwareCostMonth} onChange={e => setVmwareCostMonth(e.target.value)} />
+              <label className="cm-label">Windows Server license cost</label>
+              <input className="cm-input" type="number" placeholder="0" value={windowsLicenseCost} onChange={e => setWindowsLicenseCost(e.target.value)} />
             </div>
-            <button className="cm-btn-primary" onClick={runCalculator} disabled={calcLoading} style={{ marginTop: 4 }}>
+            <div className="cm-calc-input-group">
+              <label className="cm-label">SQL Server license cost (optional)</label>
+              <input className="cm-input" type="number" placeholder="0" value={sqlLicenseCost} onChange={e => setSqlLicenseCost(e.target.value)} />
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--z-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 16, marginBottom: 8 }}>Software Assurance (Azure Hybrid Benefit)</div>
+            <label className="cm-checkbox-row">
+              <input type="checkbox" checked={hasWindowsSA} onChange={e => setHasWindowsSA(e.target.checked)} />
+              <span>Windows Server SA — enables Azure Hybrid Benefit</span>
+            </label>
+            <label className="cm-checkbox-row">
+              <input type="checkbox" checked={hasSqlSA} onChange={e => setHasSqlSA(e.target.checked)} />
+              <span>SQL Server SA — enables SQL Azure Hybrid Benefit</span>
+            </label>
+
+            <button className="cm-btn-primary" onClick={runCalculator} disabled={calcLoading} style={{ marginTop: 16 }}>
               {calcLoading
                 ? <><span className="spin" style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%' }} /> Calculating…</>
                 : <><Calculator size={14} /> Run comparison</>
@@ -1138,56 +1167,119 @@ export default function CloudModernization() {
           </div>
 
           <div>
-            {calcResult ? (
+            {cr ? (
               <>
-                <div className="cm-calc-results-title">Monthly cost comparison</div>
-                {calcResult.currentMonthly > 0 && (
-                  <div className="cm-calc-estimate-note">
-                    Based on {formatCurrency(calcResult.currentMonthly)}/mo current spend · {calcResult.avsNodes} AV36P nodes required for AVS
-                  </div>
-                )}
+                <div className="cm-calc-results-title">Software licensing spend comparison</div>
+                <div className="cm-calc-estimate-note">{cr.avsNodes} AV36P nodes required for AVS · Licensing only — compute costs separate for IaaS</div>
+
                 <div className="cm-comparison-cards">
-                  {COMPARISON_ITEMS.map(item => {
-                    const saving   = (calcResult.currentMonthly || 0) - (item.value || 0)
-                    const positive = saving > 0
+
+                  {/* Current on-prem */}
+                  <div className="cm-compare-card current">
+                    <div className="ccc-label">Current on-premises</div>
+                    <div className="ccc-annual">{formatCurrency(cr.currentMonthly)}<span>/mo</span></div>
+                    <div className="ccc-breakdown-lines">
+                      {bd.vmware  > 0 && <div className="cbl-row"><span>VMware (vSphere/vCenter/vSAN)</span><span>{formatCurrency(bd.vmware)}</span></div>}
+                      {bd.windows > 0 && <div className="cbl-row"><span>Windows Server</span><span>{formatCurrency(bd.windows)}</span></div>}
+                      {bd.sql     > 0 && <div className="cbl-row"><span>SQL Server</span><span>{formatCurrency(bd.sql)}</span></div>}
+                    </div>
+                    <div className="ccc-tco3">{formatCurrency(cr.currentMonthly * 36)} over 3 yrs</div>
+                  </div>
+
+                  {/* AVS */}
+                  {(() => {
+                    const saving = cr.currentMonthly - cr.avsMonthly
+                    const isRec  = cr.avsMonthly === cheapestMonthly
                     return (
-                      <div
-                        key={item.key}
-                        className={`cm-compare-card ${item.key === 'current' ? 'current' : ''}`}
-                        style={item.recommended ? { borderColor: 'rgba(61,186,126,.4)', background: 'rgba(61,186,126,.04)' } : {}}
-                      >
-                        {item.recommended && (
-                          <div style={{ fontSize: 10, color: '#3DBA7E', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.06em' }}>Recommended</div>
-                        )}
-                        <div className="ccc-label">{item.label}</div>
-                        <div className="ccc-annual">
-                          {item.value != null ? formatCurrency(item.value) : '—'}
-                          <span>/mo</span>
+                      <div className="cm-compare-card" style={isRec ? { borderColor: 'rgba(61,186,126,.4)', background: 'rgba(61,186,126,.04)' } : {}}>
+                        {isRec && <div className="ccc-recommended-badge">Recommended</div>}
+                        <div className="ccc-label">Azure VMware Solution (AVS)</div>
+                        <div className="ccc-annual">{formatCurrency(cr.avsMonthly)}<span>/mo</span></div>
+                        <div className="ccc-breakdown-lines">
+                          <div className="cbl-row"><span>Node cost ({cr.avsNodes} AV36P — VMware bundled)</span><span>{formatCurrency(cr.avsNodeCost)}</span></div>
+                          <div className="cbl-row eliminated"><span>VMware separate license</span><span>$0 ✓ eliminated</span></div>
+                          {bd.windows > 0 && (
+                            <div className={`cbl-row ${cr.hasWindowsSA ? 'eliminated' : ''}`}>
+                              <span>Windows Server{cr.hasWindowsSA ? ' (AHB applied)' : ''}</span>
+                              <span>{cr.avsWindowsCost === 0 ? '$0 ✓ AHB' : formatCurrency(cr.avsWindowsCost)}</span>
+                            </div>
+                          )}
+                          {bd.sql > 0 && (
+                            <div className={`cbl-row ${cr.hasSqlSA ? 'reduced' : ''}`}>
+                              <span>SQL Server{cr.hasSqlSA ? ' (AHB ~80% off)' : ''}</span>
+                              <span>{formatCurrency(cr.avsSqlCost)}</span>
+                            </div>
+                          )}
                         </div>
-                        {item.key !== 'current' && item.value != null && saving !== 0 && (
-                          <div className={`ccc-saving ${positive ? 'positive' : 'negative'}`}>
-                            {positive ? '↓' : '↑'} {formatCurrency(Math.abs(saving))}/mo vs current
-                          </div>
-                        )}
-                        {item.key === 'avs' && calcResult.avsNodes && (
-                          <div className="ccc-nodes">{calcResult.avsNodes} AV36P nodes</div>
-                        )}
-                        {item.value != null && (
-                          <div className="ccc-tco3">{formatCurrency((item.value || 0) * 36)} over 3 yrs</div>
-                        )}
+                        {saving !== 0 && <div className={`ccc-saving ${saving > 0 ? 'positive' : 'negative'}`}>{saving > 0 ? '↓' : '↑'} {formatCurrency(Math.abs(saving))}/mo vs current</div>}
+                        <div className="ccc-tco3">{formatCurrency(cr.avsMonthly * 36)} over 3 yrs</div>
                       </div>
                     )
-                  })}
+                  })()}
+
+                  {/* Azure IaaS */}
+                  {(() => {
+                    const saving = cr.currentMonthly - cr.iaasMonthly
+                    const isRec  = cr.iaasMonthly === cheapestMonthly
+                    return (
+                      <div className="cm-compare-card" style={isRec ? { borderColor: 'rgba(61,186,126,.4)', background: 'rgba(61,186,126,.04)' } : {}}>
+                        {isRec && <div className="ccc-recommended-badge">Recommended</div>}
+                        <div className="ccc-label">Azure IaaS (native)</div>
+                        <div className="ccc-annual">{formatCurrency(cr.iaasMonthly)}<span>/mo</span></div>
+                        <div className="ccc-breakdown-lines">
+                          <div className="cbl-row eliminated"><span>VMware license</span><span>$0 ✓ fully eliminated</span></div>
+                          {bd.windows > 0 && (
+                            <div className={`cbl-row ${cr.hasWindowsSA ? 'eliminated' : ''}`}>
+                              <span>Windows Server{cr.hasWindowsSA ? ' (AHB applied)' : ''}</span>
+                              <span>{cr.iaasWindowsCost === 0 ? '$0 ✓ AHB' : formatCurrency(cr.iaasWindowsCost)}</span>
+                            </div>
+                          )}
+                          {bd.sql > 0 && (
+                            <div className={`cbl-row ${cr.hasSqlSA ? 'reduced' : ''}`}>
+                              <span>SQL Server{cr.hasSqlSA ? ' (AHB ~80% off)' : ''}</span>
+                              <span>{formatCurrency(cr.iaasSqlCost)}</span>
+                            </div>
+                          )}
+                          <div className="cbl-row note"><span>+ Azure compute (not included)</span></div>
+                        </div>
+                        {saving !== 0 && <div className={`ccc-saving ${saving > 0 ? 'positive' : 'negative'}`}>{saving > 0 ? '↓' : '↑'} {formatCurrency(Math.abs(saving))}/mo licensing vs current</div>}
+                        <div className="ccc-tco3">{formatCurrency(cr.iaasMonthly * 36)} over 3 yrs (licensing only)</div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Nutanix */}
+                  {(() => {
+                    const saving = cr.currentMonthly - cr.nutanixMonthly
+                    const isRec  = cr.nutanixMonthly === cheapestMonthly
+                    return (
+                      <div className="cm-compare-card" style={isRec ? { borderColor: 'rgba(61,186,126,.4)', background: 'rgba(61,186,126,.04)' } : {}}>
+                        {isRec && <div className="ccc-recommended-badge">Recommended</div>}
+                        <div className="ccc-label">Nutanix (on-prem)</div>
+                        <div className="ccc-annual">{formatCurrency(cr.nutanixMonthly)}<span>/mo</span></div>
+                        <div className="ccc-breakdown-lines">
+                          <div className="cbl-row"><span>Node cost ({cr.nutanixNodes} nodes — AHV bundled)</span><span>{formatCurrency(cr.nutanixNodeCost)}</span></div>
+                          <div className="cbl-row eliminated"><span>VMware license</span><span>$0 ✓ AHV replaces vSphere</span></div>
+                          {bd.windows > 0 && <div className="cbl-row"><span>Windows Server</span><span>{formatCurrency(bd.windows)}</span></div>}
+                          {bd.sql     > 0 && <div className="cbl-row"><span>SQL Server</span><span>{formatCurrency(bd.sql)}</span></div>}
+                        </div>
+                        {saving !== 0 && <div className={`ccc-saving ${saving > 0 ? 'positive' : 'negative'}`}>{saving > 0 ? '↓' : '↑'} {formatCurrency(Math.abs(saving))}/mo vs current</div>}
+                        <div className="ccc-tco3">{formatCurrency(cr.nutanixMonthly * 36)} over 3 yrs</div>
+                      </div>
+                    )
+                  })()}
+
                 </div>
-                {calcResult.recommendation && (
-                  <div className="cm-summary-card">{calcResult.recommendation}</div>
+
+                {cr.recommendation && (
+                  <div className="cm-summary-card">{cr.recommendation}</div>
                 )}
-                <div className="cm-calc-disclaimer">Estimates based on public pricing. AVS: AV36P nodes at ~$7,200/node/month, min 3 nodes. Azure IaaS and Nutanix estimates use industry benchmark ratios.</div>
+                <div className="cm-calc-disclaimer">{cr.disclaimer}</div>
               </>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 160, color: 'var(--z-muted)', fontSize: 13, flexDirection: 'column', gap: 8 }}>
                 <Calculator size={28} style={{ opacity: 0.3 }} />
-                <span>Enter inputs and run comparison</span>
+                <span>Enter license costs and run comparison</span>
               </div>
             )}
           </div>

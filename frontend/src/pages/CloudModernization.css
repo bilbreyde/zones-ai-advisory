@@ -278,6 +278,25 @@
 .cm-btn-rebuild:hover:not(:disabled) { background:rgba(74,159,224,0.22); }
 .cm-btn-rebuild:disabled { opacity:0.5; cursor:not-allowed; }
 
+/* VMware licensing TCO — checkbox rows */
+.cm-checkbox-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--z-muted); cursor:pointer; padding:4px 0; }
+.cm-checkbox-row input[type="checkbox"] { width:14px; height:14px; accent-color:var(--z-blue-bright); cursor:pointer; flex-shrink:0; }
+.cm-checkbox-row span { line-height:1.4; }
+
+/* VMware licensing TCO — per-component breakdown rows inside compare cards */
+.ccc-breakdown-lines { display:flex; flex-direction:column; gap:4px; margin-top:8px; border-top:.5px solid var(--z-border); padding-top:8px; }
+.cbl-row { display:flex; justify-content:space-between; align-items:baseline; font-size:11px; color:var(--z-muted); gap:8px; }
+.cbl-row span:first-child { flex:1; }
+.cbl-row span:last-child { flex-shrink:0; font-weight:500; }
+.cbl-row.eliminated { color:#3DBA7E; }
+.cbl-row.eliminated span:last-child { font-weight:600; }
+.cbl-row.reduced { color:#E8A838; }
+.cbl-row.reduced span:last-child { font-weight:600; }
+.cbl-row.note { color:var(--z-muted); font-style:italic; opacity:.75; }
+
+/* VMware comparison — recommended badge */
+.ccc-recommended-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; color:#3DBA7E; background:rgba(61,186,126,.12); border:.5px solid rgba(61,186,126,.3); padding:2px 8px; border-radius:10px; margin-top:6px; }
+
 /* Responsive VMware calc grid */
 @media (max-width:900px) {
   .cm-calc-grid { grid-template-columns:1fr; }
