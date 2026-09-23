@@ -1,25 +1,19 @@
 import express from "express"
 import cors from "cors"
 import "dotenv/config"
-import { AzureOpenAI } from "openai"
+import { openai } from "./openai.js"
 import { initDb } from "./db.js"
 import clientRoutes from "./routes/clients.js"
 import assessmentRoutes from "./routes/assessments.js"
 import sessionRoutes from "./routes/sessions.js"
 import dataIntelligenceRouter from "./routes/data-intelligence.js"
 import cloudModernizationRouter from "./routes/cloud-modernization.js"
+import auditRouter from "./routes/audit.js"
 import { fixMermaidChart } from "./utils/mermaid.js"
 
 const app = express()
 app.use(cors())
 app.use(express.json())
-
-const openai = new AzureOpenAI({
-  endpoint:   process.env.AZURE_OPENAI_ENDPOINT,
-  apiKey:     process.env.AZURE_OPENAI_KEY,
-  apiVersion: "2024-08-01-preview",
-  deployment: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
-})
 
 const SYSTEM_PROMPT = `You are a senior AI strategy consultant at Zones Innovation Center with 15 years of enterprise AI advisory experience. You help Zones consultants and their clients analyse AI maturity assessment results across 5 pillars: Governance, Risk and Compliance, AI Strategy, Operations, and Enablement. You speak directly, make specific recommendations, and back everything up with reasoning. You do not hedge with generic statements.
 
@@ -375,6 +369,7 @@ app.use("/api/sessions", sessionRoutes)
 app.use("/api/data-intelligence", dataIntelligenceRouter)
 app.use("/api", dataIntelligenceRouter)
 app.use("/api/cloud-modernization", cloudModernizationRouter)
+app.use("/api/audit", auditRouter)
 
 app.post("/api/chat", async (req, res) => {
   try {

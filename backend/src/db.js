@@ -5,7 +5,7 @@ const client = new CosmosClient({
   key: process.env.COSMOS_KEY,
 })
 
-const DB_NAME = 'zones-ai-advisory'
+const DB_NAME = process.env.COSMOS_DATABASE || 'zones-ai-advisory'
 
 export const containers = {}
 
@@ -16,6 +16,8 @@ export async function initDb() {
     { id: 'clients',     partitionKey: '/id' },
     { id: 'assessments', partitionKey: '/clientId' },
     { id: 'sessions',    partitionKey: '/clientId' },
+    { id: 'audit_evidence', partitionKey: '/clientId' },
+    { id: 'audit_projects', partitionKey: '/clientId' },
   ]
 
   for (const def of containerDefs) {
