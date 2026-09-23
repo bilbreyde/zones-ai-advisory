@@ -316,6 +316,8 @@ router.put('/:clientId/:specialization/control', async (req, res) => {
       : await containers.audit_evidence.items.create(record)
     res.json(resource)
   } catch (err) {
+    // 409 Conflict — a simultaneous first save already created the record with this id
+    if (err.code === 409) return res.status(409).json({ error: 'Save conflict — record has changed' })
     // 412 Precondition Failed — the record changed after the caller read it
     if (err.code === 412) return res.status(409).json({ error: 'Save conflict — record has changed' })
     console.error('Audit control update error:', err.message)
@@ -362,6 +364,8 @@ router.post('/:clientId/:specialization/artifact', async (req, res) => {
       : await containers.audit_evidence.items.create(record)
     res.status(201).json(resource)
   } catch (err) {
+    // 409 Conflict — a simultaneous first save already created the record with this id
+    if (err.code === 409) return res.status(409).json({ error: 'Save conflict — record has changed' })
     // 412 Precondition Failed — the record changed after the caller read it
     if (err.code === 412) return res.status(409).json({ error: 'Save conflict — record has changed' })
     console.error('Audit artifact error:', err.message)
