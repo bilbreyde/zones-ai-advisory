@@ -8,6 +8,7 @@ import AgentStudio from './pages/AgentStudio.jsx'
 import Help from './pages/Help.jsx'
 import DataIntelligence from './pages/DataIntelligence.jsx'
 import CloudModernization from './pages/CloudModernization.jsx'
+import AuditReadiness from './pages/AuditReadiness.jsx'
 import { ClientProvider } from './ClientContext.jsx'
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="help" element={<Help />} />
         <Route path="data-intelligence" element={<DataIntelligence />} />
         <Route path="cloud-modernization" element={<CloudModernization />} />
+        <Route path="audit-readiness" element={<AuditReadiness />} />
       </Route>
     </Routes>
     </ClientProvider>

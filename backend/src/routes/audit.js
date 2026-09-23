@@ -23,7 +23,7 @@ function emptyControls(ids) {
 
 function newEvidenceRecord(clientId, specialization) {
   return {
-    id: uuid(),
+    id: `${clientId}_${specialization}`,   // deterministic — a racing first write conflicts instead of duplicating
     clientId,
     specialization,
     moduleA: emptyControls(controlIdsFor('moduleA', specialization)),
@@ -280,7 +280,7 @@ router.get('/:clientId/:specialization', async (req, res) => {
 router.put('/:clientId/:specialization/control', async (req, res) => {
   try {
     const { clientId, specialization } = req.params
-    const { module, control, status, notes } = req.body
+    const { module, control, status, notes, _etag } = req.body
 
     if (!SPECIALIZATIONS.includes(specialization)) {
       return res.status(400).json({ error: `Unknown specialization: ${specialization}` })
@@ -293,9 +293,14 @@ router.put('/:clientId/:specialization/control', async (req, res) => {
       return res.status(400).json({ error: `status must be one of ${STATUSES.join(', ')}` })
     }
 
-    const record = await findEvidenceRecord(clientId, specialization)
-      || newEvidenceRecord(clientId, specialization)
+    const stored = await findEvidenceRecord(clientId, specialization)
 
+    // Optimistic concurrency: the caller must send the _etag of the record it last read.
+    // No _etag means the caller saw no saved record yet, so one existing now is a conflict.
+    if (stored && !_etag) return res.status(409).json({ error: 'Save conflict — record has changed' })
+    if (!stored && _etag)  return res.status(409).json({ error: 'Save conflict — record no longer exists' })
+
+    const record   = stored || newEvidenceRecord(clientId, specialization)
     const existing = record[module][control] || { status: 'not_started', artifacts: [], notes: '' }
     record[module][control] = {
       ...existing,
@@ -304,9 +309,15 @@ router.put('/:clientId/:specialization/control', async (req, res) => {
     }
     record.updatedAt = new Date().toISOString()
 
-    const { resource } = await containers.audit_evidence.items.upsert(record)
+    const { resource } = stored
+      ? await containers.audit_evidence
+          .item(record.id, clientId)
+          .replace(record, { accessCondition: { type: 'IfMatch', condition: _etag } })
+      : await containers.audit_evidence.items.create(record)
     res.json(resource)
   } catch (err) {
+    // 412 Precondition Failed — the record changed after the caller read it
+    if (err.code === 412) return res.status(409).json({ error: 'Save conflict — record has changed' })
     console.error('Audit control update error:', err.message)
     res.status(500).json({ error: err.message })
   }
@@ -316,7 +327,7 @@ router.put('/:clientId/:specialization/control', async (req, res) => {
 router.post('/:clientId/:specialization/artifact', async (req, res) => {
   try {
     const { clientId, specialization } = req.params
-    const { module, control, artifactType, artifactData } = req.body
+    const { module, control, artifactType, artifactData, _etag } = req.body
 
     if (!SPECIALIZATIONS.includes(specialization)) {
       return res.status(400).json({ error: `Unknown specialization: ${specialization}` })
@@ -327,9 +338,13 @@ router.post('/:clientId/:specialization/artifact', async (req, res) => {
     }
     if (!artifactType) return res.status(400).json({ error: 'artifactType required' })
 
-    const record = await findEvidenceRecord(clientId, specialization)
-      || newEvidenceRecord(clientId, specialization)
+    const stored = await findEvidenceRecord(clientId, specialization)
 
+    // Optimistic concurrency — same rules as PUT /control
+    if (stored && !_etag) return res.status(409).json({ error: 'Save conflict — record has changed' })
+    if (!stored && _etag)  return res.status(409).json({ error: 'Save conflict — record no longer exists' })
+
+    const record   = stored || newEvidenceRecord(clientId, specialization)
     const existing = record[module][control] || { status: 'not_started', artifacts: [], notes: '' }
     const artifact = {
       id:      uuid(),
@@ -340,9 +355,15 @@ router.post('/:clientId/:specialization/artifact', async (req, res) => {
     record[module][control] = { ...existing, artifacts: [...(existing.artifacts || []), artifact] }
     record.updatedAt = new Date().toISOString()
 
-    const { resource } = await containers.audit_evidence.items.upsert(record)
+    const { resource } = stored
+      ? await containers.audit_evidence
+          .item(record.id, clientId)
+          .replace(record, { accessCondition: { type: 'IfMatch', condition: _etag } })
+      : await containers.audit_evidence.items.create(record)
     res.status(201).json(resource)
   } catch (err) {
+    // 412 Precondition Failed — the record changed after the caller read it
+    if (err.code === 412) return res.status(409).json({ error: 'Save conflict — record has changed' })
     console.error('Audit artifact error:', err.message)
     res.status(500).json({ error: err.message })
   }

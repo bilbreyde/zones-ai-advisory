@@ -85,6 +85,11 @@ export default function Layout() {
             <Cloud size={15} /> Cloud Modernization
           </NavLink>
 
+          <div className="nav-section-label" style={{marginTop:16}}>Partner</div>
+          <NavLink to="/audit-readiness" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <Shield size={15} /> Audit Readiness
+          </NavLink>
+
           <div className="nav-divider" />
           <NavLink to="/help" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
             <HelpCircle size={15} /> Help & Guide
