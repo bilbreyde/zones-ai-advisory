@@ -111,7 +111,7 @@ cd backend && npm run seed
 ### Adding a new backend route
 1. Create backend/src/routes/your-route.js
 2. Import and mount in backend/src/index.js
-3. Follow existing route pattern — use db.js for Cosmos, openai client from index.js
+3. Follow existing route pattern — use db.js for Cosmos, openai client from backend/src/openai.js
 
 ### Adding a new frontend page
 1. Create frontend/src/pages/YourPage.jsx and YourPage.css
