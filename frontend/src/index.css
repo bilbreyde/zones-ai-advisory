@@ -19,6 +19,23 @@
   --z-success:    #3DBA7E;
   --z-warn:       #E8A838;
 
+  /* Theme tokens — default (dark navy) values; themes.css overrides these per data-theme */
+  --z-color-scheme:      dark;      /* native controls (select dropdowns, date pickers) */
+  --z-option-bg:         #0F2040;   /* native <select> option background */
+  --z-option-text:       #F4F6FA;   /* native <select> option text */
+  --z-on-accent:         #FFFFFF;   /* text on accent-filled buttons */
+
+  /* Audit status colors (used by Audit Readiness / Projects / Export) */
+  --z-status-complete:   #16A34A;
+  --z-status-progress:   #D97706;
+
+  /* Sidebar pillar dots (Layout.jsx) */
+  --z-pillar-governance: #4A9FE0;
+  --z-pillar-risk:       #E8A838;
+  --z-pillar-strategy:   #8B5CF6;
+  --z-pillar-operations: #3DBA7E;
+  --z-pillar-enablement: #EC4899;
+
   --font-main: 'DM Sans', system-ui, sans-serif;
   --font-mono: 'DM Mono', monospace;
 
@@ -58,12 +75,12 @@ input, textarea, select {
 
 /* Dark color-scheme tells the browser to render native select dropdowns in dark mode */
 select {
-  color-scheme: dark;
+  color-scheme: var(--z-color-scheme);
 }
 
 select option {
-  background-color: #0F2040;
-  color: #F4F6FA;
+  background-color: var(--z-option-bg);
+  color: var(--z-option-text);
 }
 input:focus, textarea:focus { border-color: var(--z-blue-bright); }
 input::placeholder, textarea::placeholder { color: var(--z-muted); }

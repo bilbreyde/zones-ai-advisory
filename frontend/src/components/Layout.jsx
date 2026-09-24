@@ -1,22 +1,70 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3,
-  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle, Database, Cloud, FolderOpen, Download
+  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle, Database, Cloud, FolderOpen, Download,
+  Palette, Check
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
 import EnvironmentProfile from './EnvironmentProfile.jsx'
 import { useClient } from '../ClientContext.jsx'
+import { THEMES, getTheme, setTheme } from '../lib/theme.js'
 import './Layout.css'
 import './EnvironmentProfile.css'
 
 const pillars = [
-  { id: 'governance',  label: 'Governance',       color: '#4A9FE0', icon: Shield },
-  { id: 'risk',        label: 'Risk & Compliance', color: '#E8A838', icon: AlertTriangle },
-  { id: 'strategy',    label: 'AI Strategy',       color: '#8B5CF6', icon: Lightbulb },
-  { id: 'operations',  label: 'Operations',        color: '#3DBA7E', icon: Settings },
-  { id: 'enablement',  label: 'Enablement',        color: '#EC4899', icon: Zap },
+  { id: 'governance',  label: 'Governance',       color: 'var(--z-pillar-governance)', icon: Shield },
+  { id: 'risk',        label: 'Risk & Compliance', color: 'var(--z-pillar-risk)',       icon: AlertTriangle },
+  { id: 'strategy',    label: 'AI Strategy',       color: 'var(--z-pillar-strategy)',   icon: Lightbulb },
+  { id: 'operations',  label: 'Operations',        color: 'var(--z-pillar-operations)', icon: Settings },
+  { id: 'enablement',  label: 'Enablement',        color: 'var(--z-pillar-enablement)', icon: Zap },
 ]
+
+// Sidebar footer theme selector — popover opens upward, closes on outside click or Escape
+function ThemePicker() {
+  const [open, setOpen]   = useState(false)
+  const [theme, setThemeState] = useState(getTheme)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey  = e => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  function choose(id) {
+    setTheme(id)
+    setThemeState(id)
+    setOpen(false)
+  }
+
+  return (
+    <div className="theme-picker" ref={ref}>
+      {open && (
+        <ul className="theme-picker-menu" role="menu">
+          {THEMES.map(t => (
+            <li key={t.id}>
+              <button className="theme-picker-option" role="menuitemradio" aria-checked={t.id === theme} onClick={() => choose(t.id)}>
+                {t.label}
+                {t.id === theme && <Check size={13} />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button className="theme-picker-btn" onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={open}>
+        <Palette size={15} /> Theme
+        <span className="theme-picker-current">{THEMES.find(t => t.id === theme)?.label.replace(/ \(.*\)$/, '')}</span>
+      </button>
+    </div>
+  )
+}
 
 function initials(name) {
   return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -112,8 +160,8 @@ export default function Layout() {
                   <div className="client-stage">
                     Session {client.currentSession} · {client.status}
                     {client.environmentProfile
-                      ? <span className="client-env-dot" title="Environment profile complete" style={{marginLeft:5,color:'#3DBA7E'}}>●</span>
-                      : <span className="client-env-dot" title="No environment profile" style={{marginLeft:5,color:'#E8A838'}}>●</span>
+                      ? <span className="client-env-dot" title="Environment profile complete" style={{marginLeft:5,color:'var(--z-success)'}}>●</span>
+                      : <span className="client-env-dot" title="No environment profile" style={{marginLeft:5,color:'var(--z-warn)'}}>●</span>
                     }
                   </div>
                 </div>
@@ -138,6 +186,8 @@ export default function Layout() {
             </button>
           )}
         </div>
+
+        <ThemePicker />
       </aside>
 
       <main className="main-content">

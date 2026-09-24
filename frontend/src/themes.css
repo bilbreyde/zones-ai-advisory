@@ -1,0 +1,506 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   THEMES — overrides the :root variables in index.css per <html data-theme="…">.
+   data-theme is set by lib/theme.js (imported first in main.jsx).
+
+     default        current dark navy design — index.css :root, no overrides here
+     light          light surfaces, dark text, navy sidebar
+     high-contrast  black background, white text, yellow accents, thick control borders
+     deuteranopia   default dark; green → blue, red → orange
+     protanopia     default dark; red → teal, green → blue; blue and amber unchanged
+
+   :root[data-theme] (specificity 0,2,0) beats :root in index.css regardless of load order.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Light ──────────────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --z-navy:       #F1F5F9;   /* page background */
+  --z-navy-mid:   #FFFFFF;   /* panels, modals, nested cards */
+  --z-navy-light: #E2E8F0;
+  --z-blue:       #1A56A8;   /* accent fill (buttons keep white text) */
+  --z-blue-bright:#1D4ED8;   /* links / active accent — darker for contrast on white */
+  --z-blue-glow:  rgba(29,78,216,0.10);
+  --z-gold:       #A16207;
+  --z-gold-light: #B45309;
+  --z-white:      #0F172A;   /* primary text */
+  --z-muted:      rgba(15,23,42,0.62);
+  --z-border:     rgba(15,23,42,0.12);
+  --z-border-mid: rgba(15,23,42,0.22);
+  --z-surface:    #FFFFFF;   /* cards: white with subtle borders */
+  --z-surface-2:  #F1F5F9;
+  --z-danger:     #DC2626;
+  --z-success:    #15803D;
+  --z-warn:       #B45309;
+
+  --z-color-scheme: light;
+  --z-option-bg:    #FFFFFF;
+  --z-option-text:  #0F172A;
+}
+
+/* Sidebar stays navy with light text: re-scope the text/surface variables inside it */
+:root[data-theme="light"] .sidebar {
+  --z-navy-mid:   #003087;
+  --z-white:      #F4F6FA;
+  --z-muted:      rgba(244,246,250,0.72);
+  --z-border:     rgba(255,255,255,0.16);
+  --z-border-mid: rgba(255,255,255,0.28);
+  --z-surface:    rgba(255,255,255,0.06);
+  --z-surface-2:  rgba(255,255,255,0.12);
+  --z-blue-bright:#93C5FD;
+  --z-blue-glow:  rgba(147,197,253,0.18);
+}
+
+/* Components that hardcode dark backgrounds */
+:root[data-theme="light"] .ap-panel,
+:root[data-theme="light"] .cv-modal       { background: var(--z-navy-mid); }
+:root[data-theme="light"] .ap-header,
+:root[data-theme="light"] .ap-footer      { background: var(--z-surface-2); }
+:root[data-theme="light"] .form-row select option,
+:root[data-theme="light"] .cwc-select option,
+:root[data-theme="light"] .dsc-select option {
+  background-color: var(--z-option-bg);
+  color: var(--z-option-text);
+}
+:root[data-theme="light"] .modal-overlay  { background: rgba(15,23,42,0.45); }
+:root[data-theme="light"] .ap-card,
+:root[data-theme="light"] .ar-card,
+:root[data-theme="light"] .ae-panel,
+:root[data-theme="light"] .ar-module      { box-shadow: 0 1px 2px rgba(15,23,42,0.05); }
+
+
+/* ── High Contrast ──────────────────────────────────────────────────────────── */
+:root[data-theme="high-contrast"] {
+  --z-navy:       #000000;
+  --z-navy-mid:   #000000;
+  --z-navy-light: #000000;
+  --z-blue:       #000000;   /* accent-filled buttons become black with a yellow border (white text stays readable) */
+  --z-blue-bright:#FFFF00;   /* all accents, links, active states */
+  --z-blue-glow:  rgba(255,255,0,0.16);
+  --z-gold:       #FFFF00;
+  --z-gold-light: #FFFF00;
+  --z-white:      #FFFFFF;
+  --z-muted:      #FFFFFF;
+  --z-border:     #FFFFFF;
+  --z-border-mid: #FFFF00;
+  --z-surface:    #000000;
+  --z-surface-2:  #1A1A1A;
+  --z-danger:     #FF5C5C;
+  --z-success:    #3CFF8A;
+  --z-warn:       #FFB000;
+
+  --z-status-complete: #3CFF8A;
+  --z-status-progress: #FFB000;
+
+  --z-color-scheme: dark;
+  --z-option-bg:    #000000;
+  --z-option-text:  #FFFFFF;
+}
+
+/* Thick borders on every control, yellow focus rings */
+:root[data-theme="high-contrast"] button,
+:root[data-theme="high-contrast"] input,
+:root[data-theme="high-contrast"] select,
+:root[data-theme="high-contrast"] textarea,
+:root[data-theme="high-contrast"] [role="button"] {
+  border: 2px solid #FFFF00 !important;
+}
+:root[data-theme="high-contrast"] :focus-visible {
+  outline: 3px solid #FFFF00 !important;
+  outline-offset: 2px;
+}
+:root[data-theme="high-contrast"] a:not(.nav-item) { text-decoration: underline; }
+:root[data-theme="high-contrast"] .nav-item.active {
+  background: #FFFF00;
+  color: #000000;
+  border: 2px solid #FFFF00;
+}
+:root[data-theme="high-contrast"] .nav-item.active svg { color: #000000; }
+/* Panels and cards get a solid white outline instead of a faint tint */
+:root[data-theme="high-contrast"] .sidebar       { border-right: 2px solid #FFFFFF; }
+:root[data-theme="high-contrast"] .modal-overlay { background: rgba(0,0,0,0.85); }
+
+/* Status badges: bright status colors on black, and the badge border follows the status color
+   (overrides the yellow control border so the three states differ by more than text color) */
+:root[data-theme="high-contrast"] :is(.ar-status-not_started, .ae-status-not_started) { color: #FFFFFF; }
+:root[data-theme="high-contrast"] :is(.ar-status-in_progress, .ae-status-in_progress, .ap-badge-pending, .ar-text-in_progress) { color: var(--z-status-progress); }
+:root[data-theme="high-contrast"] :is(.ar-status-complete, .ae-status-complete, .ap-badge-ok, .ar-text-complete, .ae-count-ok) { color: var(--z-status-complete); }
+:root[data-theme="high-contrast"] :is(.ar-status, .ae-status, .ap-badge) {
+  background: #000000;
+  border: 2px solid currentColor !important;
+}
+
+
+/* ── Colorblind (shared by deuteranopia and protanopia) ─────────────────────── */
+/* --cb-positive-rgb replaces green, --cb-negative-rgb replaces red in the generated overrides below */
+:root[data-theme="deuteranopia"] {
+  --z-success:          #2563EB;   /* green → blue */
+  --z-danger:           #D97706;   /* red → orange */
+  --z-status-complete:  #2563EB;
+  --z-status-progress:  #D97706;
+  --cb-positive-rgb:    37, 99, 235;    /* #2563EB */
+  --cb-negative-rgb:    217, 119, 6;    /* #D97706 */
+
+  /* sidebar pillar dots — no green, red or pink; distinct in hue and lightness */
+  --z-pillar-governance: #56B4E9;
+  --z-pillar-risk:       #E69F00;
+  --z-pillar-strategy:   #8B5CF6;
+  --z-pillar-operations: #2563EB;
+  --z-pillar-enablement: #F0E442;
+}
+
+:root[data-theme="protanopia"] {
+  --z-success:          #2563EB;   /* green → blue (green reads as amber/brown for protanopes) */
+  --z-danger:           #0D9488;   /* red → teal */
+  --z-status-complete:  #2563EB;
+  --z-status-progress:  #D97706;   /* amber is protanopia-safe — kept */
+  --cb-positive-rgb:    37, 99, 235;    /* #2563EB */
+  --cb-negative-rgb:    13, 148, 136;   /* #0D9488 */
+
+  /* sidebar pillar dots — blue and amber kept; green and pink replaced */
+  --z-pillar-governance: #4A9FE0;
+  --z-pillar-risk:       #E8A838;
+  --z-pillar-strategy:   #8B5CF6;
+  --z-pillar-operations: #2563EB;
+  --z-pillar-enablement: #0D9488;
+}
+
+/* ── Theme selector (sidebar footer, Layout.jsx) ────────────────────────────── */
+.theme-picker { position: relative; padding: 8px 12px; border-top: 1px solid var(--z-border); }
+.theme-picker-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--z-muted);
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.theme-picker-btn:hover { background: var(--z-surface-2); color: var(--z-white); }
+.theme-picker-current { margin-left: auto; font-size: 11px; opacity: 0.8; }
+.theme-picker-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 12px;
+  right: 12px;
+  z-index: 50;
+  list-style: none;
+  padding: 4px;
+  background: var(--z-navy-mid);
+  border: 1px solid var(--z-border-mid);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+.theme-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--z-white);
+  font-size: 12px;
+  text-align: left;
+}
+.theme-picker-option:hover { background: var(--z-surface-2); }
+.theme-picker-option svg { color: var(--z-blue-bright); flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   COLORBLIND COMPONENT OVERRIDES — generated from the component CSS (Sep 2026).
+   Every component rule that hardcodes a red or green color, with that color swapped for
+   the theme's --cb-positive-rgb (green) or --cb-negative-rgb (red). Original alpha kept.
+   66 rules. If you add a red or green color to component CSS, add a matching override here.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* components/ActionPlanPanel.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ap-close:hover {
+  background: rgba(var(--cb-negative-rgb), 0.15);
+  color: rgb(var(--cb-negative-rgb));
+  border-color: rgba(var(--cb-negative-rgb), 0.35);
+}
+
+/* components/AssessmentReview.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .psh-complete {
+  color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), 0.12);
+}
+
+/* components/ChatVisual.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cv-modal-close:hover {
+  background: rgba(var(--cb-negative-rgb), 0.15);
+  color: rgb(var(--cb-negative-rgb));
+  border-color: rgba(var(--cb-negative-rgb), 0.3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cv-cl-progress-fill {
+  background: rgb(var(--cb-positive-rgb));
+}
+
+/* components/EnvironmentProfile.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ep-step-dot.done .ep-step-num {
+  border-color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), 0.15);
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ep-step-dot.done .ep-step-label {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ep-airgap-warning {
+  background: rgba(var(--cb-negative-rgb), 0.06);
+  border: 1px solid rgba(var(--cb-negative-rgb), 0.25);
+  color: rgb(var(--cb-negative-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ep-none-chip.selected {
+  color: rgb(var(--cb-positive-rgb));
+  border-color: rgba(var(--cb-positive-rgb), 0.4);
+  background: rgba(var(--cb-positive-rgb), 0.06);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .env-banner.complete {
+  background: rgba(var(--cb-positive-rgb), 0.07);
+  border: 1px solid rgba(var(--cb-positive-rgb), 0.25);
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .env-banner.complete .env-banner-btn {
+  background: rgba(var(--cb-positive-rgb), 0.2);
+  color: rgb(var(--cb-positive-rgb));
+}
+
+/* components/MeetingNotes.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .mn-step.done .mn-step-dot {
+  background: rgb(var(--cb-positive-rgb));
+  border-color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .change-confidence.high {
+  color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), 0.12);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .mn-done-icon {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .mn-error {
+  color: rgb(var(--cb-negative-rgb));
+  background: rgba(var(--cb-negative-rgb), 0.08);
+  border: 1px solid rgba(var(--cb-negative-rgb), 0.2);
+}
+
+/* pages/AgentStudio.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .studio-saved-toast {
+  background: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .backlog-saved-flash {
+  color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), 0.1);
+  border: 1px solid rgba(var(--cb-positive-rgb), 0.25);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .backlog-remove-btn:hover {
+  color: rgb(var(--cb-negative-rgb));
+  background: rgba(var(--cb-negative-rgb), 0.1);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .airgap-warning {
+  background: rgba(var(--cb-negative-rgb), 0.06);
+  border: 1px solid rgba(var(--cb-negative-rgb), 0.25);
+  color: rgb(var(--cb-negative-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .deployment-badge {
+  background: rgba(var(--cb-positive-rgb), 0.1);
+  color: rgb(var(--cb-positive-rgb));
+  border: 1px solid rgba(var(--cb-positive-rgb), 0.25);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .agent-deployment-note {
+  background: rgba(var(--cb-positive-rgb), 0.04);
+  border-left-color: rgba(var(--cb-positive-rgb), 0.4);
+}
+
+/* pages/Assessment.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ecb-extra {
+  color: rgb(var(--cb-positive-rgb));
+}
+
+/* pages/AuditExport.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ae-banner-error {
+  background: rgba(var(--cb-negative-rgb), 0.08);
+  border: 1px solid rgba(var(--cb-negative-rgb), 0.3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ae-count-ok {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ae-status-complete {
+  background: rgba(var(--cb-positive-rgb), 0.14);
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ae-attached {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ae-priority-high {
+  background: rgba(var(--cb-negative-rgb), 0.14);
+}
+
+/* pages/AuditProjects.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ap-banner-error {
+  background: rgba(var(--cb-negative-rgb), 0.08);
+  border: 1px solid rgba(var(--cb-negative-rgb), 0.3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ap-confirm-delete {
+  border: 1px solid rgba(var(--cb-negative-rgb), 0.4);
+  background: rgba(var(--cb-negative-rgb), 0.12);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ap-confirm-delete:hover {
+  background: rgba(var(--cb-negative-rgb), 0.22);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ap-badge-ok {
+  background: rgba(var(--cb-positive-rgb), 0.14);
+  border-color: rgba(var(--cb-positive-rgb), 0.4);
+  color: rgb(var(--cb-positive-rgb));
+}
+
+/* pages/AuditReadiness.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ar-text-complete {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ar-banner-error {
+  background: rgba(var(--cb-negative-rgb), 0.08);
+  border: 1px solid rgba(var(--cb-negative-rgb), 0.3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ar-status-complete {
+  background: rgba(var(--cb-positive-rgb), 0.14);
+  border-color: rgba(var(--cb-positive-rgb), 0.4);
+  color: rgb(var(--cb-positive-rgb));
+}
+
+/* pages/Clients.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .table-error {
+  color: rgb(var(--cb-negative-rgb));
+}
+
+/* pages/CloudModernization.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-results-banner {
+  background: rgba(var(--cb-positive-rgb), .07);
+  border-bottom: .5px solid rgba(var(--cb-positive-rgb), .2);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-rb-count {
+  background: rgba(var(--cb-positive-rgb), .15);
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-stage-step.done .cm-step-dot {
+  background: rgb(var(--cb-positive-rgb));
+  border-color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-di-note {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-csv-error {
+  color: rgb(var(--cb-negative-rgb));
+  background: rgba(var(--cb-negative-rgb), .08);
+  border: .5px solid rgba(var(--cb-negative-rgb), .3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-urgency-flag.critical {
+  color: rgb(var(--cb-negative-rgb));
+  background: rgba(var(--cb-negative-rgb), .1);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-compare-card.current {
+  border-color: rgba(var(--cb-negative-rgb), .3);
+  background: rgba(var(--cb-negative-rgb), .04);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ccc-saving.positive {
+  color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), .1);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ccc-saving.negative {
+  color: rgb(var(--cb-negative-rgb));
+  background: rgba(var(--cb-negative-rgb), .1);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-saved-badge {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-saved-badge {
+  color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), .1);
+  border: .5px solid rgba(var(--cb-positive-rgb), .3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .coc-impact {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .likelihood-high {
+  color: rgb(var(--cb-negative-rgb));
+  background: rgba(var(--cb-negative-rgb), .12);
+  border: .5px solid rgba(var(--cb-negative-rgb), .3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .likelihood-low {
+  color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), .12);
+  border: .5px solid rgba(var(--cb-positive-rgb), .3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-answers-applied {
+  background: rgba(var(--cb-positive-rgb), .08);
+  border: .5px solid rgba(var(--cb-positive-rgb), .3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .caa-title {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-question-card.answered {
+  border-color: rgba(var(--cb-positive-rgb), .35);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cqc-answer-saved {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cm-btn-sow {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .cbl-row.eliminated {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .ccc-recommended-badge {
+  color: rgb(var(--cb-positive-rgb));
+  background: rgba(var(--cb-positive-rgb), .12);
+  border: .5px solid rgba(var(--cb-positive-rgb), .3);
+}
+
+/* pages/Dashboard.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .shi-applied-badge {
+  background: rgba(var(--cb-positive-rgb), 0.15);
+  color: rgb(var(--cb-positive-rgb));
+}
+
+/* pages/DataIntelligence.css */
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .di-optimize-note {
+  background: rgba(var(--cb-positive-rgb), 0.08);
+  border: 1px solid rgba(var(--cb-positive-rgb), 0.25);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .di-finding.critical {
+  background: rgba(var(--cb-negative-rgb), 0.06);
+  border-color: rgba(var(--cb-negative-rgb), 0.25);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .complexity-low {
+  background: rgba(var(--cb-positive-rgb), 0.15);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .complexity-high {
+  background: rgba(var(--cb-negative-rgb), 0.15);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .dpc-product.have {
+  background: rgba(var(--cb-positive-rgb), 0.08);
+  border-color: rgba(var(--cb-positive-rgb), 0.3);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .dpc-have-badge {
+  background: rgba(var(--cb-positive-rgb), 0.2);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .di-results-banner {
+  background: rgba(var(--cb-positive-rgb), 0.07);
+  border-bottom: 0.5px solid rgba(var(--cb-positive-rgb), 0.2);
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .di-rb-icon {
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .di-rb-actions .di-rb-primary {
+  background: rgba(var(--cb-positive-rgb), 0.15);
+  border-color: rgba(var(--cb-positive-rgb), 0.4);
+  color: rgb(var(--cb-positive-rgb));
+}
+:root:is([data-theme="deuteranopia"], [data-theme="protanopia"]) .di-rb-actions .di-rb-primary:hover {
+  background: rgba(var(--cb-positive-rgb), 0.25);
+}
