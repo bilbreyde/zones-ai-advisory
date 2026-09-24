@@ -265,14 +265,14 @@ Return ONLY a raw JSON object:
       endpoint:   process.env.AZURE_OPENAI_ENDPOINT,
       apiKey:     process.env.AZURE_OPENAI_KEY,
       apiVersion: '2024-08-01-preview',
-      deployment: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      deployment: process.env.AZURE_OPENAI_DEPLOYMENT,
     })
 
     const completion = await aiClient.chat.completions.create({
-      model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model: process.env.AZURE_OPENAI_DEPLOYMENT,
       messages: [{ role: 'user', content: extractionPrompt }],
       temperature: 0.2,
-      max_tokens: 3000,
+      max_completion_tokens: 6000,
     })
 
     const raw = completion.choices[0].message.content

@@ -2,7 +2,7 @@
 
 ## Project Overview
 Advisor-led AI maturity assessment platform for Zones clients.
-React 18 + Vite frontend, Node.js 24 Express backend, Azure Cosmos DB, Azure OpenAI GPT-4o.
+React 18 + Vite frontend, Node.js 24 Express backend, Azure Cosmos DB, Azure OpenAI gpt-5.4.
 
 ## Stack
 - Node.js 24+ (never 20 or 22)
@@ -46,13 +46,13 @@ zones-ai-advisory/
 - Framer Motion for animations
 - Never use dashes in variable/function names — use camelCase
 - Always handle Cosmos DB errors explicitly, never swallow them
-- All GPT-4o calls go through backend routes — never call OpenAI from frontend
+- All gpt-5.4 calls go through backend routes — never call OpenAI from frontend
 - Environment variables: backend reads from .env, frontend reads VITE_ prefixed vars
 - Git commits use conventional format: feat:, fix:, chore:
 
 ## Azure Resources (Don's Azure — subscription 7d70637f)
 - Resource Group: zones-ai-advisory (eastus2)
-- OpenAI: zones-ai-openai (GPT-4o deployed)
+- OpenAI: zones-ai-openai (gpt-5.4 deployed)
 - Backend: zones-ai-advisory-api (App Service, Node 24)
 - Frontend: zones-ai-advisory-web (Static Web App)
 - Cosmos DB: zones-ai-cosmos
@@ -117,7 +117,7 @@ Customer project records. controlsEvidenced uses compound control keys:
 
 ## Feature Modules (Already Built)
 - 5-pillar AI maturity assessment with scoring
-- Azure OpenAI GPT-4o advisory chat with visual responses (6 visual types)
+- Azure OpenAI gpt-5.4 advisory chat with visual responses (6 visual types)
 - Agent Design Studio (discover and blueprint AI agents)
 - Action Plan Panel with PDF export
 - Cloud Modernization page
@@ -150,7 +150,7 @@ cd backend && npm run seed
 2. Add route in App.jsx
 3. Add nav item in Layout.jsx with Lucide icon
 
-### GPT-4o response parsing
+### gpt-5.4 response parsing
 All AI responses follow the extractVisualFromResponse pattern in AIChat.jsx.
 Responses return { reply, visuals: [] } — always handle both keys.
 
@@ -182,3 +182,5 @@ requiredEvidence, skipIfNotDeployed, specializationId, taga
 - Do not import from backend/src/index.js in route files
 - Do not use random UUIDs for audit_evidence record IDs
 - Do not add audit write routes without _etag validation
+- Do not use max_tokens in chat completion calls — gpt-5.4 rejects it; use max_completion_tokens
+- Do not hardcode model names — every call reads process.env.AZURE_OPENAI_DEPLOYMENT

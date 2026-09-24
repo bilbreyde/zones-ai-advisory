@@ -10,7 +10,7 @@ function makeAI() {
     endpoint:   process.env.AZURE_OPENAI_ENDPOINT,
     apiKey:     process.env.AZURE_OPENAI_KEY,
     apiVersion: '2024-08-01-preview',
-    deployment: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+    deployment: process.env.AZURE_OPENAI_DEPLOYMENT,
   })
 }
 
@@ -119,10 +119,10 @@ SCORING RULES:
 
     const ai = makeAI()
     const completion = await ai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.2,
-      max_tokens:  2000,
+      max_completion_tokens: 4000,
     })
 
     const result = parseJSON(completion.choices[0].message.content)
@@ -222,10 +222,10 @@ Return ONLY raw JSON:
 
     const ai = makeAI()
     const completion = await ai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      max_tokens:  3000,
+      max_completion_tokens: 6000,
     })
 
     const result = parseJSON(completion.choices[0].message.content)
@@ -401,10 +401,10 @@ Return ONLY raw JSON with this structure — no markdown fences:
 
     const ai = makeAI()
     const completion = await ai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      max_tokens:  3000,
+      max_completion_tokens: 6000,
     })
 
     const result = parseJSON(completion.choices[0].message.content)

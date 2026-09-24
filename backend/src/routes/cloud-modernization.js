@@ -4,7 +4,7 @@ import { fixMermaidChart } from '../utils/mermaid.js'
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, HeadingLevel, BorderStyle, WidthType,
-  ShadingType, PageNumber, PageBreak, LevelFormat,
+  ShadingType, PageBreak, LevelFormat, SimpleField,
 } from 'docx'
 
 const router = Router()
@@ -77,7 +77,7 @@ async function getAiClient() {
     endpoint:   process.env.AZURE_OPENAI_ENDPOINT,
     apiKey:     process.env.AZURE_OPENAI_KEY,
     apiVersion: '2024-08-01-preview',
-    deployment: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+    deployment: process.env.AZURE_OPENAI_DEPLOYMENT,
   })
 }
 
@@ -143,10 +143,10 @@ Return this exact JSON:
 }`
 
     const completion = await aiClient.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.1,
-      max_tokens:  4000,
+      max_completion_tokens: 8000,
     })
 
     const responseRaw = completion.choices[0].message.content
@@ -404,10 +404,10 @@ Return ONLY raw JSON:
 }`
 
     const completion = await aiClient.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.2,
-      max_tokens:  4000,
+      max_completion_tokens: 8000,
     })
 
     const raw = completion.choices[0].message.content
@@ -750,10 +750,10 @@ router.post('/blueprint', async (req, res) => {
 
     const aiClient = await getAiClient()
     const completion = await aiClient.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: isRefinement ? 0.2 : 0.3,
-      max_tokens:  4000,
+      max_completion_tokens: 8000,
     })
     console.log('Blueprint finish_reason:', completion.choices[0].finish_reason)
 
@@ -998,6 +998,11 @@ router.post('/sow', async (req, res) => {
       },
       styles: {
         default: { document: { run: { font: 'Arial', size: 22 } } },
+        // Footer text style — SimpleField runs take no formatting of their own, so they inherit this
+        paragraphStyles: [{
+          id: 'EvidenceFooter', name: 'Evidence Footer', basedOn: 'Normal',
+          run: { font: 'Arial', size: 16, color: '888888' },
+        }],
       },
       sections: [{
         properties: {
@@ -1017,12 +1022,14 @@ router.post('/sow', async (req, res) => {
         },
         footers: {
           default: new Footer({
+            // PAGE / NUMPAGES as simple fields with a cached value — see utils/evidenceDocument.js
             children: [new Paragraph({
+              style: 'EvidenceFooter',
               children: [
-                new TextRun({ text: `${clientName} Cloud Modernization SOW  |  `, size: 16, font: 'Arial', color: '888888' }),
-                new TextRun({ children: [PageNumber.CURRENT], size: 16, font: 'Arial', color: '888888' }),
-                new TextRun({ text: ' of ', size: 16, font: 'Arial', color: '888888' }),
-                new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, font: 'Arial', color: '888888' }),
+                new TextRun(`${clientName} Cloud Modernization SOW  |  Page `),
+                new SimpleField('PAGE', '1'),
+                new TextRun(' of '),
+                new SimpleField('NUMPAGES', '1'),
               ],
               border: { top: { style: BorderStyle.SINGLE, size: 4, color: BLUE, space: 1 } },
             })],

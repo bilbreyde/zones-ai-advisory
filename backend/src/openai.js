@@ -7,5 +7,5 @@ export const openai = new AzureOpenAI({
   endpoint:   process.env.AZURE_OPENAI_ENDPOINT,
   apiKey:     process.env.AZURE_OPENAI_KEY,
   apiVersion: "2024-08-01-preview",
-  deployment: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
+  deployment: process.env.AZURE_OPENAI_DEPLOYMENT,
 })

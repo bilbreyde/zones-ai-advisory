@@ -565,16 +565,16 @@ Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
 
       const [pass1, pass2] = await Promise.all([
         openai.chat.completions.create({
-          model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+          model:       process.env.AZURE_OPENAI_DEPLOYMENT,
           messages:    [{ role: 'system', content: fullSystemPrompt }, { role: 'user', content: pass1UserContent }],
           temperature: 0.4,
-          max_tokens:  2500,
+          max_completion_tokens: 5000,
         }),
         openai.chat.completions.create({
-          model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+          model:       process.env.AZURE_OPENAI_DEPLOYMENT,
           messages:    [{ role: 'system', content: fullSystemPrompt }, { role: 'user', content: pass2UserContent }],
           temperature: 0.4,
-          max_tokens:  2500,
+          max_completion_tokens: 5000,
         }),
       ])
 
@@ -602,10 +602,10 @@ Return ONLY valid JSON — no markdown, no fences, start with { end with }.`
     // ── NON-STRATEGIC: single-pass ──────────────────────────────────────────
 
     const completion = await openai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'system', content: fullSystemPrompt }, ...messages.slice(-10)],
       temperature: 0.6,
-      max_tokens:  1500,
+      max_completion_tokens: 3000,
     })
 
     const raw          = completion.choices[0].message.content
@@ -724,13 +724,13 @@ ${deploymentModel === 'air_gapped' ? '\nCRITICAL: All agents must be fully air-g
 ${deploymentModel === 'on_prem' ? '\nIMPORTANT: Prefer on-premises deployment paths. Flag any required cloud service clearly.' : ''}`
 
     const completion = await openai.chat.completions.create({
-      model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
+      model: process.env.AZURE_OPENAI_DEPLOYMENT,
       messages: [
         { role: "system", content: DISCOVER_SYSTEM_PROMPT },
         { role: "user",   content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 3000,
+      max_completion_tokens: 6000,
     })
 
     const raw = completion.choices[0].message.content.trim()
@@ -900,10 +900,10 @@ Keep each section concise to avoid truncation. Mermaid chart MAX 6 nodes.
 {"reply":"2-3 sentence executive overview referencing the client deployment model and why this agent fits their specific constraints","visuals":[{"narrative":{"headline":"One specific so-what sentence referencing ${clientName} and their actual constraints","context":"2 sentences referencing their ${dm} deployment model and specific compliance or legacy context","actions":["Specific action 1 with owner and timeline","Specific action 2"]},"type":"agent_spec","title":"Agent Specification","name":"${(agent.name || 'Agent').replace(/"/g, '\\"')}","purpose":"Detailed 2-3 sentence purpose specific to this client's environment and tools","trigger":"Specific trigger with example timing (e.g. 'Document upload to SharePoint triggers classification within 30 seconds')","inputs":["Specific input 1 with data format","Specific input 2","Specific input 3"],"outputs":["Specific output 1 with format and destination","Specific output 2","Specific output 3"],"tools":["Only tools available in their environment — NEVER list cloud AI services if on_prem or air_gapped"],"integrations":["Specific integration with method e.g. SAP RFC API call","Specific integration 2 with protocol"],"human_in_loop":"Specific description: who reviews, via what system, within what SLA","latency":"Specific time with breakdown (e.g. 'Processing: 3-5 seconds per document; batch: 500 docs/hour')","data_requirements":"Specific data needs with sensitivity classification","recommended_model":"Specific model name and version with rationale (e.g. 'Llama 3.1 70B — strong reasoning, runs fully on-premises. Requires 2x NVIDIA A100 40GB GPUs. Alternative: Mistral 7B for lighter hardware at reduced accuracy.') — if cloud_native, specify Azure OpenAI GPT-4o or appropriate cloud model","deployment_timeline":"Week-by-week: Week 1-2: [specific tasks with owners], Week 3-4: [specific tasks], Month 2: [specific tasks], Month 3: go-live","estimated_effort":"X weeks with team composition (e.g. '10 weeks: 1 ML engineer, 1 backend developer, 1 DevOps engineer')"},{"narrative":{"headline":"Architecture designed for ${dm} environment — no cloud AI dependencies if restricted","context":"2 sentences on why this architecture suits their deployment constraints and compliance requirements","actions":["Action 1 with owner","Action 2"]},"type":"mermaid","title":"Agent Architecture","chart":"graph TD with MAX 6 nodes. Use ONLY tools available in the client environment. NEVER show Azure OpenAI or cloud AI services if client is on_prem or air_gapped."},{"narrative":{"headline":"Custom build on [specific runtime] recommended over [specific named product]","context":"2 sentences explaining the specific tradeoff between these two named options for ${clientName}","actions":["Specific next step 1 with owner and date","Specific next step 2"]},"type":"vendor_comparison","title":"Build vs Alternatives","criteria":["Time to value","Customisation","Cost","Maintenance","Compliance fit"],"vendors":[{"name":"Custom build — [exact model e.g. Llama 3.1 70B on Ollama / Azure AI Foundry GPT-4o]","recommended":true,"scores":{"Time to value":3,"Customisation":5,"Cost":3,"Maintenance":3,"Compliance fit":5},"pros":["Specific pro referencing their environment","Full control over data — no PHI or sensitive data leaves environment","Specific pro 3"],"cons":["Specific con e.g. Requires 2x NVIDIA A100 GPUs (~$30k)","Specific con 2 with mitigation"]},{"name":"[Specific real product name e.g. IBM Watson on-premises / ServiceNow Now Assist / Salesforce Einstein]","recommended":false,"scores":{"Time to value":4,"Customisation":3,"Cost":2,"Maintenance":4,"Compliance fit":3},"pros":["Specific pro 1","Specific pro 2"],"cons":["Specific con referencing their compliance e.g. Does not meet HIPAA BAA without additional configuration","Specific con 2"]}]}]}`
 
     const completion = await openai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o",
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: "user", content: designPrompt }],
       temperature: 0.3,
-      max_tokens:  4000,
+      max_completion_tokens: 8000,
     })
 
     const rawContent = completion.choices[0].message.content.trim()

@@ -362,7 +362,7 @@ async function buildExportSummary(clientId, specialization) {
   }
 }
 
-// GPT-4o "Next Steps" for the Word package: executive summary + 3-5 recommended actions from the gaps
+// LLM "Next Steps" for the Word package: executive summary + 3-5 recommended actions from the gaps
 async function generateNextSteps(summary) {
   const gapLines = summary.gaps.map(g =>
     `- ${g.module === 'moduleA' ? 'Module A' : 'Module B'} ${g.controlId.replace('control_', '').replace('_', '.')} ${g.name} (${g.status}): requires ${g.requiredEvidence}`)
@@ -390,10 +390,10 @@ Return ONLY a raw JSON object:
 }`
 
   const completion = await openai.chat.completions.create({
-    model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+    model:       process.env.AZURE_OPENAI_DEPLOYMENT,
     messages:    [{ role: 'user', content: prompt }],
     temperature: 0.3,
-    max_tokens:  1200,
+    max_completion_tokens: 2400,
   })
   const result = parseJSON(completion.choices[0].message.content)
   return { executiveSummary: result.executiveSummary || '', actions: (result.actions || []).slice(0, 5) }
@@ -427,7 +427,7 @@ router.post('/:clientId/export-docx/:specialization', async (req, res) => {
     const summary = await buildExportSummary(clientId, specialization)
     if (!summary) return res.status(404).json({ error: 'Client not found' })
 
-    // Next Steps is advisory — if GPT-4o fails, still deliver the package with a note
+    // Next Steps is advisory — if the LLM call fails, still deliver the package with a note
     let nextSteps
     try {
       nextSteps = await generateNextSteps(summary)
@@ -449,7 +449,7 @@ router.post('/:clientId/export-docx/:specialization', async (req, res) => {
   }
 })
 
-// POST /api/audit/:clientId/generate/skilling-plan — GPT-4o skilling plan
+// POST /api/audit/:clientId/generate/skilling-plan — LLM-generated skilling plan
 router.post('/:clientId/generate/skilling-plan', async (req, res) => {
   try {
     const client = await readClient(req.params.clientId)
@@ -494,10 +494,10 @@ Return ONLY a raw JSON object:
 }`
 
     const completion = await openai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      max_tokens:  2500,
+      max_completion_tokens: 5000,
     })
 
     const plan = parseJSON(completion.choices[0].message.content)
@@ -508,7 +508,7 @@ Return ONLY a raw JSON object:
   }
 })
 
-// POST /api/audit/:clientId/generate/finops-checklist — GPT-4o FinOps Review prep checklist
+// POST /api/audit/:clientId/generate/finops-checklist — LLM-generated FinOps Review prep checklist
 router.post('/:clientId/generate/finops-checklist', async (req, res) => {
   try {
     const client = await readClient(req.params.clientId)
@@ -552,10 +552,10 @@ Return ONLY a raw JSON object:
 }`
 
     const completion = await openai.chat.completions.create({
-      model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+      model:       process.env.AZURE_OPENAI_DEPLOYMENT,
       messages:    [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      max_tokens:  2500,
+      max_completion_tokens: 5000,
     })
 
     const checklist = parseJSON(completion.choices[0].message.content)

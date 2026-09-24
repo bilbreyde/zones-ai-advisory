@@ -457,7 +457,7 @@ export default function AIChat() {
         <div className="chat-header-icon"><Bot size={14} /></div>
         <div>
           <div className="chat-title">AI Advisory Assistant</div>
-          <div className="chat-sub">Azure OpenAI · GPT-4o</div>
+          <div className="chat-sub">Azure OpenAI</div>
         </div>
         <div className="online-dot" />
       </div>

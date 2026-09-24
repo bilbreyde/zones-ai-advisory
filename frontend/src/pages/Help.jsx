@@ -407,7 +407,7 @@ export default function Help() {
         >
           <div className="section-header">
             <h2>🤖 Using the AI Advisory Assistant</h2>
-            <p style={{ fontSize: 12, color: 'var(--z-muted)', marginBottom: 10, marginTop: 0, fontStyle: 'italic' }}>How to get the most out of the GPT-4o powered chat</p>
+            <p style={{ fontSize: 12, color: 'var(--z-muted)', marginBottom: 10, marginTop: 0, fontStyle: 'italic' }}>How to get the most out of the AI-powered chat</p>
             <p>The AI assistant is fully environment-aware. It knows the client's deployment model, compliance requirements, legacy systems, and tooling stack — and uses all of it to give infrastructure-specific recommendations. An air-gapped client will never receive a recommendation that requires internet-connected AI APIs.</p>
           </div>
 
@@ -860,7 +860,7 @@ export default function Help() {
               </thead>
               <tbody>
                 <tr><td>AI chat returns no response</td><td>Check backend terminal for errors; verify Azure OpenAI deployment is active and quota is not exceeded</td></tr>
-                <tr><td>Visuals don't render in chat</td><td>Retry the same prompt — GPT-4o occasionally returns malformed JSON on the first attempt</td></tr>
+                <tr><td>Visuals don't render in chat</td><td>Retry the same prompt — the model occasionally returns malformed JSON on the first attempt</td></tr>
                 <tr><td>Agent Studio shows no agents</td><td>Confirm a client is active (bottom-left of sidebar), then retry</td></tr>
                 <tr><td>PDF export is blank or cut off</td><td>Close any overlapping browser DevTools; try exporting in Chrome if using another browser</td></tr>
                 <tr><td>Action plan Gantt timeline is wrong</td><td>Close the panel and re-click the recommendation card to re-trigger generation</td></tr>

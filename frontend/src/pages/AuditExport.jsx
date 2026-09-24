@@ -419,7 +419,7 @@ export default function AuditExport() {
               {type === 'skilling-plan' && isAiSpec && !state.result && (
                 <div className="ae-muted">Includes TAGA alignment for {specCard?.name}.</div>
               )}
-              {state.loading && <div className="ae-muted">GPT-4o is drafting the {g.label.toLowerCase()}…</div>}
+              {state.loading && <div className="ae-muted">The AI model is drafting the {g.label.toLowerCase()}…</div>}
               {state.error && <div className="ae-error">{state.error}</div>}
               {state.result && type === 'skilling-plan'    && <SkillingPlanCard plan={state.result} />}
               {state.result && type === 'finops-checklist' && <FinopsChecklistCard checklist={state.result} />}
@@ -445,7 +445,7 @@ export default function AuditExport() {
           <div className="ae-panel-title">Word evidence package — {specCard?.name}</div>
           <div className="ae-muted">
             Cover page, executive summary, Module A and B control tables, gap analysis, customer projects and
-            GPT-4o next steps, plus an appendix of attached evidence.
+            AI-generated next steps, plus an appendix of attached evidence.
           </div>
         </div>
         <button className="btn-primary" onClick={exportPackage} disabled={!summary || exporting}>
