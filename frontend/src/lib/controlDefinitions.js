@@ -1,6 +1,15 @@
 // Azure Specialization audit control definitions — source: SPEC-audit-readiness.md
-// Control ids match the keys stored on audit_evidence records in Cosmos DB
+// Control ids match the keys stored on audit_evidence records in Cosmos DB.
+//
 // keep in sync with backend/src/lib/controlDefinitions.js
+// Every control in BOTH copies must have exactly these fields:
+//   id, number, name, module, specializationId, requiredEvidence, customerCount,
+//   evidenceWindowMonths, skipIfNotDeployed, taga, notes
+//     specializationId   — null for Module A (shared), the specialization id for Module B
+//     skipIfNotDeployed  — specialization ids where the control may be skipped if not deployed
+//     taga               — specialization ids that require a TAGA report with this control's evidence
+// The control data below (moduleAControl … MODULE_B_CONTROLS) is identical in both copies.
+//
 // Project control links (audit_projects.controlsEvidenced) use compound keys:
 //   "${specializationId}:${moduleKey}:${controlId}"  e.g. "infra-db:moduleB:control_1_1"
 
@@ -15,144 +24,95 @@ export const SPECIALIZATIONS = [
 
 export const CONTROL_STATUSES = ['not_started', 'in_progress', 'complete']
 
-// specializationRules: per-specialization flags that modify a control
-//   requiresTagaReport — TAGA report must accompany the evidence
-//   skipIfNotDeployed  — control may be skipped if the tooling was not deployed
+// ── Control data (identical in frontend and backend copies) ──────────────────
 
-export const MODULE_A_CONTROLS = [
-  {
-    id: 'control_1_1',
-    number: '1.1',
-    name: 'Cloud & AI Adoption Business Strategy',
+// Module A: shared across specializations — 2 unique customers, last 12 months
+function moduleAControl(number, name, requiredEvidence, extra = {}) {
+  return {
+    id: `control_${number.replace('.', '_')}`,
+    number,
+    name,
     module: 'moduleA',
-    requiredEvidence: 'FinOps Review output + CASE assessment',
+    specializationId: null,
+    requiredEvidence,
     customerCount: 2,
     evidenceWindowMonths: 12,
+    skipIfNotDeployed: [],
+    taga: [],
     notes: '',
-    specializationRules: {},
-  },
-  {
-    id: 'control_1_2',
-    number: '1.2',
-    name: 'Cloud & AI Adoption Plan',
-    module: 'moduleA',
-    requiredEvidence: 'Cost management report + DevOps Capability Assessment',
-    customerCount: 2,
-    evidenceWindowMonths: 12,
-    notes: '',
-    specializationRules: {},
-  },
-  {
-    id: 'control_2_1',
-    number: '2.1',
-    name: 'Security & Governance Tooling',
-    module: 'moduleA',
-    requiredEvidence: 'Defender for Cloud or 3rd party security baseline + Cloud Adoption Security Review',
-    customerCount: 2,
-    evidenceWindowMonths: 12,
-    notes: '',
-    specializationRules: {},
-  },
-  {
-    id: 'control_2_2',
-    number: '2.2',
-    name: 'Well-Architected Workloads',
-    module: 'moduleA',
-    requiredEvidence: 'Well-Architected Review export',
-    customerCount: 2,
-    evidenceWindowMonths: 12,
-    notes: '',
-    specializationRules: {},
-  },
-  {
-    id: 'control_3_1',
-    number: '3.1',
-    name: 'Repeatable Deployment',
-    module: 'moduleA',
-    requiredEvidence: 'ALZ deployment evidence (Bicep/Terraform/ARM) + ALZ Review',
-    customerCount: 2,
-    evidenceWindowMonths: null, // spec states no evidence window for this control
-    notes: '',
-    specializationRules: {},
-  },
-  {
-    id: 'control_3_2',
-    number: '3.2',
-    name: 'Plan for Skilling',
-    module: 'moduleA',
-    requiredEvidence: 'Skilling plan',
-    customerCount: 2,
-    evidenceWindowMonths: 12,
-    notes: 'TAGA report required for AI Apps and AI Platform',
-    specializationRules: {
-      'ai-apps':     { requiresTagaReport: true },
-      'ai-platform': { requiresTagaReport: true },
-    },
-  },
-  {
-    id: 'control_3_3',
-    number: '3.3',
-    name: 'Operations Management Tooling',
-    module: 'moduleA',
-    requiredEvidence: 'Azure Monitor/Automation/Backup deployment + security compliance artifact',
-    customerCount: 2,
-    evidenceWindowMonths: 12,
-    notes: 'Can be skipped for Analytics specialization if not deployed',
-    specializationRules: {
-      analytics: { skipIfNotDeployed: true },
-    },
-  },
-]
+    ...extra,
+  }
+}
 
-function moduleBControl(number, name, requiredEvidence, notes = '') {
+// Module B: specialization-specific — 3 unique customers, last 24 months
+function moduleBControl(specializationId, number, name, requiredEvidence) {
   return {
     id: `control_${number.replace('.', '_')}`,
     number,
     name,
     module: 'moduleB',
+    specializationId,
     requiredEvidence,
     customerCount: 3,
     evidenceWindowMonths: 24,
-    notes,
-    specializationRules: {},
+    skipIfNotDeployed: [],
+    taga: [],
+    notes: '',
   }
 }
 
-const AI_MODULE_B_CONTROLS = [
-  moduleBControl('1.1', 'Assessment', 'AI use case inventory, readiness, AI Readiness Advisor output'),
-  moduleBControl('2.1', 'Solution Design', 'AI architecture with model registry, monitoring, responsible AI docs'),
-  moduleBControl('2.2', 'Well-Architected Review', 'WAR export 2 pillars, AI workload focus'),
-  moduleBControl('3.1', 'Production Deployment', 'Production AI models with monitoring dashboards'),
-  moduleBControl('4.1', 'Validation and Performance Testing', 'Model performance, customer sign-off'),
+export const MODULE_A_CONTROLS = [
+  moduleAControl('1.1', 'Cloud & AI Adoption Business Strategy', 'FinOps Review output + CASE assessment'),
+  moduleAControl('1.2', 'Cloud & AI Adoption Plan', 'Cost management report + DevOps Capability Assessment'),
+  moduleAControl('2.1', 'Security & Governance Tooling', 'Defender for Cloud or 3rd party security baseline + Cloud Adoption Security Review'),
+  moduleAControl('2.2', 'Well-Architected Workloads', 'Well-Architected Review export'),
+  moduleAControl('3.1', 'Repeatable Deployment', 'ALZ deployment evidence (Bicep/Terraform/ARM) + ALZ Review',
+    { evidenceWindowMonths: null }),   // spec states no evidence window for this control
+  moduleAControl('3.2', 'Plan for Skilling', 'Skilling plan',
+    { taga: ['ai-apps', 'ai-platform'], notes: 'TAGA report required for AI Apps and AI Platform' }),
+  moduleAControl('3.3', 'Operations Management Tooling', 'Azure Monitor/Automation/Backup deployment + security compliance artifact',
+    { skipIfNotDeployed: ['analytics'], notes: 'Can be skipped for Analytics specialization if not deployed' }),
 ]
+
+function aiModuleBControls(specializationId) {
+  return [
+    moduleBControl(specializationId, '1.1', 'Assessment', 'AI use case inventory, readiness, AI Readiness Advisor output'),
+    moduleBControl(specializationId, '2.1', 'Solution Design', 'AI architecture with model registry, monitoring, responsible AI docs'),
+    moduleBControl(specializationId, '2.2', 'Well-Architected Review', 'WAR export 2 pillars, AI workload focus'),
+    moduleBControl(specializationId, '3.1', 'Production Deployment', 'Production AI models with monitoring dashboards'),
+    moduleBControl(specializationId, '4.1', 'Validation and Performance Testing', 'Model performance, customer sign-off'),
+  ]
+}
 
 export const MODULE_B_CONTROLS = {
   'infra-db': [
-    moduleBControl('1.1', 'Assessment', 'Migration readiness, source environment inventory, DMA reports'),
-    moduleBControl('1.2', 'Solution Design', 'Migration architecture, schema strategy, ETL design'),
-    moduleBControl('1.3', 'Well-Architected Review', 'WAR export 2 pillars per project'),
-    moduleBControl('2.1', 'Production Deployment', 'Go-live evidence including migration scenario'),
-    moduleBControl('2.2', 'Service Validation', 'Testing docs with customer sign-off'),
-    moduleBControl('2.3', 'Post-deployment Documentation', 'Runbooks or operational handoff docs'),
+    moduleBControl('infra-db', '1.1', 'Assessment', 'Migration readiness, source environment inventory, DMA reports'),
+    moduleBControl('infra-db', '1.2', 'Solution Design', 'Migration architecture, schema strategy, ETL design'),
+    moduleBControl('infra-db', '1.3', 'Well-Architected Review', 'WAR export 2 pillars per project'),
+    moduleBControl('infra-db', '2.1', 'Production Deployment', 'Go-live evidence including migration scenario'),
+    moduleBControl('infra-db', '2.2', 'Service Validation', 'Testing docs with customer sign-off'),
+    moduleBControl('infra-db', '2.3', 'Post-deployment Documentation', 'Runbooks or operational handoff docs'),
   ],
   // AVD and VMware checklists pending — add when specialization checklists are uploaded
   'avd':    [],
   'vmware': [],
   'analytics': [
-    moduleBControl('1.1', 'Assessment', 'Data landscape, ETL inventory, governance posture'),
-    moduleBControl('2.1', 'Solution Design', 'Fabric/Databricks/Synapse architecture, at least 1 migration project'),
-    moduleBControl('2.2', 'Well-Architected Review', '2 pillars per project, customer name visible'),
-    moduleBControl('2.3', 'PoC or Pilot', 'Design validation with purpose, results, lessons learned'),
-    moduleBControl('3.1', 'Production Deployment', 'At least 1 migration scenario'),
-    moduleBControl('4.1', 'Validation and Performance Testing', 'Benchmarks, data reconciliation, customer sign-off'),
+    moduleBControl('analytics', '1.1', 'Assessment', 'Data landscape, ETL inventory, governance posture'),
+    moduleBControl('analytics', '2.1', 'Solution Design', 'Fabric/Databricks/Synapse architecture, at least 1 migration project'),
+    moduleBControl('analytics', '2.2', 'Well-Architected Review', '2 pillars per project, customer name visible'),
+    moduleBControl('analytics', '2.3', 'PoC or Pilot', 'Design validation with purpose, results, lessons learned'),
+    moduleBControl('analytics', '3.1', 'Production Deployment', 'At least 1 migration scenario'),
+    moduleBControl('analytics', '4.1', 'Validation and Performance Testing', 'Benchmarks, data reconciliation, customer sign-off'),
   ],
-  'ai-apps':     AI_MODULE_B_CONTROLS,
-  'ai-platform': AI_MODULE_B_CONTROLS,
+  'ai-apps':     aiModuleBControls('ai-apps'),
+  'ai-platform': aiModuleBControls('ai-platform'),
 }
 
 export function controlKey(specializationId, moduleKey, controlId) {
   return `${specializationId}:${moduleKey}:${controlId}`
 }
+
+// ── End of shared control data ───────────────────────────────────────────────
 
 export function parseControlKey(key) {
   const [specializationId, moduleKey, controlId] = key.split(':')
@@ -160,11 +120,12 @@ export function parseControlKey(key) {
 }
 
 // Module A + Module B controls for one specialization, with that specialization's
-// rules flattened onto each control (e.g. requiresTagaReport, skipIfNotDeployed)
+// flags resolved to booleans: skipIfNotDeployed and requiresTagaReport
 export function getControlsForSpecialization(specializationId) {
   const resolve = (control) => ({
     ...control,
-    ...(control.specializationRules[specializationId] || {}),
+    skipIfNotDeployed:  control.skipIfNotDeployed.includes(specializationId),
+    requiresTagaReport: control.taga.includes(specializationId),
   })
   return {
     moduleA: MODULE_A_CONTROLS.map(resolve),

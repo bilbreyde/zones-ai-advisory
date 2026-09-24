@@ -10,6 +10,7 @@ import DataIntelligence from './pages/DataIntelligence.jsx'
 import CloudModernization from './pages/CloudModernization.jsx'
 import AuditReadiness from './pages/AuditReadiness.jsx'
 import AuditProjects from './pages/AuditProjects.jsx'
+import AuditExport from './pages/AuditExport.jsx'
 import { ClientProvider } from './ClientContext.jsx'
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="cloud-modernization" element={<CloudModernization />} />
         <Route path="audit-readiness" element={<AuditReadiness />} />
         <Route path="audit-projects" element={<AuditProjects />} />
+        <Route path="audit-export" element={<AuditExport />} />
       </Route>
     </Routes>
     </ClientProvider>

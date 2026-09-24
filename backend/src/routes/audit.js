@@ -3,8 +3,10 @@ import { containers } from '../db.js'
 import { openai } from '../openai.js'
 import { v4 as uuid } from 'uuid'
 import {
-  SPECIALIZATIONS, MODULES, CONTROL_STATUSES as STATUSES, getControls, controlKey,
+  SPECIALIZATIONS, SPECIALIZATION_NAMES, MODULES, CONTROL_STATUSES as STATUSES, getControls, controlKey,
 } from '../lib/controlDefinitions.js'
+import { buildEvidenceDocument } from '../utils/evidenceDocument.js'
+import { Packer } from 'docx'
 
 const router = Router()
 
@@ -235,6 +237,168 @@ router.delete('/:clientId/projects/:projectId', async (req, res) => {
   }
 })
 
+// Months between a go-live date and now; null when the date is missing or invalid
+function monthsSince(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return null
+  const now = new Date()
+  return (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth())
+}
+
+// Evidence window check for one project against the controls it evidences in this specialization.
+// Module A windows are 12 months (3.1 has none), Module B windows are 24 months.
+function evidenceWindowStatus(project, specialization) {
+  const age = monthsSince(project.goLiveDate)
+  if (age === null) return { status: 'unknown', label: 'No go-live date', ageMonths: null }
+
+  const windows = (project.controlsEvidenced || [])
+    .filter(k => k.startsWith(`${specialization}:`))
+    .map(k => {
+      const [, moduleKey, controlId] = k.split(':')
+      return getControls(moduleKey, specialization).find(c => c.id === controlId)?.evidenceWindowMonths
+    })
+    .filter(Boolean)
+
+  const exceeded = windows.filter(w => age > w)
+  if (!exceeded.length) return { status: 'within', label: 'Within evidence window', ageMonths: age }
+  return {
+    status:    'outside',
+    label:     `Outside ${Math.min(...exceeded)}-month window (${age} months since go-live)`,
+    ageMonths: age,
+  }
+}
+
+// Evidence package summary for one specialization — shared by the JSON and Word exports.
+// Returns null when the client does not exist.
+async function buildExportSummary(clientId, specialization) {
+  const client = await readClient(clientId)
+  if (!client) return null
+
+  const record = await findEvidenceRecord(clientId, specialization)
+    || newEvidenceRecord(clientId, specialization)
+
+  const { resources: allProjects } = await containers.audit_projects.items
+    .query({
+      query: 'SELECT * FROM c WHERE c.clientId = @clientId',
+      parameters: [{ name: '@clientId', value: clientId }],
+    }, { partitionKey: clientId })
+    .fetchAll()
+
+  // Projects registered for this specialization, with their evidence window status
+  const projects = allProjects
+    .filter(p => (p.specializations || []).includes(specialization)
+      || (p.controlsEvidenced || []).some(k => k.startsWith(`${specialization}:`)))
+    .map(p => ({
+      id:                p.id,
+      projectName:       p.projectName,
+      customerName:      p.customerName || '',
+      goLiveDate:        p.goLiveDate,
+      customerSignOff:   p.customerSignOff,
+      signOffDocument:   p.signOffDocument || '',
+      controlsEvidenced: (p.controlsEvidenced || []).filter(k => k.startsWith(`${specialization}:`)),
+      evidenceWindow:    evidenceWindowStatus(p, specialization),
+    }))
+
+  const summarize = (module) => getControls(module, specialization).map(def => {
+    const controlId = def.id
+    const control   = record[module]?.[controlId] || { status: 'not_started', artifacts: [], notes: '' }
+    const key       = controlKey(specialization, module, controlId)
+    return {
+      controlId,
+      name:                 def.name,
+      requiredEvidence:     def.requiredEvidence,
+      customerCount:        def.customerCount,
+      evidenceWindowMonths: def.evidenceWindowMonths,
+      skippable:            (def.skipIfNotDeployed || []).includes(specialization),
+      status:               control.status,
+      notes:                control.notes,
+      artifacts:            control.artifacts,
+      projects:             projects
+        .filter(p => p.controlsEvidenced.includes(key))
+        .map(p => ({
+          id:              p.id,
+          projectName:     p.projectName,
+          customerName:    p.customerName,
+          goLiveDate:      p.goLiveDate,
+          customerSignOff: p.customerSignOff,
+          signOffDocument: p.signOffDocument,
+          // Outside this control's own window (a project can sit inside one window and outside another)
+          outsideWindow:   def.evidenceWindowMonths != null
+            && p.evidenceWindow.ageMonths != null
+            && p.evidenceWindow.ageMonths > def.evidenceWindowMonths,
+        })),
+    }
+  })
+
+  const moduleA = summarize('moduleA')
+  const moduleB = summarize('moduleB')
+  const all     = [...moduleA.map(c => ({ ...c, module: 'moduleA' })), ...moduleB.map(c => ({ ...c, module: 'moduleB' }))]
+  const done    = all.filter(c => c.status === 'complete').length
+
+  return {
+    clientId,
+    clientName:     client.name,
+    specialization,
+    generatedAt:    new Date().toISOString(),
+    readiness: {
+      completeControls: done,
+      totalControls:    all.length,
+      percentComplete:  all.length ? Math.round((done / all.length) * 100) : 0,
+    },
+    moduleA,
+    moduleB,
+    projects,
+    gaps: all
+      .filter(c => c.status !== 'complete')
+      .map(c => ({
+        module:           c.module,
+        controlId:        c.controlId,
+        name:             c.name,
+        requiredEvidence: c.requiredEvidence,
+        status:           c.status,
+        skippable:        c.skippable,
+      })),
+  }
+}
+
+// GPT-4o "Next Steps" for the Word package: executive summary + 3-5 recommended actions from the gaps
+async function generateNextSteps(summary) {
+  const gapLines = summary.gaps.map(g =>
+    `- ${g.module === 'moduleA' ? 'Module A' : 'Module B'} ${g.controlId.replace('control_', '').replace('_', '.')} ${g.name} (${g.status}): requires ${g.requiredEvidence}`)
+  const outside = summary.projects.filter(p => p.evidenceWindow.status === 'outside')
+
+  const prompt = `You are a Microsoft Azure partner advisor at Zones preparing a client for an Azure Specialization audit.
+
+Client: ${summary.clientName}
+Specialization: ${SPECIALIZATION_NAMES[summary.specialization]}
+Readiness: ${summary.readiness.completeControls} of ${summary.readiness.totalControls} controls complete (${summary.readiness.percentComplete}%)
+Registered customer projects: ${summary.projects.length} (Module B controls need 3 unique customers, Module A controls need 2)
+Projects outside their evidence window: ${outside.map(p => p.projectName).join(', ') || 'none'}
+
+OPEN GAPS:
+${gapLines.join('\n') || 'None — all controls complete'}
+
+Write an executive summary and 3-5 recommended next actions, prioritised by audit risk. Be specific to the gaps above — name the controls and the evidence to collect. No generic advice.
+
+Return ONLY a raw JSON object:
+{
+  "executiveSummary": "2-3 sentence summary of audit readiness and the most important risk",
+  "actions": [
+    { "title": "Short action title", "detail": "1-2 sentences: what to do and which controls it closes", "owner": "Suggested owner role", "timeframe": "e.g. Next 2 weeks" }
+  ]
+}`
+
+  const completion = await openai.chat.completions.create({
+    model:       process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+    messages:    [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    max_tokens:  1200,
+  })
+  const result = parseJSON(completion.choices[0].message.content)
+  return { executiveSummary: result.executiveSummary || '', actions: (result.actions || []).slice(0, 5) }
+}
+
 // GET /api/audit/:clientId/export/:specialization — evidence package summary
 router.get('/:clientId/export/:specialization', async (req, res) => {
   try {
@@ -243,70 +407,44 @@ router.get('/:clientId/export/:specialization', async (req, res) => {
       return res.status(400).json({ error: `Unknown specialization: ${specialization}` })
     }
 
-    const client = await readClient(clientId)
-    if (!client) return res.status(404).json({ error: 'Client not found' })
-
-    const record = await findEvidenceRecord(clientId, specialization)
-      || newEvidenceRecord(clientId, specialization)
-
-    const { resources: projects } = await containers.audit_projects.items
-      .query({
-        query: 'SELECT * FROM c WHERE c.clientId = @clientId',
-        parameters: [{ name: '@clientId', value: clientId }],
-      }, { partitionKey: clientId })
-      .fetchAll()
-
-    const summarize = (module) => getControls(module, specialization).map(def => {
-      const controlId = def.id
-      const control   = record[module]?.[controlId] || { status: 'not_started', artifacts: [], notes: '' }
-      const key       = controlKey(specialization, module, controlId)
-      return {
-        controlId,
-        name:      def.name,
-        skippable: (def.skipIfNotDeployed || []).includes(specialization),
-        status:    control.status,
-        notes:     control.notes,
-        artifacts: control.artifacts,
-        projects:  projects
-          .filter(p => (p.controlsEvidenced || []).includes(key))
-          .map(p => ({
-            id:              p.id,
-            projectName:     p.projectName,
-            goLiveDate:      p.goLiveDate,
-            customerSignOff: p.customerSignOff,
-          })),
-      }
-    })
-
-    const moduleA = summarize('moduleA')
-    const moduleB = summarize('moduleB')
-    const all     = [...moduleA.map(c => ({ ...c, module: 'moduleA' })), ...moduleB.map(c => ({ ...c, module: 'moduleB' }))]
-    const done    = all.filter(c => c.status === 'complete').length
-
-    res.json({
-      clientId,
-      clientName:     client.name,
-      specialization,
-      generatedAt:    new Date().toISOString(),
-      readiness: {
-        completeControls: done,
-        totalControls:    all.length,
-        percentComplete:  all.length ? Math.round((done / all.length) * 100) : 0,
-      },
-      moduleA,
-      moduleB,
-      gaps: all
-        .filter(c => c.status !== 'complete')
-        .map(c => ({
-          module:    c.module,
-          controlId: c.controlId,
-          name:      c.name,
-          status:    c.status,
-          skippable: c.skippable,
-        })),
-    })
+    const summary = await buildExportSummary(clientId, specialization)
+    if (!summary) return res.status(404).json({ error: 'Client not found' })
+    res.json(summary)
   } catch (err) {
     console.error('Audit export error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/audit/:clientId/export-docx/:specialization — Word evidence package
+router.post('/:clientId/export-docx/:specialization', async (req, res) => {
+  try {
+    const { clientId, specialization } = req.params
+    if (!SPECIALIZATIONS.includes(specialization)) {
+      return res.status(400).json({ error: `Unknown specialization: ${specialization}` })
+    }
+
+    const summary = await buildExportSummary(clientId, specialization)
+    if (!summary) return res.status(404).json({ error: 'Client not found' })
+
+    // Next Steps is advisory — if GPT-4o fails, still deliver the package with a note
+    let nextSteps
+    try {
+      nextSteps = await generateNextSteps(summary)
+    } catch (err) {
+      console.error('Audit next steps generation failed:', err.message)
+      nextSteps = { error: 'Next steps could not be generated for this export. Re-export to try again.' }
+    }
+
+    const buffer   = await Packer.toBuffer(buildEvidenceDocument(summary, nextSteps))
+    const date     = new Date().toISOString().split('T')[0]
+    const filename = `AuditReadiness-${summary.clientName.replace(/[^A-Za-z0-9]+/g, '-')}-${specialization}-${date}.docx`
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(buffer)
+  } catch (err) {
+    console.error('Audit evidence docx error:', err.message)
     res.status(500).json({ error: err.message })
   }
 })
@@ -537,6 +675,50 @@ router.post('/:clientId/:specialization/artifact', async (req, res) => {
     // 412 Precondition Failed — the record changed after the caller read it
     if (err.code === 412) return res.status(409).json({ error: 'Save conflict — record has changed' })
     console.error('Audit artifact error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/audit/:clientId/:specialization/artifact/:artifactId — replace an artifact's content (requires _etag)
+router.put('/:clientId/:specialization/artifact/:artifactId', async (req, res) => {
+  try {
+    const { clientId, specialization, artifactId } = req.params
+    const { module, control, artifactType, artifactData, _etag } = req.body
+
+    if (!SPECIALIZATIONS.includes(specialization)) {
+      return res.status(400).json({ error: `Unknown specialization: ${specialization}` })
+    }
+    if (!MODULES.includes(module)) return res.status(400).json({ error: 'module must be moduleA or moduleB' })
+    if (!controlIdsFor(module, specialization).includes(control)) {
+      return res.status(400).json({ error: `Unknown control ${control} for ${module} / ${specialization}` })
+    }
+    if (!_etag) return res.status(400).json({ error: '_etag required' })
+
+    const record = await findEvidenceRecord(clientId, specialization)
+    if (!record) return res.status(404).json({ error: 'Audit record not found' })
+
+    const existing  = record[module][control] || { status: 'not_started', artifacts: [], notes: '' }
+    const artifacts = existing.artifacts || []
+    const index     = artifacts.findIndex(a => a.id === artifactId)
+    if (index === -1) return res.status(404).json({ error: 'Artifact not found' })
+
+    artifacts[index] = {
+      ...artifacts[index],
+      type:      artifactType || artifacts[index].type,
+      data:      artifactData ?? artifacts[index].data,
+      updatedAt: new Date().toISOString(),
+    }
+    record[module][control] = { ...existing, artifacts }
+    record.updatedAt = new Date().toISOString()
+
+    const { resource } = await containers.audit_evidence
+      .item(record.id, clientId)
+      .replace(record, { accessCondition: { type: 'IfMatch', condition: _etag } })
+    res.json(resource)
+  } catch (err) {
+    // 412 Precondition Failed — the record changed after the caller read it
+    if (err.code === 412) return res.status(409).json({ error: 'Save conflict — record has changed' })
+    console.error('Audit artifact update error:', err.message)
     res.status(500).json({ error: err.message })
   }
 })

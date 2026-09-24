@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3,
-  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle, Database, Cloud, FolderOpen
+  Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle, Database, Cloud, FolderOpen, Download
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
 import EnvironmentProfile from './EnvironmentProfile.jsx'
@@ -91,6 +91,9 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/audit-projects" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
             <FolderOpen size={15} /> Audit Projects
+          </NavLink>
+          <NavLink to="/audit-export" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <Download size={15} /> Export
           </NavLink>
 
           <div className="nav-divider" />
