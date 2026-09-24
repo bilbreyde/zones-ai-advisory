@@ -3,7 +3,7 @@ import { containers } from '../db.js'
 import { openai } from '../openai.js'
 import { v4 as uuid } from 'uuid'
 import {
-  SPECIALIZATIONS, MODULES, CONTROL_STATUSES as STATUSES, getControls,
+  SPECIALIZATIONS, MODULES, CONTROL_STATUSES as STATUSES, getControls, controlKey,
 } from '../lib/controlDefinitions.js'
 
 const router = Router()
@@ -67,6 +67,174 @@ router.get('/:clientId', async (req, res) => {
   }
 })
 
+// ── Customer project registry (audit_projects) ───────────────────────────────
+// Defined before the /:clientId/:specialization routes so "projects" is not read as a specialization.
+
+const EDITABLE_PROJECT_FIELDS = [
+  'projectName', 'customerName', 'goLiveDate', 'specializations', 'controlsEvidenced',
+  'customerSignOff', 'signOffDocument', 'artifacts', 'notes',
+]
+
+// Validates a project body and returns { project } with normalized fields, or { error }
+function normalizeProject(body) {
+  const projectName = (body.projectName || '').trim()
+  if (!projectName) return { error: 'projectName required' }
+
+  const specializations = body.specializations || []
+  if (!Array.isArray(specializations) || specializations.some(s => !SPECIALIZATIONS.includes(s))) {
+    return { error: `specializations must be a list of: ${SPECIALIZATIONS.join(', ')}` }
+  }
+
+  // Compound keys "<specialization>:<module>:<controlId>" — only for the project's own specializations
+  const validKeys = new Set()
+  for (const spec of specializations) {
+    for (const moduleKey of MODULES) {
+      for (const id of controlIdsFor(moduleKey, spec)) validKeys.add(controlKey(spec, moduleKey, id))
+    }
+  }
+  const controlsEvidenced = body.controlsEvidenced || []
+  if (!Array.isArray(controlsEvidenced)) return { error: 'controlsEvidenced must be a list' }
+  const badKey = controlsEvidenced.find(k => !validKeys.has(k))
+  if (badKey) {
+    return { error: `Control ${badKey} is not a valid "<specialization>:<module>:<controlId>" key for the selected specializations` }
+  }
+
+  if (body.goLiveDate && Number.isNaN(Date.parse(body.goLiveDate))) {
+    return { error: 'goLiveDate must be a valid date' }
+  }
+
+  const artifacts = body.artifacts || []
+  if (!Array.isArray(artifacts)) return { error: 'artifacts must be a list' }
+
+  return {
+    project: {
+      projectName,
+      customerName:      (body.customerName || '').trim(),
+      goLiveDate:        body.goLiveDate || '',
+      specializations,
+      controlsEvidenced: [...new Set(controlsEvidenced)],
+      customerSignOff:   Boolean(body.customerSignOff),
+      signOffDocument:   (body.signOffDocument || '').trim(),
+      artifacts:         artifacts.map(a => ({
+        id:      a.id || uuid(),
+        type:    a.type || 'link',
+        name:    (a.name || '').trim(),
+        url:     (a.url || '').trim(),
+        addedAt: a.addedAt || new Date().toISOString(),
+      })),
+      notes: body.notes || '',
+    },
+  }
+}
+
+// GET /api/audit/:clientId/projects — all customer projects for the client
+router.get('/:clientId/projects', async (req, res) => {
+  try {
+    const { resources } = await containers.audit_projects.items
+      .query({
+        query: 'SELECT * FROM c WHERE c.clientId = @clientId ORDER BY c.goLiveDate DESC',
+        parameters: [{ name: '@clientId', value: req.params.clientId }],
+      }, { partitionKey: req.params.clientId })
+      .fetchAll()
+    res.json(resources)
+  } catch (err) {
+    console.error('Audit projects list error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/audit/:clientId/projects — add a customer project
+router.post('/:clientId/projects', async (req, res) => {
+  try {
+    const { project, error } = normalizeProject(req.body)
+    if (error) return res.status(400).json({ error })
+
+    const now = new Date().toISOString()
+    const { resource } = await containers.audit_projects.items.create({
+      id:        uuid(),
+      clientId:  req.params.clientId,
+      ...project,
+      createdAt: now,
+      updatedAt: now,
+    })
+    res.status(201).json(resource)
+  } catch (err) {
+    console.error('Audit project create error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/audit/:clientId/projects/:projectId — replace a project's editable fields (requires _etag)
+router.put('/:clientId/projects/:projectId', async (req, res) => {
+  try {
+    const { clientId, projectId } = req.params
+    if (!req.body._etag) return res.status(400).json({ error: '_etag required' })
+
+    const { resource: existing } = await containers.audit_projects.item(projectId, clientId).read()
+    if (!existing) return res.status(404).json({ error: 'Project not found' })
+
+    const merged = Object.fromEntries(
+      EDITABLE_PROJECT_FIELDS.map(f => [f, req.body[f] !== undefined ? req.body[f] : existing[f]]))
+    const { project, error } = normalizeProject(merged)
+    if (error) return res.status(400).json({ error })
+
+    const { resource } = await containers.audit_projects
+      .item(projectId, clientId)
+      .replace(
+        { ...existing, ...project, updatedAt: new Date().toISOString() },
+        { accessCondition: { type: 'IfMatch', condition: req.body._etag } },
+      )
+    res.json(resource)
+  } catch (err) {
+    // 412 Precondition Failed — the project changed after the caller read it
+    if (err.code === 412) return res.status(409).json({ error: 'Save conflict — project has changed' })
+    console.error('Audit project update error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/audit/:clientId/projects/:projectId/signoff — record customer sign-off (requires _etag)
+router.post('/:clientId/projects/:projectId/signoff', async (req, res) => {
+  try {
+    const { clientId, projectId } = req.params
+    const { documentUrl, _etag } = req.body
+    if (!_etag) return res.status(400).json({ error: '_etag required' })
+
+    const { resource: existing } = await containers.audit_projects.item(projectId, clientId).read()
+    if (!existing) return res.status(404).json({ error: 'Project not found' })
+
+    const { resource } = await containers.audit_projects
+      .item(projectId, clientId)
+      .replace(
+        {
+          ...existing,
+          customerSignOff: true,
+          signOffDocument: (documentUrl || '').trim(),
+          updatedAt:       new Date().toISOString(),
+        },
+        { accessCondition: { type: 'IfMatch', condition: _etag } },
+      )
+    res.json(resource)
+  } catch (err) {
+    // 412 Precondition Failed — the project changed after the caller read it
+    if (err.code === 412) return res.status(409).json({ error: 'Save conflict — project has changed' })
+    console.error('Audit project sign-off error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// DELETE /api/audit/:clientId/projects/:projectId — remove a project
+router.delete('/:clientId/projects/:projectId', async (req, res) => {
+  try {
+    await containers.audit_projects.item(req.params.projectId, req.params.clientId).delete()
+    res.status(204).end()
+  } catch (err) {
+    if (err.code === 404) return res.status(404).json({ error: 'Project not found' })
+    console.error('Audit project delete error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // GET /api/audit/:clientId/export/:specialization — evidence package summary
 router.get('/:clientId/export/:specialization', async (req, res) => {
   try {
@@ -91,7 +259,7 @@ router.get('/:clientId/export/:specialization', async (req, res) => {
     const summarize = (module) => getControls(module, specialization).map(def => {
       const controlId = def.id
       const control   = record[module]?.[controlId] || { status: 'not_started', artifacts: [], notes: '' }
-      const key       = `${module}.${controlId}`
+      const key       = controlKey(specialization, module, controlId)
       return {
         controlId,
         name:      def.name,

@@ -1,6 +1,8 @@
 // Azure Specialization audit control definitions — source: SPEC-audit-readiness.md
 // Control ids match the keys stored on audit_evidence records in Cosmos DB
 // keep in sync with backend/src/lib/controlDefinitions.js
+// Project control links (audit_projects.controlsEvidenced) use compound keys:
+//   "${specializationId}:${moduleKey}:${controlId}"  e.g. "infra-db:moduleB:control_1_1"
 
 export const SPECIALIZATIONS = [
   { id: 'infra-db',    name: 'Infrastructure and DB Migration to Azure', priority: 1, prerequisites: {} },
@@ -146,6 +148,15 @@ export const MODULE_B_CONTROLS = {
   ],
   'ai-apps':     AI_MODULE_B_CONTROLS,
   'ai-platform': AI_MODULE_B_CONTROLS,
+}
+
+export function controlKey(specializationId, moduleKey, controlId) {
+  return `${specializationId}:${moduleKey}:${controlId}`
+}
+
+export function parseControlKey(key) {
+  const [specializationId, moduleKey, controlId] = key.split(':')
+  return { specializationId, moduleKey, controlId }
 }
 
 // Module A + Module B controls for one specialization, with that specialization's

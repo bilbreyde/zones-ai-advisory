@@ -2,6 +2,8 @@
 // validation and export gap lists. The full definitions (required evidence, customer
 // counts, evidence windows, flags) live in the frontend.
 // keep in sync with frontend/src/lib/controlDefinitions.js
+// Project control links (audit_projects.controlsEvidenced) use compound keys:
+//   "${specializationId}:${moduleKey}:${controlId}"  e.g. "infra-db:moduleB:control_1_1"
 
 export const SPECIALIZATIONS = ['infra-db', 'avd', 'vmware', 'analytics', 'ai-apps', 'ai-platform']
 
@@ -49,6 +51,10 @@ export const MODULE_B_CONTROLS = {
   ],
   'ai-apps':     AI_MODULE_B_CONTROLS,
   'ai-platform': AI_MODULE_B_CONTROLS,
+}
+
+export function controlKey(specializationId, moduleKey, controlId) {
+  return `${specializationId}:${moduleKey}:${controlId}`
 }
 
 export function getControls(module, specialization) {

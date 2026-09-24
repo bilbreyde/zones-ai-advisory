@@ -5,7 +5,7 @@ import {
   ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Info, AlertTriangle, Loader, FolderOpen,
 } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
-import { getControlsForSpecialization } from '../lib/controlDefinitions.js'
+import { getControlsForSpecialization, controlKey } from '../lib/controlDefinitions.js'
 import './AuditReadiness.css'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -166,7 +166,7 @@ function ModuleSection({ title, controls, moduleKey, record, specializationId, p
               control={control}
               state={record?.[moduleKey]?.[control.id] || EMPTY_CONTROL}
               specializationId={specializationId}
-              projectCount={projectCounts ? (projectCounts[`${moduleKey}.${control.id}`] || 0) : null}
+              projectCount={projectCounts ? (projectCounts[controlKey(specializationId, moduleKey, control.id)] || 0) : null}
               onCycleStatus={() => onCycleStatus(moduleKey, control.id)}
               onSaveNotes={notes => onSaveNotes(moduleKey, control.id, notes)}
             />
@@ -242,8 +242,11 @@ export default function AuditReadiness() {
       .then(summary => {
         if (!summary) return
         const counts = {}
-        for (const c of summary.moduleA || []) counts[`moduleA.${c.controlId}`] = c.projects?.length || 0
-        for (const c of summary.moduleB || []) counts[`moduleB.${c.controlId}`] = c.projects?.length || 0
+        for (const moduleKey of ['moduleA', 'moduleB']) {
+          for (const c of summary[moduleKey] || []) {
+            counts[controlKey(selectedId, moduleKey, c.controlId)] = c.projects?.length || 0
+          }
+        }
         setProjectCounts(counts)
       })
       .catch(err => console.error('Audit project counts failed:', err))
