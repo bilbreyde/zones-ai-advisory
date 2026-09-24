@@ -1,6 +1,6 @@
 import {
   Document, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer,
-  AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType, PageNumber, PageBreak, LevelFormat,
+  AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType, PageBreak, LevelFormat, SimpleField,
 } from 'docx'
 import { SPECIALIZATION_NAMES } from '../lib/controlDefinitions.js'
 
@@ -395,7 +395,14 @@ export function buildEvidenceDocument(summary, nextSteps = {}) {
         },
       ],
     },
-    styles: { default: { document: { run: { font: 'Arial', size: 22 } } } },
+    styles: {
+      default: { document: { run: { font: 'Arial', size: 22 } } },
+      // Footer text style — SimpleField runs take no formatting of their own, so they inherit this
+      paragraphStyles: [{
+        id: 'EvidenceFooter', name: 'Evidence Footer', basedOn: 'Normal',
+        run: { font: 'Arial', size: 16, color: '888888' },
+      }],
+    },
     sections: [{
       properties: {
         page: {
@@ -413,13 +420,18 @@ export function buildEvidenceDocument(summary, nextSteps = {}) {
       },
       footers: {
         default: new Footer({
+          // PAGE / NUMPAGES as simple fields with a cached value. PageNumber.CURRENT / TOTAL_PAGES
+          // emit fields with an empty cached result, which renders blank in any viewer that
+          // doesn't recalculate fields (Word Online, Outlook/Explorer preview, Google Docs).
+          // Desktop Word recalculates these on layout, so the cached "1" is only a fallback.
           children: [new Paragraph({
+            style: 'EvidenceFooter',
             alignment: AlignmentType.CENTER,
             children: [
-              new TextRun({ text: `${summary.clientName}  |  ${specName}  |  `, size: 16, font: 'Arial', color: '888888' }),
-              new TextRun({ children: [PageNumber.CURRENT], size: 16, font: 'Arial', color: '888888' }),
-              new TextRun({ text: ' of ', size: 16, font: 'Arial', color: '888888' }),
-              new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, font: 'Arial', color: '888888' }),
+              new TextRun(`${summary.clientName}  |  ${specName}  |  Page `),
+              new SimpleField('PAGE', '1'),
+              new TextRun(' of '),
+              new SimpleField('NUMPAGES', '1'),
             ],
           })],
         }),
