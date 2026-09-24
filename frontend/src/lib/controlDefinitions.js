@@ -93,8 +93,15 @@ export const MODULE_B_CONTROLS = {
     moduleBControl('infra-db', '2.2', 'Service Validation', 'Testing docs with customer sign-off'),
     moduleBControl('infra-db', '2.3', 'Post-deployment Documentation', 'Runbooks or operational handoff docs'),
   ],
-  // AVD and VMware checklists pending — add when specialization checklists are uploaded
-  'avd':    [],
+  'avd': [
+    moduleBControl('avd', '1.1', 'Assessment', 'AVD environment assessment including existing desktop infrastructure, user personas, performance requirements, identity and network topology'),
+    moduleBControl('avd', '2.1', 'Solution Design', 'AVD architecture including session host sizing, FSLogix profile management, Entra ID integration, network design, image management strategy'),
+    moduleBControl('avd', '2.2', 'Well-Architected Review', 'WAR export 2 pillars, AVD workload focus'),
+    moduleBControl('avd', '3.1', 'Production Deployment', 'AVD deployed to production with session hosts, application groups, workspaces, and monitoring configured'),
+    moduleBControl('avd', '4.1', 'Service Validation and Testing', 'Testing documentation with user acceptance and customer sign-off'),
+    moduleBControl('avd', '4.2', 'Post-deployment Documentation', 'Operational runbooks, image update procedures, user onboarding documentation'),
+  ],
+  // VMware checklist pending — add when the specialization checklist is uploaded
   'vmware': [],
   'analytics': [
     moduleBControl('analytics', '1.1', 'Assessment', 'Data landscape, ETL inventory, governance posture'),

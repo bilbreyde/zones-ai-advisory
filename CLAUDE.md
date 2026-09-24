@@ -81,6 +81,39 @@ zones-ai-advisory/
   "completedAt": "ISO string"
 }
 ```
+### audit_evidence container (partitionKey: /clientId)
+One record per client per specialization. ID format: `${clientId}_${specialization}`
+```json
+{
+  "id": "${clientId}_${specialization}",
+  "clientId": "string",
+  "specialization": "infra-db | avd | vmware | analytics | ai-apps | ai-platform",
+  "moduleA": { "control_1_1": { "status": "not_started|in_progress|complete", "artifacts": [], "notes": "" } },
+  "moduleB": { "control_1_1": { "status": "...", "artifacts": [], "notes": "" } },
+  "customerProjects": [],
+  "updatedAt": "ISO string"
+}
+```
+### audit_projects container (partitionKey: /clientId)
+Customer project records. controlsEvidenced uses compound control keys:
+`"${specializationId}:${moduleKey}:${controlId}"` (e.g. `"infra-db:moduleB:control_1_1"`)
+```json
+{
+  "id": "uuid",
+  "clientId": "string",
+  "projectName": "string",
+  "customerName": "string",
+  "goLiveDate": "YYYY-MM-DD",
+  "specializations": ["infra-db"],
+  "controlsEvidenced": ["infra-db:moduleA:control_1_1", "infra-db:moduleB:control_1_1"],
+  "customerSignOff": false,
+  "signOffDocument": "",
+  "artifacts": [],
+  "notes": "",
+  "createdAt": "ISO string",
+  "updatedAt": "ISO string"
+}
+```
 
 ## Feature Modules (Already Built)
 - 5-pillar AI maturity assessment with scoring
@@ -91,9 +124,8 @@ zones-ai-advisory/
 - Data Intelligence page
 - Environment Profile component
 - Help page
-
-## Feature Modules (In Progress — Specialization Audit Readiness)
-See SPEC-audit-readiness.md for full spec.
+- Specialization Audit Readiness (Phases 1-4): control tracking, customer project registry,
+  AI generation, Word evidence export — see SPEC-audit-readiness.md
 
 ## Dev Commands
 ```powershell
@@ -125,6 +157,19 @@ Responses return { reply, visuals: [] } — always handle both keys.
 ### Cosmos DB reads
 Always use partition key in queries. clientId is the partition key for assessments.
 
+### Optimistic concurrency
+All audit writes require `_etag` in the request body. First saves omit `_etag`.
+Backend returns 409 on conflict. Frontend retries once then shows error banner.
+
+### OpenAI client
+Import from backend/src/openai.js, not index.js.
+
+### Control definitions
+Two copies must stay identical — frontend/src/lib/controlDefinitions.js and
+backend/src/lib/controlDefinitions.js. Fields required on every control:
+customerCount, evidenceWindowMonths, id, module, name, notes, number,
+requiredEvidence, skipIfNotDeployed, specializationId, taga
+
 ## What NOT to do
 - Do not call OpenAI from the frontend
 - Do not use TypeScript
@@ -134,3 +179,6 @@ Always use partition key in queries. clientId is the partition key for assessmen
 - Do not use Node 20 or 22 features — target Node 24
 - Do not modify provision.ps1 without explicit instruction
 - Do not change the Cosmos DB container names or partition keys
+- Do not import from backend/src/index.js in route files
+- Do not use random UUIDs for audit_evidence record IDs
+- Do not add audit write routes without _etag validation
