@@ -12,8 +12,22 @@ import AuditReadiness from './pages/AuditReadiness.jsx'
 import AuditProjects from './pages/AuditProjects.jsx'
 import AuditExport from './pages/AuditExport.jsx'
 import { ClientProvider } from './ClientContext.jsx'
+import { AuthProvider, useAuth } from './context/AuthContext.jsx'
+import Login from './pages/Login.jsx'
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  )
+}
+
+// Signed out: the Login page replaces the whole app. Signed in: the router, unchanged.
+function AuthGate() {
+  const { authenticated } = useAuth()
+  if (!authenticated) return <Login />
+
   return (
     <ClientProvider>
     <Routes>

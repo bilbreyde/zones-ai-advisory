@@ -3,12 +3,13 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3,
   Users, Shield, AlertTriangle, Lightbulb, Settings, Zap, HelpCircle, Database, Cloud, FolderOpen, Download,
-  Palette, Check
+  Palette, Check, UserCircle, LogOut, KeyRound, X
 } from 'lucide-react'
 import AIChat from './AIChat.jsx'
 import EnvironmentProfile from './EnvironmentProfile.jsx'
 import { useClient } from '../ClientContext.jsx'
 import { THEMES, getTheme, setTheme } from '../lib/theme.js'
+import { useAuth, signOut } from '../context/AuthContext.jsx'
 import './Layout.css'
 import './EnvironmentProfile.css'
 
@@ -62,6 +63,101 @@ function ThemePicker() {
         <Palette size={15} /> Theme
         <span className="theme-picker-current">{THEMES.find(t => t.id === theme)?.label.replace(/ \(.*\)$/, '')}</span>
       </button>
+    </div>
+  )
+}
+
+const API = import.meta.env.VITE_API_URL || ''
+
+function ChangePasswordModal({ onClose }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext]       = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError]     = useState('')
+  const [done, setDone]       = useState(false)
+  const [busy, setBusy]       = useState(false)
+
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  async function submit(e) {
+    e.preventDefault()
+    setError('')
+    if (next.length < 12) return setError('New password must be at least 12 characters.')
+    if (next !== confirm) return setError('New passwords do not match.')
+    setBusy(true)
+    try {
+      const res = await fetch(`${API}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setDone(true)
+      else setError(data.error || 'Could not change password.')
+    } catch {
+      setError('Could not reach the server.')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <div className="pw-overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <form className="pw-modal" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="pw-title">
+        <div className="pw-header">
+          <div id="pw-title" className="pw-title">Change password</div>
+          <button type="button" className="pw-close" onClick={onClose} aria-label="Close"><X size={16} /></button>
+        </div>
+        {done ? (
+          <>
+            <div className="pw-success">Password changed.</div>
+            <button type="button" className="pw-submit" onClick={onClose}>Done</button>
+          </>
+        ) : (
+          <>
+            <label className="pw-field">
+              <span>Current password</span>
+              <input type="password" autoComplete="current-password" value={current} onChange={e => setCurrent(e.target.value)} autoFocus required />
+            </label>
+            <label className="pw-field">
+              <span>New password (min 12 characters)</span>
+              <input type="password" autoComplete="new-password" minLength={12} value={next} onChange={e => setNext(e.target.value)} required />
+            </label>
+            <label className="pw-field">
+              <span>Confirm new password</span>
+              <input type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
+            </label>
+            {error && <div className="pw-error" role="alert">{error}</div>}
+            <button type="submit" className="pw-submit" disabled={busy}>{busy ? 'Saving…' : 'Change password'}</button>
+          </>
+        )}
+      </form>
+    </div>
+  )
+}
+
+// Sidebar footer, below the theme selector — who is signed in, with sign out and change password
+function UserPill() {
+  const { username } = useAuth()
+  const [showPw, setShowPw] = useState(false)
+
+  return (
+    <div className="user-pill">
+      <div className="user-pill-name" title={username}>
+        <UserCircle size={15} /> <span>{username}</span>
+      </div>
+      <div className="user-pill-actions">
+        <button className="user-pill-btn" onClick={() => setShowPw(true)}>
+          <KeyRound size={13} /> Change password
+        </button>
+        <button className="user-pill-btn" onClick={signOut}>
+          <LogOut size={13} /> Sign out
+        </button>
+      </div>
+      {showPw && <ChangePasswordModal onClose={() => setShowPw(false)} />}
     </div>
   )
 }
@@ -188,6 +284,7 @@ export default function Layout() {
         </div>
 
         <ThemePicker />
+        <UserPill />
       </aside>
 
       <main className="main-content">

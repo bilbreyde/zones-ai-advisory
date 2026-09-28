@@ -9,6 +9,9 @@ import sessionRoutes from "./routes/sessions.js"
 import dataIntelligenceRouter from "./routes/data-intelligence.js"
 import cloudModernizationRouter from "./routes/cloud-modernization.js"
 import auditRouter from "./routes/audit.js"
+import authRouter from "./routes/auth.js"
+import requireAuth from "./middleware/requireAuth.js"
+import { pruneExpiredSessions } from "./lib/sessions.js"
 import { fixMermaidChart } from "./utils/mermaid.js"
 
 const app = express()
@@ -362,6 +365,24 @@ function validateVisualSpecificity(visual, clientContext) {
   if (!hasClientData) console.warn("[chat] visual may be too generic — no client tools referenced")
   return true // log only; never block
 }
+
+// Public routes — everything registered after requireAuth below needs a signed in session
+app.get("/api/health", (req, res) => {
+  try {
+    res.json({
+      status: "ok",
+      model:  process.env.AZURE_OPENAI_DEPLOYMENT || "not set",
+      db:     process.env.COSMOS_ENDPOINT ? "configured" : "not configured",
+      env:    process.env.NODE_ENV || "development",
+    })
+  } catch (err) {
+    res.status(500).json({ status: "error", detail: err.message })
+  }
+})
+
+app.use("/api/auth", authRouter)
+
+app.use("/api", requireAuth)
 
 app.use("/api/clients", clientRoutes)
 app.use("/api/assessments", assessmentRoutes)
@@ -923,19 +944,6 @@ Keep each section concise to avoid truncation. Mermaid chart MAX 6 nodes.
   }
 })
 
-app.get("/api/health", (req, res) => {
-  try {
-    res.json({
-      status: "ok",
-      model:  process.env.AZURE_OPENAI_DEPLOYMENT || "not set",
-      db:     process.env.COSMOS_ENDPOINT ? "configured" : "not configured",
-      env:    process.env.NODE_ENV || "development",
-    })
-  } catch (err) {
-    res.status(500).json({ status: "error", detail: err.message })
-  }
-})
-
 // Global error handler — catches errors passed via next(err)
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err.message, err.stack)
@@ -949,6 +957,13 @@ process.on("unhandledRejection", (reason) => {
 const PORT = process.env.PORT || 8080
 app.listen(PORT, async () => {
   console.log(`Zones Advisory API running on :${PORT}`)
-  if (process.env.COSMOS_ENDPOINT) await initDb()
+  if (process.env.COSMOS_ENDPOINT) {
+    await initDb()
+    const prune = () => pruneExpiredSessions()
+      .then(n => { if (n) console.log(`Pruned ${n} expired sign in session(s)`) })
+      .catch(err => console.error("Session prune failed:", err.message))
+    prune()
+    setInterval(prune, 60 * 60 * 1000).unref()
+  }
   else console.log("Cosmos DB not configured - skipping DB init")
 })

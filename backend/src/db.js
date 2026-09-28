@@ -18,6 +18,10 @@ export async function initDb() {
     { id: 'sessions',    partitionKey: '/clientId' },
     { id: 'audit_evidence', partitionKey: '/clientId' },
     { id: 'audit_projects', partitionKey: '/clientId' },
+    // Sign in. Auth sessions live in auth_sessions, not sessions — that container already holds
+    // advisory meeting sessions partitioned by /clientId, and partition keys cannot change.
+    { id: 'auth_sessions', partitionKey: '/type' },
+    { id: 'users',          partitionKey: '/type' },
   ]
 
   for (const def of containerDefs) {

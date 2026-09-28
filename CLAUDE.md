@@ -115,6 +115,27 @@ Customer project records. controlsEvidenced uses compound control keys:
 }
 ```
 
+### auth_sessions container (partitionKey: /type)
+Sign in sessions. `id` is the opaque session token, `type` is always "session". Not the same as the
+`sessions` container, which holds advisory meeting sessions partitioned by /clientId.
+```json
+{ "id": "token", "type": "session", "username": "string", "createdAt": "ISO string", "expiresAt": "ISO string" }
+```
+### users container (partitionKey: /type)
+`id` is the normalized username, `type` is always "user". Never return hash or salt from any route.
+```json
+{ "id": "username", "type": "user", "hash": "hex", "salt": "hex", "failedAttempts": 0, "lockedUntil": null, "createdAt": "ISO string" }
+```
+
+## Authentication
+- Username and password, scrypt hashes, opaque session tokens in Cosmos (backend/src/lib/auth.js,
+  copied from the AI Practice Pipeline tool; only SESSION_COOKIE differs: advisory_session)
+- Public routes: GET /api/health, POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me.
+  Everything else under /api sits behind requireAuth (backend/src/middleware/requireAuth.js)
+- New routes must be mounted after `app.use("/api", requireAuth)` in index.js; req.username is set
+- Accounts are managed only with `node backend/scripts/manage-users.mjs` — no user management API
+- The session cookie is SameSite=Strict, so the frontend and API must be served same-site
+
 ## Feature Modules (Already Built)
 - 5-pillar AI maturity assessment with scoring
 - Azure OpenAI gpt-5.4 advisory chat with visual responses (6 visual types)

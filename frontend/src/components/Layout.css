@@ -173,3 +173,100 @@
   flex-direction: column;
   overflow: hidden;
 }
+
+/* ── User pill (sidebar footer) ───────────────────────────────────────── */
+.user-pill {
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--z-border);
+}
+
+.user-pill-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--z-white);
+  min-width: 0;
+}
+
+.user-pill-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-pill-name svg { color: var(--z-blue-bright); flex-shrink: 0; }
+
+.user-pill-actions { display: flex; gap: 4px; }
+
+.user-pill-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 6px;
+  border: 1px solid var(--z-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--z-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.user-pill-btn:hover { background: var(--z-surface-2); color: var(--z-white); }
+
+/* ── Change password modal ────────────────────────────────────────────── */
+.pw-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 11, 20, 0.82);
+  backdrop-filter: blur(4px);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.pw-modal {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px 24px;
+  background: var(--z-navy-mid);
+  border: 1px solid var(--z-border-mid);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.pw-header { display: flex; align-items: center; justify-content: space-between; }
+.pw-title { font-size: 16px; font-weight: 600; color: var(--z-white); letter-spacing: -0.01em; }
+
+.pw-close {
+  display: flex;
+  padding: 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--z-muted);
+}
+
+.pw-close:hover { background: var(--z-surface-2); color: var(--z-white); }
+
+.pw-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--z-muted); }
+
+.pw-submit {
+  padding: 9px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--z-blue);
+  color: var(--z-on-accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pw-submit:hover:not(:disabled) { background: var(--z-blue-bright); }
+.pw-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pw-error { font-size: 13px; color: var(--z-danger); }
+.pw-success { font-size: 13px; color: var(--z-success); }

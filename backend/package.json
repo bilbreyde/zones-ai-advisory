@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "users": "node scripts/manage-users.mjs"
   },
   "dependencies": {
     "@azure/cosmos": "^4.1.1",
