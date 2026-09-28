@@ -5,8 +5,6 @@ import { useClient } from '../ClientContext.jsx'
 import ChatVisual from '../components/ChatVisual.jsx'
 import './DataIntelligence.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const STAGES = [
   { id: 'setup',        label: 'Setup',          desc: 'Session configuration' },
   { id: 'inventory',    label: 'Data Sources',   desc: 'Map what you have' },
@@ -101,7 +99,7 @@ export default function DataIntelligence() {
   useState(() => {
     if (!client?.id || mode === 'standalone') { setStartMode('new'); return }
 
-    fetch(`${API}/api/clients/${client.id}/data-intelligence`)
+    fetch(`/api/clients/${client.id}/data-intelligence`)
       .then(r => r.ok ? r.json() : { hasResults: false })
       .then(data => {
         if (data.hasResults && data.session) {
@@ -176,7 +174,7 @@ export default function DataIntelligence() {
   async function runAnalysis() {
     setLoading(true)
     try {
-      const res  = await fetch(`${API}/api/data-intelligence/analyze`, {
+      const res  = await fetch(`/api/data-intelligence/analyze`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ inventory: sources, clientName, vertical }),
@@ -197,7 +195,7 @@ export default function DataIntelligence() {
   async function runRecommendation() {
     setLoading(true)
     try {
-      const res = await fetch(`${API}/api/data-intelligence/recommend`, {
+      const res = await fetch(`/api/data-intelligence/recommend`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -223,7 +221,7 @@ export default function DataIntelligence() {
 
   async function generateBlueprint(rec) {
     try {
-      const res = await fetch(`${API}/api/data-intelligence/blueprint`, {
+      const res = await fetch(`/api/data-intelligence/blueprint`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,7 +246,7 @@ export default function DataIntelligence() {
           optimizeExisting,
           recommendedPattern: rec?.primaryPattern?.name,
         }
-        await fetch(`${API}/api/clients/${client.id}/data-intelligence`, {
+        await fetch(`/api/clients/${client.id}/data-intelligence`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ session }),

@@ -4,55 +4,54 @@ on:
     branches: [main]
   workflow_dispatch:
 jobs:
-  build-and-deploy-backend:
+  # One App Service serves both the API and the built React app from the same origin, which the
+  # SameSite=Strict session cookie requires. The Static Web App is no longer deployed to.
+  #
+  # Removed: the build-and-deploy-frontend job (Azure/static-web-apps-deploy to zones-ai-advisory-web).
+  # GitHub repo secrets no longer used by this workflow, safe to delete:
+  #   - AZURE_STATIC_WEB_APPS_TOKEN
+  # Still required: AZURE_CREDENTIALS.
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
       - name: Install backend dependencies
         working-directory: backend
         run: npm install
-      - name: Zip backend with node_modules
-        run: cd backend && zip -r ../backend.zip . --exclude "*.git*"
+      # Keeps the repo layout (backend/ beside frontend/dist/) so index.js finds the build at
+      # ../../frontend/dist, the same relative path it uses locally.
+      - name: Zip backend and frontend build
+        run: zip -r app.zip backend frontend/dist --exclude "*.git*" "backend/.env"
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Deploy backend via zip
-        run: az webapp deploy --name zones-ai-advisory-api --resource-group zones-ai-advisory --src-path backend.zip --type zip --async true
+      - name: Deploy app via zip
+        run: az webapp deploy --name zones-ai-advisory-api --resource-group zones-ai-advisory --src-path app.zip --type zip --async true
       - name: Set startup command
-        run: az webapp config set --name zones-ai-advisory-api --resource-group zones-ai-advisory --startup-file "node src/index.js"
-      - name: Wait for backend health
+        run: az webapp config set --name zones-ai-advisory-api --resource-group zones-ai-advisory --startup-file "node backend/src/index.js"
+      # /api/health alone would pass against the previous build; / only returns 200 once the build
+      # that serves the frontend is running.
+      - name: Wait for API health and frontend
         run: |
-          echo "Polling backend health endpoint..."
+          echo "Polling /api/health and / ..."
           for i in $(seq 1 24); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://zones-ai-advisory-api.azurewebsites.net/api/health || echo "000")
-            echo "Attempt $i/24: HTTP $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "Backend is healthy."
+            API=$(curl -s -o /dev/null -w "%{http_code}" https://zones-ai-advisory-api.azurewebsites.net/api/health || echo "000")
+            WEB=$(curl -s -o /dev/null -w "%{http_code}" https://zones-ai-advisory-api.azurewebsites.net/ || echo "000")
+            echo "Attempt $i/24: /api/health $API, / $WEB"
+            if [ "$API" = "200" ] && [ "$WEB" = "200" ]; then
+              echo "App is healthy."
               exit 0
             fi
             sleep 15
           done
           echo "Health check timed out after 6 minutes."
           exit 1
-  build-and-deploy-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - name: Install and build frontend
-        working-directory: frontend
-        run: npm install && npm run build
-      - name: Deploy frontend to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: upload
-          app_location: frontend
-          output_location: dist

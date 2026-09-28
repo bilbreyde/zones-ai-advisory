@@ -145,8 +145,7 @@ export default function EnvironmentProfile({ client, onComplete, onSkip }) {
   async function save() {
     setSaving(true)
     try {
-      const apiBase = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${apiBase}/api/clients/${client.id}/environment`, {
+      const res = await fetch(`/api/clients/${client.id}/environment`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

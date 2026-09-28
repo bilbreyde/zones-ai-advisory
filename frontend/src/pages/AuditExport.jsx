@@ -8,8 +8,6 @@ import { useClient } from '../ClientContext.jsx'
 import { SPECIALIZATION_CARDS, completionFor } from '../lib/specializationCards.js'
 import './AuditExport.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const STATUS_LABELS = { not_started: 'Not Started', in_progress: 'In Progress', complete: 'Complete' }
 
 // Generated documents are saved as artifacts on the Module A control they evidence
@@ -175,7 +173,7 @@ export default function AuditExport() {
 
   useEffect(() => {
     if (!client) return
-    fetch(`${API}/api/audit/${client.id}`)
+    fetch(`/api/audit/${client.id}`)
       .then(r => r.ok ? r.json() : [])
       .then(list => setRecords(Object.fromEntries(list.map(rec => [rec.specialization, rec]))))
       .catch(err => console.error('Audit records load failed:', err))
@@ -185,7 +183,7 @@ export default function AuditExport() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${API}/api/audit/${client.id}/export/${spec}`)
+      const res = await fetch(`/api/audit/${client.id}/export/${spec}`)
       if (!res.ok) throw new Error(await apiError(res))
       setSummary(await res.json())
     } catch (err) {
@@ -211,7 +209,7 @@ export default function AuditExport() {
     const g = GENERATORS[type]
     updateGenerated(type, { loading: true, error: '', result: null, attached: false })
     try {
-      const res = await fetch(`${API}/api/audit/${client.id}/generate/${type}`, {
+      const res = await fetch(`/api/audit/${client.id}/generate/${type}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ specialization: specId }),
@@ -234,11 +232,11 @@ export default function AuditExport() {
     updateGenerated(type, { attaching: true, error: '' })
     try {
       const save = async () => {
-        const recRes = await fetch(`${API}/api/audit/${client.id}/${specId}`)
+        const recRes = await fetch(`/api/audit/${client.id}/${specId}`)
         if (!recRes.ok) throw new Error(await apiError(recRes))
         const record   = await recRes.json()
         const existing = findExistingArtifact(record[g.attachTo.module]?.[g.attachTo.control], type)
-        const base     = `${API}/api/audit/${client.id}/${specId}/artifact`
+        const base     = `/api/audit/${client.id}/${specId}/artifact`
         return fetch(existing ? `${base}/${existing.id}` : base, {
           method:  existing ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -270,7 +268,7 @@ export default function AuditExport() {
     setExporting(true)
     setError('')
     try {
-      const res = await fetch(`${API}/api/audit/${client.id}/export-docx/${specId}`, { method: 'POST' })
+      const res = await fetch(`/api/audit/${client.id}/export-docx/${specId}`, { method: 'POST' })
       if (!res.ok) throw new Error(await apiError(res))
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)

@@ -16,8 +16,6 @@ import {
 import '../components/EnvironmentProfile.css'
 import './AgentStudio.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const PILLAR_META = {
   governance: { label: 'Governance',       color: '#4A9FE0' },
   risk:       { label: 'Risk & Compliance', color: '#E8A838' },
@@ -118,7 +116,7 @@ function AgentDesignPanel({ agent, client, vertical, tools, onClose, onAddToBack
 
   useEffect(() => {
     setLoading(true); setReply(''); setVisuals([])
-    fetch(`${API}/api/agents/design`, {
+    fetch(`/api/agents/design`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -417,7 +415,7 @@ export default function AgentStudio() {
     }
 
     setBacklogLoading(true)
-    fetch(`${API}/api/clients/${client.id}`)
+    fetch(`/api/clients/${client.id}`)
       .then(r => r.json())
       .then(data => {
         // Prefer environmentProfile as primary source; fall back to studioConfig
@@ -484,7 +482,7 @@ export default function AgentStudio() {
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         // Save environment fields to /environment endpoint (mapped field names)
-        const envRes = await fetch(`${API}/api/clients/${client.id}/environment`, {
+        const envRes = await fetch(`/api/clients/${client.id}/environment`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -500,7 +498,7 @@ export default function AgentStudio() {
           }),
         })
         // Save focusAreas (studio-specific) to /studio-config
-        const studioRes = await fetch(`${API}/api/clients/${client.id}/studio-config`, {
+        const studioRes = await fetch(`/api/clients/${client.id}/studio-config`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ focusAreas: fa }),
@@ -571,7 +569,7 @@ export default function AgentStudio() {
   async function addToBacklog(agent) {
     if (!client?.id) return
     try {
-      const res = await fetch(`${API}/api/clients/${client.id}/agents`, {
+      const res = await fetch(`/api/clients/${client.id}/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(agent),
@@ -587,7 +585,7 @@ export default function AgentStudio() {
   async function updateAgentStatus(agentId, newStatus) {
     if (!client?.id) return
     try {
-      const res = await fetch(`${API}/api/clients/${client.id}/agents/${agentId}`, {
+      const res = await fetch(`/api/clients/${client.id}/agents/${agentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -599,7 +597,7 @@ export default function AgentStudio() {
   async function removeFromBacklog(agentId) {
     if (!client?.id) return
     try {
-      const res = await fetch(`${API}/api/clients/${client.id}/agents/${agentId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/clients/${client.id}/agents/${agentId}`, { method: 'DELETE' })
       setBacklog((await res.json()).agentBacklog || [])
     } catch (err) { console.error('Remove error:', err) }
   }
@@ -633,7 +631,7 @@ export default function AgentStudio() {
     if (stage !== 'discover') setStage('discover')
     setViewMode('results')
     try {
-      const res = await fetch(`${API}/api/agents/discover`, {
+      const res = await fetch(`/api/agents/discover`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -664,7 +662,7 @@ export default function AgentStudio() {
 
       // Persist to Cosmos DB
       if (client?.id && !customDescription) {
-        await fetch(`${API}/api/clients/${client.id}/agent-recommendations`, {
+        await fetch(`/api/clients/${client.id}/agent-recommendations`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

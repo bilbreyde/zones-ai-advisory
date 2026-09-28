@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { LogIn } from 'lucide-react'
 import './Login.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -15,7 +13,7 @@ export default function Login() {
     setError('')
     setBusy(true)
     try {
-      const res = await fetch(`${API}/api/auth/login`, {
+      const res = await fetch(`/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),

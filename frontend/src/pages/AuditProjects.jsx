@@ -10,8 +10,6 @@ import {
 } from '../lib/controlDefinitions.js'
 import './AuditProjects.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const SPEC_NAMES = Object.fromEntries(SPECIALIZATIONS.map(s => [s.id, s.name]))
 const SPEC_SHORT = {
   'infra-db': 'Infra-DB', avd: 'AVD', vmware: 'AVS',
@@ -341,7 +339,7 @@ export default function AuditProjects() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${API}/api/audit/${client.id}/projects`)
+      const res = await fetch(`/api/audit/${client.id}/projects`)
       if (!res.ok) throw new Error(await apiError(res))
       setProjects(await res.json())
     } catch (err) {
@@ -361,7 +359,7 @@ export default function AuditProjects() {
   async function saveProject(form) {
     const isEdit = modal !== 'new'
     const res = await fetch(
-      isEdit ? `${API}/api/audit/${client.id}/projects/${modal.id}` : `${API}/api/audit/${client.id}/projects`,
+      isEdit ? `/api/audit/${client.id}/projects/${modal.id}` : `/api/audit/${client.id}/projects`,
       {
         method:  isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -381,7 +379,7 @@ export default function AuditProjects() {
   async function deleteProject(project) {
     setError('')
     try {
-      const res = await fetch(`${API}/api/audit/${client.id}/projects/${project.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/audit/${client.id}/projects/${project.id}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 404) throw new Error(await apiError(res))
       setProjects(prev => prev.filter(p => p.id !== project.id))
     } catch (err) {

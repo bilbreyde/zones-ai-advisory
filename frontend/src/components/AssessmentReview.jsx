@@ -6,8 +6,6 @@ import { BASE_QUESTIONS, getEnvironmentQuestions, PILLAR_META } from '../pages/a
 import EnvironmentProfile from './EnvironmentProfile.jsx'
 import './AssessmentReview.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 export default function AssessmentReview() {
   const { client, setClient } = useClient()
   const navigate = useNavigate()
@@ -33,7 +31,7 @@ export default function AssessmentReview() {
   useEffect(() => {
     if (!client?.id) { setLoading(false); return }
     setLoading(true)
-    fetch(`${API}/api/assessments/${client.id}`)
+    fetch(`/api/assessments/${client.id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { setAssessment(data); setLoading(false) })
       .catch(() => setLoading(false))
@@ -42,7 +40,7 @@ export default function AssessmentReview() {
   async function updateAnswer(pillar, questionId, answer) {
     setSaving(questionId)
     try {
-      const res = await fetch(`${API}/api/assessments/${client.id}/answer`, {
+      const res = await fetch(`/api/assessments/${client.id}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pillar, questionId, answer }),

@@ -9,8 +9,6 @@ import { getStalenessStatus, getCheckInQuestion } from '../lib/staleness.js'
 import '../components/EnvironmentProfile.css'
 import './Dashboard.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const PILLAR_META = [
   { id: 'governance',  label: 'Governance',       color: '#4A9FE0', icon: Shield        },
   { id: 'risk',        label: 'Risk & Compliance', color: '#E8A838', icon: AlertTriangle },
@@ -70,13 +68,13 @@ export default function Dashboard() {
     setNoteText('')
 
     // Fetch live assessment scores
-    fetch(`${API}/api/assessments/${client.id}`)
+    fetch(`/api/assessments/${client.id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setAssessment(data) })
       .catch(() => {})
 
     // Fetch session notes
-    fetch(`${API}/api/sessions/${client.id}`)
+    fetch(`/api/sessions/${client.id}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => {
         setSessions(data)
@@ -94,7 +92,7 @@ export default function Dashboard() {
     const scores = client.scores || {}
     const overallScore = client.overallScore ?? null
     const ctx = { name: client.name, scores, overallScore }
-    fetch(`${API}/api/chat`, {
+    fetch(`/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -113,7 +111,7 @@ export default function Dashboard() {
     if (!client) return
     setSavingNote(true)
     try {
-      await fetch(`${API}/api/sessions/${client.id}`, {
+      await fetch(`/api/sessions/${client.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -123,7 +121,7 @@ export default function Dashboard() {
         }),
       })
       // Refresh sessions list
-      const data = await fetch(`${API}/api/sessions/${client.id}`).then(r => r.json())
+      const data = await fetch(`/api/sessions/${client.id}`).then(r => r.json())
       setSessions(data)
       setNoteSaved(true)
       setTimeout(() => setNoteSaved(false), 2000)

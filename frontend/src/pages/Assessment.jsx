@@ -8,8 +8,6 @@ import { BASE_QUESTIONS, getEnvironmentQuestions, PILLAR_COLORS, PILLAR_LABELS, 
 import './Assessment.css'
 import '../components/EnvironmentProfile.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const DEPLOY_LABELS = {
   cloud_native: { icon: '☁️', label: 'Cloud Native' },
   hybrid:       { icon: '🔀', label: 'Hybrid' },
@@ -45,7 +43,7 @@ export default function Assessment() {
   useEffect(() => {
     if (!client) return
     setAnswers({})
-    fetch(`${API}/api/assessments/${client.id}`)
+    fetch(`/api/assessments/${client.id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.answers) return
@@ -90,7 +88,7 @@ export default function Assessment() {
   async function select(option) {
     setAnswers(prev => ({ ...prev, [q.id]: option }))
     try {
-      await fetch(`${API}/api/assessments/${client.id}/answer`, {
+      await fetch(`/api/assessments/${client.id}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pillar: activePillar, questionId: q.id, answer: option }),

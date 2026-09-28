@@ -1,5 +1,7 @@
 import express from "express"
-import cors from "cors"
+import { fileURLToPath } from "node:url"
+import { dirname, join } from "node:path"
+import { existsSync } from "node:fs"
 import "dotenv/config"
 import { openai } from "./openai.js"
 import { initDb } from "./db.js"
@@ -15,7 +17,6 @@ import { pruneExpiredSessions } from "./lib/sessions.js"
 import { fixMermaidChart } from "./utils/mermaid.js"
 
 const app = express()
-app.use(cors())
 app.use(express.json())
 
 const SYSTEM_PROMPT = `You are a senior AI strategy consultant at Zones Innovation Center with 15 years of enterprise AI advisory experience. You help Zones consultants and their clients analyse AI maturity assessment results across 5 pillars: Governance, Risk and Compliance, AI Strategy, Operations, and Enablement. You speak directly, make specific recommendations, and back everything up with reasoning. You do not hedge with generic statements.
@@ -943,6 +944,23 @@ Keep each section concise to avoid truncation. Mermaid chart MAX 6 nodes.
     res.status(500).json({ error: "Failed to generate blueprint", detail: err.message, visuals: [] })
   }
 })
+
+// Serve the built React app from the same origin as the API, so the SameSite=Strict session cookie
+// works. Only active when frontend/dist exists (production deploy, or after a local build).
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const frontendDist = join(__dirname, "../../frontend/dist")
+
+if (existsSync(frontendDist)) {
+  app.use(express.static(frontendDist))
+  // Client side routes (/audit-readiness, /clients, ...) get index.html; React Router takes over.
+  // Unmatched /api paths fall through to a JSON 404, never to index.html.
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api/")) return next()
+    res.sendFile(join(frontendDist, "index.html"))
+  })
+}
+
+app.use("/api", (req, res) => res.status(404).json({ error: "Not found" }))
 
 // Global error handler — catches errors passed via next(err)
 app.use((err, req, res, next) => {

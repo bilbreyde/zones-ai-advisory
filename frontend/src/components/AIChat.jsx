@@ -6,8 +6,6 @@ import ChatVisual, { ChatVisualWithNarrative } from './ChatVisual.jsx'
 import { getCheckInQuestion } from '../lib/staleness.js'
 import './AIChat.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 /* ── Dynamic starter generation ───────────────────────────────────────── */
 
 function getDynamicStarters(client, envProfile) {
@@ -88,7 +86,7 @@ export default function AIChat() {
   // Fetch assessment data for context
   useEffect(() => {
     if (!client?.id || assessmentCache[client.id]) return
-    fetch(`${API}/api/assessments/${client.id}`)
+    fetch(`/api/assessments/${client.id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setAssessmentCache(prev => ({ ...prev, [client.id]: data })) })
       .catch(() => {})
@@ -97,7 +95,7 @@ export default function AIChat() {
   // Fetch full client record for fresh environment profile
   useEffect(() => {
     if (!client?.id) { setEnvProfile(null); return }
-    fetch(`${API}/api/clients/${client.id}`)
+    fetch(`/api/clients/${client.id}`)
       .then(r => r.json())
       .then(data => setEnvProfile(data.environmentProfile || null))
       .catch(() => {})
@@ -176,7 +174,7 @@ export default function AIChat() {
         hasEnvProfile:    !!envProfile,
       })
 
-      const res = await fetch(`${API}/api/chat`, {
+      const res = await fetch(`/api/chat`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

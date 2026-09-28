@@ -4,8 +4,6 @@ import { X, Loader, Download } from 'lucide-react'
 import ChatVisual from './ChatVisual.jsx'
 import './ActionPlanPanel.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 export default function ActionPlanPanel({ item, client, onClose }) {
   const [isOpen,      setIsOpen]      = useState(false)
   const [loading,     setLoading]     = useState(true)
@@ -46,7 +44,7 @@ Include all of the following as structured visuals in a visuals array anchored t
 
 Make every recommendation specific to ${client?.name}'s actual scores: ${scoresJson}. Reference their specific gaps. This should read as a bespoke consulting deliverable, not a generic template.`
 
-    fetch(`${API}/api/chat`, {
+    fetch(`/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

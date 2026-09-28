@@ -9,7 +9,7 @@ React 18 + Vite frontend, Node.js 24 Express backend, Azure Cosmos DB, Azure Ope
 - React 18.3, React Router 6, Recharts, Framer Motion, Lucide React
 - Express 4, OpenAI npm SDK (Azure OpenAI), @azure/cosmos 4
 - Vite dev server on :5173, Express API on :3001
-- Azure Static Web Apps (frontend), Azure App Service (backend)
+- Azure App Service hosts both the Express API and the built frontend (single origin)
 - Cosmos DB NoSQL serverless — containers: clients, assessments
 
 ## Repo Structure
@@ -48,13 +48,14 @@ zones-ai-advisory/
 - Always handle Cosmos DB errors explicitly, never swallow them
 - All gpt-5.4 calls go through backend routes — never call OpenAI from frontend
 - Environment variables: backend reads from .env, frontend reads VITE_ prefixed vars
+- Frontend API calls use relative paths (`/api/...`) — never prefix them with a host
 - Git commits use conventional format: feat:, fix:, chore:
 
 ## Azure Resources (Don's Azure — subscription 7d70637f)
 - Resource Group: zones-ai-advisory (eastus2)
 - OpenAI: zones-ai-openai (gpt-5.4 deployed)
-- Backend: zones-ai-advisory-api (App Service, Node 24)
-- Frontend: zones-ai-advisory-web (Static Web App)
+- App: zones-ai-advisory-api (App Service, Node 24, plan zones-ai-advisory-plan B1) — serves the
+  API and the built frontend at https://zones-ai-advisory-api.azurewebsites.net
 - Cosmos DB: zones-ai-cosmos
 
 ## Cosmos DB Schema
@@ -149,6 +150,9 @@ Sign in sessions. `id` is the opaque session token, `type` is always "session". 
   AI generation, Word evidence export — see SPEC-audit-readiness.md
 
 ## Dev Commands
+In production everything runs on the App Service: Express serves /api and the React build from one
+origin. Locally, Vite on :5173 proxies /api to Express on :3001 — browse :5173.
+
 ```powershell
 # Backend
 cd backend && npm run dev
@@ -158,7 +162,22 @@ cd frontend && npm run dev
 
 # Seed Cosmos DB
 cd backend && npm run seed
+
+# User accounts (create, list, reset-password, delete) — run from the repo root after az login
+node backend/scripts/manage-users.mjs create <username>
 ```
+
+Express only serves the frontend when frontend/dist exists (built by deploy.yml, or manually with
+`cd frontend && npm run build`). Without it the App Service serves the API alone.
+
+## Deployment
+Push to main runs .github/workflows/deploy.yml (one job):
+1. `npm ci && npm run build` in frontend/ → frontend/dist
+2. `npm install` in backend/
+3. Zip `backend/` and `frontend/dist/` together, keeping the repo layout, so index.js finds the
+   build at `../../frontend/dist` exactly as it does locally
+4. `az webapp deploy` the zip; startup command is `node backend/src/index.js`
+5. Poll /api/health and / until both return 200
 
 ## Important Patterns
 ### Adding a new backend route

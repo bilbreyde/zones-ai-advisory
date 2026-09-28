@@ -194,21 +194,20 @@
 .user-pill-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-pill-name svg { color: var(--z-blue-bright); flex-shrink: 0; }
 
-.user-pill-actions { display: flex; gap: 4px; }
+.user-pill-actions { display: flex; flex-direction: column; gap: 2px; }
 
 .user-pill-btn {
-  flex: 1;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 6px;
-  border: 1px solid var(--z-border);
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--z-muted);
-  font-size: 11px;
-  white-space: nowrap;
+  font-size: 12px;
+  text-align: left;
 }
 
 .user-pill-btn:hover { background: var(--z-surface-2); color: var(--z-white); }

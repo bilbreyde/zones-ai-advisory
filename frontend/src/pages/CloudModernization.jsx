@@ -36,8 +36,6 @@ class CloudModErrorBoundary extends Component {
   }
 }
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const STAGES = [
   { id: 'setup',        label: 'Setup'       },
   { id: 'inventory',    label: 'Workloads'   },
@@ -161,7 +159,7 @@ export default function CloudModernization() {
   // ── Restore stored results ───────────────────────────────────────────────────
   useEffect(() => {
     if (!client) return
-    fetch(`${API}/api/cloud-modernization/clients/${client.id}/cloud-modernization`)
+    fetch(`/api/cloud-modernization/clients/${client.id}/cloud-modernization`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return
@@ -201,7 +199,7 @@ export default function CloudModernization() {
     setCsvError(''); setCsvParsing(true); setCsvPreview(null)
     try {
       const text = await file.text()
-      const res  = await fetch(`${API}/api/cloud-modernization/parse-csv`, {
+      const res  = await fetch(`/api/cloud-modernization/parse-csv`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ csv: text, clientName: client?.name }),
@@ -241,7 +239,7 @@ export default function CloudModernization() {
   async function runCalculator() {
     setCalcError(''); setCalcLoading(true)
     try {
-      const res = await fetch(`${API}/api/cloud-modernization/vmware-calculator`, {
+      const res = await fetch(`/api/cloud-modernization/vmware-calculator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -267,7 +265,7 @@ export default function CloudModernization() {
     if (!client) return
     setScoringError(''); setScoringLoading(true)
     try {
-      const res = await fetch(`${API}/api/cloud-modernization/score-workloads`, {
+      const res = await fetch(`/api/cloud-modernization/score-workloads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId: client.id, workloads, targetCloud, constraints, complianceReqs, haRequirement, drRequirement }),
@@ -285,7 +283,7 @@ export default function CloudModernization() {
     if (!client) return
     setBpError(''); setBpLoading(true)
     try {
-      const res = await fetch(`${API}/api/cloud-modernization/blueprint`, {
+      const res = await fetch(`/api/cloud-modernization/blueprint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -315,7 +313,7 @@ export default function CloudModernization() {
 
       console.log('Sending refinement, answers:', answeredQs.slice(0, 300))
 
-      const res = await fetch(`${API}/api/cloud-modernization/blueprint`, {
+      const res = await fetch(`/api/cloud-modernization/blueprint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -811,7 +809,7 @@ export default function CloudModernization() {
     if (!blueprint) return
     setGeneratingSoW(true)
     try {
-      const res = await fetch(`${API}/api/cloud-modernization/sow`, {
+      const res = await fetch(`/api/cloud-modernization/sow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1876,7 +1874,7 @@ export default function CloudModernization() {
                 if (!window.confirm('Regenerate the blueprint from scratch? This will replace the current blueprint.')) return
                 setBpLoading(true); setBpError('')
                 try {
-                  const res = await fetch(`${API}/api/cloud-modernization/blueprint`, {
+                  const res = await fetch(`/api/cloud-modernization/blueprint`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

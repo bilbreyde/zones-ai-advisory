@@ -4,8 +4,6 @@ import { X, Loader, FileText, CheckCircle } from 'lucide-react'
 import { PILLAR_COLORS } from '../pages/assessmentData.js'
 import './MeetingNotes.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const CHANGE_LABELS = {
   tool_add:          '+ Add tool',
   tool_remove:       '− Remove tool',
@@ -47,7 +45,7 @@ export default function MeetingNotes({ client, onComplete, onClose }) {
     setError(null)
     try {
       const participantList = participants.split(',').map(p => p.trim()).filter(Boolean)
-      const res = await fetch(`${API}/api/clients/${client.id}/meeting-notes`, {
+      const res = await fetch(`/api/clients/${client.id}/meeting-notes`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ notes, participants: participantList, meetingDate }),
@@ -72,7 +70,7 @@ export default function MeetingNotes({ client, onComplete, onClose }) {
     try {
       const profileChanges    = (extracted.profileChanges    || []).filter((_, i) => confirmedProfile.includes(i))
       const assessmentChanges = (extracted.assessmentChanges || []).filter((_, i) => confirmedAssessment.includes(i))
-      const res = await fetch(`${API}/api/clients/${client.id}/apply-changes`, {
+      const res = await fetch(`/api/clients/${client.id}/apply-changes`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({

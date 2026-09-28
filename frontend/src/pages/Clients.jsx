@@ -4,8 +4,6 @@ import { Edit2, X, Loader } from 'lucide-react'
 import { useClient } from '../ClientContext.jsx'
 import './Clients.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const STATUS_COLORS = {
   'In Progress': '#4A9FE0',
   'Completed':   '#3DBA7E',
@@ -38,13 +36,13 @@ function ClientModal({ client, onClose, onSave }) {
     setSaving(true)
     try {
       if (isEdit) {
-        await fetch(`${API}/api/clients/${client.id}`, {
+        await fetch(`/api/clients/${client.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         })
       } else {
-        await fetch(`${API}/api/clients`, {
+        await fetch(`/api/clients`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
@@ -131,7 +129,7 @@ export default function Clients() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API}/api/clients`)
+      const res = await fetch(`/api/clients`)
       if (!res.ok) throw new Error(`API returned ${res.status}`)
       setClients(await res.json())
     } catch (err) {

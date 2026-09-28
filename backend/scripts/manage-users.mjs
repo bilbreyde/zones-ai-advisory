@@ -42,14 +42,27 @@ function usage(message) {
   process.exit(1)
 }
 
+// Piped stdin (scripting): one shared reader, since a fresh readline per prompt would swallow the
+// lines buffered for the prompts after it.
+let pipedLines
+function nextPipedLine(question) {
+  process.stdout.write(question)
+  pipedLines ??= createInterface({ input: process.stdin })[Symbol.asyncIterator]()
+  return pipedLines.next().then(({ value, done }) => {
+    process.stdout.write('\n')
+    return done ? '' : value
+  })
+}
+
 function ask(question) {
+  if (!process.stdin.isTTY) return nextPipedLine(question)
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   return new Promise(res => rl.question(question, answer => { rl.close(); res(answer) }))
 }
 
 // Reads a line without echoing it. Falls back to a plain read when stdin is not a terminal.
 function askHidden(question) {
-  if (!process.stdin.isTTY) return ask(question)
+  if (!process.stdin.isTTY) return nextPipedLine(question)
   return new Promise((res, rej) => {
     process.stdout.write(question)
     const stdin = process.stdin

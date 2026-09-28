@@ -9,8 +9,6 @@ import { getControlsForSpecialization, controlKey } from '../lib/controlDefiniti
 import { SPECIALIZATION_CARDS, completionFor } from '../lib/specializationCards.js'
 import './AuditReadiness.css'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 const STATUS_ORDER  = ['not_started', 'in_progress', 'complete']
 const STATUS_LABELS = { not_started: 'Not Started', in_progress: 'In Progress', complete: 'Complete' }
 
@@ -181,7 +179,7 @@ export default function AuditReadiness() {
     setRecords({})
     setOverviewError('')
     setOverviewLoading(true)
-    fetch(`${API}/api/audit/${client.id}`)
+    fetch(`/api/audit/${client.id}`)
       .then(async r => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`)
         return r.json()
@@ -199,7 +197,7 @@ export default function AuditReadiness() {
     setProjectCounts(null)
     setDetailLoading(true)
 
-    fetch(`${API}/api/audit/${client.id}/${selectedId}`)
+    fetch(`/api/audit/${client.id}/${selectedId}`)
       .then(async r => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`)
         return r.json()
@@ -212,7 +210,7 @@ export default function AuditReadiness() {
       .finally(() => setDetailLoading(false))
 
     // Project counts come from the export summary; failure only hides the counts
-    fetch(`${API}/api/audit/${client.id}/export/${selectedId}`)
+    fetch(`/api/audit/${client.id}/export/${selectedId}`)
       .then(r => r.ok ? r.json() : null)
       .then(summary => {
         if (!summary) return
@@ -245,7 +243,7 @@ export default function AuditReadiness() {
   }
 
   function putControl(specializationId, moduleKey, controlId, patch) {
-    return fetch(`${API}/api/audit/${client.id}/${specializationId}/control`, {
+    return fetch(`/api/audit/${client.id}/${specializationId}/control`, {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
@@ -255,7 +253,7 @@ export default function AuditReadiness() {
   }
 
   async function fetchRecord(specializationId) {
-    const res = await fetch(`${API}/api/audit/${client.id}/${specializationId}`)
+    const res = await fetch(`/api/audit/${client.id}/${specializationId}`)
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`)
     return res.json()
   }

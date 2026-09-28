@@ -67,8 +67,6 @@ function ThemePicker() {
   )
 }
 
-const API = import.meta.env.VITE_API_URL || ''
-
 function ChangePasswordModal({ onClose }) {
   const [current, setCurrent] = useState('')
   const [next, setNext]       = useState('')
@@ -90,7 +88,7 @@ function ChangePasswordModal({ onClose }) {
     if (next !== confirm) return setError('New passwords do not match.')
     setBusy(true)
     try {
-      const res = await fetch(`${API}/api/auth/change-password`, {
+      const res = await fetch(`/api/auth/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword: current, newPassword: next }),
@@ -151,10 +149,10 @@ function UserPill() {
       </div>
       <div className="user-pill-actions">
         <button className="user-pill-btn" onClick={() => setShowPw(true)}>
-          <KeyRound size={13} /> Change password
+          <KeyRound size={15} /> Change password
         </button>
         <button className="user-pill-btn" onClick={signOut}>
-          <LogOut size={13} /> Sign out
+          <LogOut size={15} /> Sign out
         </button>
       </div>
       {showPw && <ChangePasswordModal onClose={() => setShowPw(false)} />}

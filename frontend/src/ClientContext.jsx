@@ -17,8 +17,7 @@ export function ClientProvider({ children }) {
     const id = clientId || client?.id
     if (!id) return
     try {
-      const apiBase = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${apiBase}/api/clients/${id}`)
+      const res = await fetch(`/api/clients/${id}`)
       if (res.ok) {
         const updated = await res.json()
         setClient(updated)
